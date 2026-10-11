@@ -1,0 +1,115 @@
+{
+  "written_at": "2026-10-09T08:45:11+00:00",
+  "sources": [
+    {
+      "name": "Open Prices",
+      "files": [
+        "raw/prices.parquet"
+      ],
+      "url": "https://huggingface.co/datasets/openfoodfacts/open-prices",
+      "license": "ODbL 1.0 - credit Open Prices; modified databases must stay ODbL",
+      "used_for": "US shelf prices, discounts and price dates",
+      "data_label": "REAL_OBSERVED",
+      "downloaded": "2026-10-06",
+      "files_present": true
+    },
+    {
+      "name": "Open Food Facts",
+      "files": [
+        "raw/en.openfoodfacts.org.products.csv.gz"
+      ],
+      "url": "https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz",
+      "license": "ODbL 1.0 (database); product images CC BY-SA",
+      "used_for": "food product names, brands, categories, images",
+      "data_label": "REAL_OBSERVED",
+      "downloaded": "2026-10-06",
+      "files_present": true
+    },
+    {
+      "name": "Open Beauty Facts",
+      "files": [
+        "raw/en.openbeautyfacts.org.products.csv.gz"
+      ],
+      "url": "https://static.openbeautyfacts.org/data/en.openbeautyfacts.org.products.csv.gz",
+      "license": "ODbL 1.0 (database); product images CC BY-SA",
+      "used_for": "personal care product details",
+      "data_label": "REAL_OBSERVED",
+      "downloaded": "2026-10-06",
+      "files_present": true
+    },
+    {
+      "name": "Open Products Facts",
+      "files": [
+        "raw/en.openproductsfacts.org.products.csv.gz"
+      ],
+      "url": "https://static.openproductsfacts.org/data/en.openproductsfacts.org.products.csv.gz",
+      "license": "ODbL 1.0 (database); product images CC BY-SA",
+      "used_for": "household product details",
+      "data_label": "REAL_OBSERVED",
+      "downloaded": "2026-10-06",
+      "files_present": true
+    },
+    {
+      "name": "US CPI (Bureau of Labor Statistics)",
+      "files": [
+        "raw/cu.data.0.Current",
+        "raw/cu.item"
+      ],
+      "url": "https://download.bls.gov/pub/time.series/cu/",
+      "license": "Public domain (U.S. government work); citation requested",
+      "used_for": "monthly price changes per product category",
+      "data_label": "PUBLIC_STATISTIC",
+      "downloaded": "2026-10-06",
+      "files_present": true
+    },
+    {
+      "name": "Instacart Online Grocery Shopping Dataset 2017",
+      "files": [
+        "raw/instacart/orders.csv",
+        "raw/instacart/order_products__prior.csv"
+      ],
+      "url": "https://www.kaggle.com/c/instacart-market-basket-analysis",
+      "license": "Non-commercial use only; do not redistribute the raw files",
+      "used_for": "shopper behaviour: basket size, visit gaps, reorders, departments",
+      "data_label": "REAL_OBSERVED",
+      "downloaded": "2026-10-06",
+      "files_present": true
+    },
+    {
+      "name": "UCI Online Retail II",
+      "files": [
+        "raw/online_retail_II.xlsx"
+      ],
+      "url": "https://archive.ics.uci.edu/dataset/502/online+retail+ii",
+      "license": "CC BY 4.0",
+      "used_for": "reference only (UK wholesale); NOT used for shopper behaviour",
+      "data_label": "REAL_OBSERVED",
+      "downloaded": "2026-10-06",
+      "files_present": true
+    },
+    {
+      "name": "India CPI, base 2024 (MoSPI)",
+      "files": [
+        "processed/cpi_india.csv"
+      ],
+      "url": "https://api.mospi.gov.in/api/cpi/getCPIData",
+      "license": "Government of India data - credit MoSPI; exact API terms not verified",
+      "used_for": "kept for a future Indian store; NOT used by RETINA Mart",
+      "data_label": "PUBLIC_STATISTIC",
+      "downloaded": "2026-10-06",
+      "files_present": true
+    },
+    {
+      "name": "webscraper.io e-commerce test site",
+      "files": [
+        "raw/products.csv"
+      ],
+      "url": "https://webscraper.io/test-sites/e-commerce/static",
+      "license": "Public practice site built for scraping exercises",
+      "used_for": "learning module only (scraping/scraper.py)",
+      "data_label": "SIMULATED",
+      "downloaded": "2026-10-06",
+      "files_present": true
+    }
+  ]
+}

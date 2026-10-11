@@ -1,0 +1,100 @@
+{
+ "day": 30,
+ "results": [
+  {
+   "provider": "groq",
+   "items": 57,
+   "answered": 57,
+   "seconds": 75,
+   "llm_stay_after_+20%": 0.526,
+   "llm_elasticity": -3.52,
+   "engine_stay_after_+20%": 0.585,
+   "engine_elasticity": -2.94,
+   "llm_elasticity_by_sensitivity": {
+    "not very price-sensitive": -2.08,
+    "somewhat price-sensitive": -25.26,
+    "very price-sensitive": -4.12
+   },
+   "picks_real_best_seller": {
+    "llm": 0.339,
+    "engine": 0.037,
+    "random": 0.2,
+    "items": 56
+   },
+   "picks_usual_product": {
+    "llm": 0.275,
+    "engine": 0.526
+   },
+   "picks_deal": {
+    "llm": 0.37,
+    "engine": 0.115
+   },
+   "agrees_with_engine": 0.246,
+   "random_agreement": 0.2,
+   "skips": 0.0
+  },
+  {
+   "provider": "gemini",
+   "items": 57,
+   "answered": 40,
+   "seconds": 46,
+   "llm_stay_after_+20%": 0.7,
+   "llm_elasticity": -1.96,
+   "engine_stay_after_+20%": 0.513,
+   "engine_elasticity": -3.66,
+   "llm_elasticity_by_sensitivity": {
+    "not very price-sensitive": 0.0,
+    "somewhat price-sensitive": 0.0,
+    "very price-sensitive": -2.22
+   },
+   "picks_real_best_seller": {
+    "llm": 0.3,
+    "engine": 0.053,
+    "random": 0.2,
+    "items": 40
+   },
+   "picks_usual_product": {
+    "llm": 0.484,
+    "engine": 0.552
+   },
+   "picks_deal": {
+    "llm": 0.308,
+    "engine": 0.108
+   },
+   "agrees_with_engine": 0.25,
+   "random_agreement": 0.2,
+   "skips": 0.0
+  },
+  {
+   "provider": "ollama",
+   "items": 57,
+   "answered": 2,
+   "seconds": 574,
+   "llm_stay_after_+20%": 1.0,
+   "llm_elasticity": 0.0,
+   "engine_stay_after_+20%": 0.621,
+   "engine_elasticity": -2.61,
+   "llm_elasticity_by_sensitivity": {
+    "somewhat price-sensitive": 0.0
+   },
+   "picks_real_best_seller": {
+    "llm": 0.5,
+    "engine": 0.0,
+    "random": 0.2,
+    "items": 2
+   },
+   "picks_usual_product": {
+    "llm": 1.0,
+    "engine": 1.0
+   },
+   "picks_deal": {
+    "llm": 0.0,
+    "engine": 0.0
+   },
+   "agrees_with_engine": 0.5,
+   "random_agreement": 0.2,
+   "skips": 0.0
+  }
+ ],
+ "data_label": "SIMULATED"
+}

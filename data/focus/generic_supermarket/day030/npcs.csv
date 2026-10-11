@@ -1,0 +1,11 @@
+shopper_id,name,age,household,income,price_sensitivity,mission,trip_budget,items,engine_spend,llm_spend,llm_answered,llm_source,cached
+43,Elena P.,47,lives alone,lower income,not very price-sensitive,routine,51.99,2,10.96,6.02,2,groq/openai/gpt-oss-120b,True
+2103,David D.,63,lives alone,lower-middle income,not very price-sensitive,routine,50.16,7,38.99,24.82,7,groq/openai/gpt-oss-120b,True
+1402,Omar P.,32,lives alone,middle income,somewhat price-sensitive,stock_up,112.23,5,30.53,36.43,5,groq/openai/gpt-oss-120b,True
+2063,Emma D.,67,lives alone,higher income,not very price-sensitive,routine,80.53,7,49.4,42.71,7,groq/openai/gpt-oss-120b,True
+1436,Chloe T.,39,shops for a home of 2 adults,lower-middle income,somewhat price-sensitive,routine,87.67,2,34.45,6.56,2,groq/openai/gpt-oss-120b,True
+2030,David C.,52,shops for a home of 2 adults,upper-middle income,somewhat price-sensitive,routine,113.46,9,51.84,36.18,9,groq/openai/gpt-oss-120b,True
+1575,Beth W.,32,"shops for a home of 3 (2 adults, 1 child)",lower income,very price-sensitive,routine,300.36,3,11.7,11.01,3,groq/openai/gpt-oss-120b,True
+1946,Aisha W.,46,shops for a home of 3 adults,higher income,not very price-sensitive,routine,171.39,14,50.95,64.46,14,gemini/gemini-3.5-flash-lite,True
+1293,Owen M.,45,"shops for a home of 4 (2 adults, 2 children)",higher income,not very price-sensitive,routine,200.11,7,34.48,37.66,7,gemini/gemini-3.5-flash-lite,True
+1959,Brian D.,30,"shops for a home of 5 (2 adults, 3 children)",higher income,very price-sensitive,routine,226.44,13,73.04,65.52,13,gemini/gemini-3.5-flash-lite,True

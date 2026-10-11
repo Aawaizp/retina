@@ -1,0 +1,16 @@
+RETINA focus group - day 30 - 10 NPCs, 69 list items (SIMULATED)
+LLM answered 69 of 69 items (100%); the rest kept the engine's choice
+Same product as the engine: 23% of items the engine bought
+LLM skipped: 1% | engine did not buy: 4%
+Picked a deal when one was offered: LLM 26% vs engine 3%
+Picked a product bought before: LLM 39% vs engine 51%
+When both bought: LLM chose cheaper 51% | dearer 25% | same price 25%
+Trip spend: LLM $331.37 vs engine $386.34 | LLM over the trip budget: 0 of 10 NPCs
+LLM chose cheaper than the engine, by price sensitivity: not very price-sensitive 32% | somewhat price-sensitive 73% | very price-sensitive 69%
+Examples:
+  Elena P.: fresh fruits -> LLM Banana, 3 lb $2.43 | engine Organic Diced Avocado | "Cheap, familiar, fits weekly fruit need"
+  Elena P.: water seltzer sparkling water -> LLM Lime Sparkling Water $3.59 | engine Lime Sparkling Water | "Preferred flavor, good price, repeat purchase"
+  David D.: packaged vegetables fruits -> LLM Organic Baby Spinach, 16 oz $3.91 | engine Organic Baby Spinach, 16 oz | "Favorite spinach, affordable and familiar"
+  David D.: fresh vegetables -> LLM Brussels Sprouts $5.02 | engine Brussels Sprouts | "Loved Brussels sprouts, good nutrition"
+  David D.: fresh vegetables -> LLM YELLOW ONIONS $4.01 | engine Asparagus | "Essential onion for many meals"
+  David D.: fresh vegetables -> LLM Organic Garlic, 3 ct $2.98 | engine YELLOW ONIONS | "Garlic adds flavor, cheap"

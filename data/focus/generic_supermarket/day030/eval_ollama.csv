@@ -1,0 +1,58 @@
+shopper_id,name,item,aisle,price_sensitivity,options,answered,llm_pick,llm_price,llm_usual,llm_deal,deal_offered,usual_offered,engine_bought,agree,llm_reason,engine_usual,engine_deal,real_best_offered,llm_picked_real_best,engine_real_best,random_p_real_best,engine_stay_ratio,llm_stayed,llm_test_pick,data_label
+43,Elena P.,1,fresh fruits,not very price-sensitive,5,False,,,False,False,True,True,7559,False,,True,False,True,False,False,0.2,,,,SIMULATED
+43,Elena P.,2,water seltzer sparkling water,not very price-sensitive,5,False,,,False,False,True,True,14207,False,,True,False,True,False,False,0.2,,,,SIMULATED
+667,Naomi F.,1,canned meals beans,somewhat price-sensitive,5,True,"Black Beans, Dry, Organic, 16 oz",6.22,False,False,True,False,19045,False,"Organic, 16 oz, best value for beans",False,False,True,True,False,0.2,0.6513636269670654,True,"Black Beans, Dry, Organic, 16 oz",SIMULATED
+667,Naomi F.,2,hot dogs bacon sausage,somewhat price-sensitive,5,True,SMOKED CHICKEN & APPLE CHICKEN SAUSAGE,5.95,True,False,False,True,16309,True,"Favorite sausage, bought before",True,False,True,False,False,0.2,0.5913772722353889,True,SMOKED CHICKEN & APPLE CHICKEN SAUSAGE,SIMULATED
+306,Olivia T.,1,packaged vegetables fruits,not very price-sensitive,5,False,,,False,False,True,True,5864,False,,True,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,2,packaged vegetables fruits,not very price-sensitive,5,False,,,False,False,True,True,5462,False,,False,True,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,3,packaged vegetables fruits,not very price-sensitive,5,False,,,False,False,True,True,6965,False,,True,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,4,asian foods,not very price-sensitive,5,False,,,False,False,True,False,18330,False,,False,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,5,asian foods,not very price-sensitive,5,False,,,False,False,True,False,19121,False,,False,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,6,fresh fruits,not very price-sensitive,5,False,,,False,False,True,True,6974,False,,True,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,7,fresh fruits,not very price-sensitive,5,False,,,False,False,True,True,344,False,,True,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,8,poultry counter,not very price-sensitive,5,False,,,False,False,False,False,3535,False,,False,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,9,hot dogs bacon sausage,not very price-sensitive,5,False,,,False,False,False,True,11013,False,,False,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,10,marinades meat preparation,not very price-sensitive,5,False,,,False,False,True,False,15199,False,,False,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,11,hot cereal pancake mixes,not very price-sensitive,5,False,,,False,False,True,True,5071,False,,False,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,12,bread,not very price-sensitive,5,False,,,False,False,True,True,20731,False,,False,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,13,tea,not very price-sensitive,5,False,,,False,False,True,False,252,False,,False,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,14,cocoa drink mixes,not very price-sensitive,5,False,,,False,False,True,False,8574,False,,False,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,15,oral hygiene,not very price-sensitive,5,False,,,False,False,True,False,18008,False,,False,False,,,,,,,,SIMULATED
+306,Olivia T.,16,frozen dessert,not very price-sensitive,5,False,,,False,False,True,True,6766,False,,False,False,True,False,False,0.2,,,,SIMULATED
+306,Olivia T.,17,doughs gelatins bake mixes,not very price-sensitive,5,False,,,False,False,True,False,4150,False,,False,True,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,1,packaged vegetables fruits,very price-sensitive,5,False,,,False,False,True,True,5544,False,,True,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,2,fresh vegetables,very price-sensitive,5,False,,,False,False,True,True,-1,False,,,,True,False,,0.2,,,,SIMULATED
+629,Luis S.,3,fresh vegetables,very price-sensitive,5,False,,,False,False,True,True,-1,False,,,,True,False,,0.2,,,,SIMULATED
+629,Luis S.,4,asian foods,very price-sensitive,5,False,,,False,False,True,False,19120,False,,False,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,5,asian foods,very price-sensitive,5,False,,,False,False,True,False,4155,False,,False,True,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,6,asian foods,very price-sensitive,5,False,,,False,False,True,False,5802,False,,False,True,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,7,fresh fruits,very price-sensitive,5,False,,,False,False,True,True,344,False,,True,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,8,preserved dips spreads,very price-sensitive,5,False,,,False,False,True,True,12617,False,,True,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,9,condiments,very price-sensitive,5,False,,,False,False,True,True,15130,False,,False,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,10,chips pretzels,very price-sensitive,5,False,,,False,False,True,True,8454,False,,True,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,11,bread,very price-sensitive,5,False,,,False,False,True,True,62,False,,True,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,12,yogurt,very price-sensitive,5,False,,,False,False,True,True,11952,False,,True,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,13,yogurt,very price-sensitive,5,False,,,False,False,True,True,11952,False,,True,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,14,packaged cheese,very price-sensitive,5,False,,,False,False,True,True,6891,False,,False,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,15,packaged cheese,very price-sensitive,5,False,,,False,False,True,True,11897,False,,True,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,16,frozen appetizers sides,very price-sensitive,5,False,,,False,False,True,False,8983,False,,False,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,17,frozen vegan vegetarian,very price-sensitive,5,False,,,False,False,True,True,7208,False,,False,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,18,eggs,very price-sensitive,5,False,,,False,False,True,True,9721,False,,True,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,19,frozen dessert,very price-sensitive,5,False,,,False,False,True,True,7165,False,,True,False,True,False,True,0.2,,,,SIMULATED
+629,Luis S.,20,frozen meals,very price-sensitive,5,False,,,False,False,True,False,8810,False,,False,True,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,21,ice cream ice,very price-sensitive,5,False,,,False,False,True,False,9103,False,,False,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,22,grains rice dried goods,very price-sensitive,5,False,,,False,False,True,True,19876,False,,False,False,True,False,False,0.2,,,,SIMULATED
+629,Luis S.,23,soup broth bouillon,very price-sensitive,5,False,,,False,False,True,True,21474,False,,False,False,True,False,False,0.2,,,,SIMULATED
+1959,Brian D.,1,packaged vegetables fruits,very price-sensitive,5,False,,,False,False,True,True,6,False,,True,False,True,False,True,0.2,,,,SIMULATED
+1959,Brian D.,2,packaged vegetables fruits,very price-sensitive,5,False,,,False,False,True,True,17221,False,,False,False,True,False,False,0.2,,,,SIMULATED
+1959,Brian D.,3,fresh vegetables,very price-sensitive,5,False,,,False,False,True,True,7470,False,,False,False,True,False,False,0.2,,,,SIMULATED
+1959,Brian D.,4,fresh fruits,very price-sensitive,5,False,,,False,False,True,True,6974,False,,True,False,True,False,False,0.2,,,,SIMULATED
+1959,Brian D.,5,fresh fruits,very price-sensitive,5,False,,,False,False,True,True,12850,False,,True,False,True,False,False,0.2,,,,SIMULATED
+1959,Brian D.,6,fresh herbs,very price-sensitive,5,False,,,False,False,True,True,17930,False,,False,False,True,False,False,0.2,,,,SIMULATED
+1959,Brian D.,7,baking ingredients,very price-sensitive,5,False,,,False,False,True,True,13715,False,,False,True,True,False,False,0.2,,,,SIMULATED
+1959,Brian D.,8,marinades meat preparation,very price-sensitive,5,False,,,False,False,True,False,4298,False,,False,False,True,False,False,0.2,,,,SIMULATED
+1959,Brian D.,9,cereal,very price-sensitive,5,False,,,False,False,True,True,7632,False,,False,False,True,False,False,0.2,,,,SIMULATED
+1959,Brian D.,10,frozen produce,very price-sensitive,5,False,,,False,False,True,True,8206,False,,False,False,True,False,False,0.2,,,,SIMULATED
+1959,Brian D.,11,soy lactosefree,very price-sensitive,5,False,,,False,False,True,True,14635,False,,False,False,True,False,False,0.2,,,,SIMULATED
+1959,Brian D.,12,other creams cheeses,very price-sensitive,5,False,,,False,False,True,False,12110,False,,False,False,True,False,False,0.2,,,,SIMULATED
+1959,Brian D.,13,butter,very price-sensitive,5,False,,,False,False,True,True,4426,False,,False,False,True,False,False,0.2,,,,SIMULATED

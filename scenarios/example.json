@@ -1,0 +1,44 @@
+{
+    "name": "Example: one of each change type",
+    "description": "Shows every kind of change RETINA can test. Product IDs come from store_catalog.parquet.",
+    "days": 140,
+    "changes": [
+        {
+            "type": "price",
+            "product_id": "4099100134360",
+            "change_pct": 20,
+            "start": "2025-11-03",
+            "note": "Italian Mineral Water 20% dearer from 3 Nov"
+        },
+        {
+            "type": "promotion",
+            "product_id": "0096619656493",
+            "discount_pct": 20,
+            "start": "2025-11-03",
+            "end": "2025-11-17",
+            "note": "Organic Tortilla Chips 20% off for 2 weeks"
+        },
+        {
+            "type": "promotion",
+            "product_id": "0041190065882",
+            "discount_pct": 15,
+            "segment": "high_sensitivity",
+            "start": "2025-11-03",
+            "end": "2025-12-01",
+            "note": "Spring Water 405.6 fl oz 15% off, only for price-sensitive shoppers (Diet Coke sold too few units to judge)"
+        },
+        {
+            "type": "remove",
+            "product_id": "0071921913816",
+            "start": "2025-11-03",
+            "note": "Frozen Pizza taken off the shelves"
+        },
+        {
+            "type": "inventory",
+            "product_id": "0066022009025",
+            "safety_days": 0,
+            "start": "2025-11-03",
+            "note": "Organic Hass Avocado: no safety stock"
+        }
+    ]
+}

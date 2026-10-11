@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Raw downloads: big, and some (Instacart) may not be redistributed
+data/raw/
+
+# Generated outputs (rebuild with the commands in README.md)
+data/simulated/
+data/live/
+data/export/
+data/experiments/
+data/focus/*/llm_cache.json
+
+# Per-shopper statistics derived from Instacart: keep local (Instacart terms: no redistribution).
+# Without it RETINA draws habits from the published distributions instead (still runs).
+data/processed/instacart_shopper_profiles.csv
+
+# Big files RETINA Mart does not use
+data/processed/transactions.csv
+data/processed/cpi_india.csv
+data/processed/off_brand_kinds_partial.csv
+
+# Local backups made while building
+_backup_before_*/
+
+# Secrets: keys belong in environment variables, never in files
+.env
+*.key
+
+# Private working notes (local paths, working style)
+RETINA_CONTEXT.md

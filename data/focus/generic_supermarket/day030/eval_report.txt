@@ -1,0 +1,20 @@
+RETINA LLM shopper tests - day 30, 5 NPCs, 57 list items (SIMULATED)
+
+test                                                  groq      gemini      ollama      engine    random
+1. still buys it after +20% price                      53%         70%        100%         58%          
+   price elasticity (research: about -2.5)           -3.52       -1.96       +0.00       -2.94          
+   elasticity, not very price-sensitive              -2.08       +0.00           -                      
+   elasticity, somewhat price-sensitive             -25.26       +0.00       +0.00                      
+   elasticity, very price-sensitive                  -4.12       -2.22           -                      
+2. picks the real best seller (Instacart)              34%         30%         50%          4%       20%
+3. picks their usual product (when offered)            28%         48%        100%         53%          
+   picks a deal (when offered)                         37%         31%          0%         12%          
+   same product as the engine's trip                   25%         25%         50%                   20%
+   skips the item                                       0%          0%          0%                      
+   answered / items                                  57/57       40/57        2/57
+   time (seconds, 0 = all saved)                        75          46         574
+
+How to read it: 'engine' = RETINA's statistical NPC (test 1: its choice rule on exactly the same
+options; tests 2-3: what it actually bought on its trip), 'random' = picking an option blindly. Elasticity: % change in choices for
+a 1% price rise (-2.5 means a 20% dearer product loses about 37% of its buyers). Small samples: these
+are early signals, not proof.

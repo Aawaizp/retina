@@ -1,0 +1,107 @@
+{
+  "note": "Each product belongs to one department (catalog column 'department'). Shares are real Instacart department shares, rescaled after dropping departments with too few products.",
+  "departments": {
+    "produce": {
+      "instacart_share": 0.29226,
+      "n_products": 1012,
+      "share": 0.29834
+    },
+    "dairy eggs": {
+      "instacart_share": 0.16692,
+      "n_products": 2176,
+      "share": 0.17039
+    },
+    "snacks": {
+      "instacart_share": 0.08903,
+      "n_products": 3637,
+      "share": 0.09088
+    },
+    "beverages": {
+      "instacart_share": 0.08294,
+      "n_products": 2747,
+      "share": 0.08467
+    },
+    "frozen": {
+      "instacart_share": 0.06895,
+      "n_products": 2882,
+      "share": 0.07039
+    },
+    "pantry": {
+      "instacart_share": 0.05783,
+      "n_products": 4628,
+      "share": 0.05903
+    },
+    "bakery": {
+      "instacart_share": 0.03628,
+      "n_products": 661,
+      "share": 0.03704
+    },
+    "canned goods": {
+      "instacart_share": 0.03293,
+      "n_products": 1502,
+      "share": 0.03362
+    },
+    "deli": {
+      "instacart_share": 0.03241,
+      "n_products": 557,
+      "share": 0.03308
+    },
+    "dry goods pasta": {
+      "instacart_share": 0.02672,
+      "n_products": 1142,
+      "share": 0.02728
+    },
+    "household": {
+      "instacart_share": 0.02277,
+      "n_products": 95,
+      "share": 0.02324
+    },
+    "breakfast": {
+      "instacart_share": 0.02188,
+      "n_products": 556,
+      "share": 0.02234
+    },
+    "meat seafood": {
+      "instacart_share": 0.02186,
+      "n_products": 622,
+      "share": 0.02232
+    },
+    "personal care": {
+      "instacart_share": 0.01379,
+      "n_products": 407,
+      "share": 0.01408
+    },
+    "international": {
+      "instacart_share": 0.0083,
+      "n_products": 784,
+      "share": 0.00847
+    },
+    "alcohol": {
+      "instacart_share": 0.00474,
+      "n_products": 351,
+      "share": 0.00484
+    }
+  },
+  "dropped": {
+    "babies": {
+      "instacart_share": 0.01307,
+      "n_products": 0
+    },
+    "pets": {
+      "instacart_share": 0.00301,
+      "n_products": 0
+    },
+    "missing": {
+      "instacart_share": 0.00213,
+      "n_products": 0
+    },
+    "other": {
+      "instacart_share": 0.00112,
+      "n_products": 0
+    },
+    "bulk": {
+      "instacart_share": 0.00107,
+      "n_products": 0
+    }
+  }
+}

@@ -1,0 +1,1254 @@
+{
+ "43": {
+  "facts": {
+   "shopper_id": 43,
+   "name": "Elena P.",
+   "age": 47,
+   "household_size": 1,
+   "kids": 0,
+   "income": "lower income",
+   "weekly_food_budget": 52,
+   "items_per_trip": 3.0,
+   "days_between_trips": 7.0,
+   "repeat_buying": "75%",
+   "price_sensitivity": "not very price-sensitive",
+   "favorite_day": "Tuesday",
+   "habit_products": [
+    "Lime Sparkling Water (beverages)",
+    "Organic Diced Avocado (produce)"
+   ],
+   "recent_products": [
+    "Lime Sparkling Water (beverages)",
+    "Organic Diced Avocado (produce)",
+    "Banana, 3 lb (produce)"
+   ],
+   "top_departments": [
+    "beverages 50%",
+    "produce 50%"
+   ]
+  },
+  "bio": "Elena P., 47, lives alone and shops weekly on Tuesdays. She likes a quick stop for a few items.",
+  "shopping_style": "Small, focused trips",
+  "cares_about": [
+   "Beverages",
+   "Produce",
+   "Convenience"
+  ],
+  "quote": "Just the lime water and avocado, please.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "6e625e73342afbf1"
+ },
+ "576": {
+  "facts": {
+   "shopper_id": 576,
+   "name": "Derek N.",
+   "age": 67,
+   "household_size": 1,
+   "kids": 0,
+   "income": "middle income",
+   "weekly_food_budget": 60,
+   "items_per_trip": 18.6,
+   "days_between_trips": 26.2,
+   "repeat_buying": "26%",
+   "price_sensitivity": "somewhat price-sensitive",
+   "favorite_day": "Friday",
+   "habit_products": [
+    "Organic Garlic, 3 ct",
+    "Organic Hass Avocados, 3 count",
+    "Greek Yogurt Black Cherry on the Bottom",
+    "Blue Machine Juice Smoothie",
+    "Organic Reduced fat milk"
+   ],
+   "recent_products": [
+    "Organic Diced Avocado",
+    "Green Beans, 12 oz",
+    "Organic Hass Avocado, 4 ct",
+    "Organic Broccoli, 85 g",
+    "Banana, 3 lb"
+   ],
+   "top_departments": [
+    "produce 35%",
+    "dairy eggs 23%",
+    "beverages 15%"
+   ]
+  },
+  "bio": "Derek N., 67, lives alone. Middle income home with about $60 a week for food; shops about every 26 days, around 19 items a trip.",
+  "shopping_style": "Steady regular - mostly the usual items, notices big deals",
+  "cares_about": [
+   "favourite brands",
+   "produce",
+   "quick meals"
+  ],
+  "quote": "I always grab Organic Garlic, 3 ct.",
+  "source": "template",
+  "prompt_version": 1,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "21acce5014d66b4a"
+ },
+ "1351": {
+  "facts": {
+   "shopper_id": 1351,
+   "name": "Ana W.",
+   "age": 28,
+   "household_size": 2,
+   "kids": 1,
+   "income": "lower-middle income",
+   "weekly_food_budget": 88,
+   "items_per_trip": 6.9,
+   "days_between_trips": 7.9,
+   "repeat_buying": "83%",
+   "price_sensitivity": "not very price-sensitive",
+   "favorite_day": "Sunday",
+   "habit_products": [
+    "Organic reduced fat milk",
+    "Organic Hass Avocado, 4 ct",
+    "12 Large Brown Eggs, 24 oz",
+    "Kettle Style Potato Chips Sweet Maui Oni",
+    "Zucchini, 1 large"
+   ],
+   "recent_products": [
+    "Zucchini, 1 large",
+    "Samyang buldak hot chicken flavor ramen",
+    "Organic reduced fat milk",
+    "Organic Hass Avocado, 4 ct",
+    "12 Large Brown Eggs, 24 oz"
+   ],
+   "top_departments": [
+    "dairy eggs 45%",
+    "produce 36%",
+    "snacks 10%"
+   ]
+  },
+  "bio": "Ana W., 28, shops for a home of 2 (1 adult, 1 child). Lower-middle income home with about $88 a week for food; shops about every 8 days, around 7 items a trip.",
+  "shopping_style": "Convenience first - buys what they like, rarely compares prices",
+  "cares_about": [
+   "favourite brands",
+   "dairy eggs",
+   "kids' food"
+  ],
+  "quote": "I always grab Organic reduced fat milk.",
+  "source": "template",
+  "prompt_version": 1,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "e1640c82a2ec2d11"
+ },
+ "659": {
+  "facts": {
+   "shopper_id": 659,
+   "name": "Lily P.",
+   "age": 54,
+   "household_size": 2,
+   "kids": 0,
+   "income": "higher income",
+   "weekly_food_budget": 141,
+   "items_per_trip": 14.5,
+   "days_between_trips": 14.5,
+   "repeat_buying": "74%",
+   "price_sensitivity": "not very price-sensitive",
+   "favorite_day": "Wednesday",
+   "habit_products": [
+    "Organic raspberries, 10 oz",
+    "Strawberries, 16 oz",
+    "Organic Hass Avocados, 3 count",
+    "Fat free milk",
+    "KS MENSJEAN"
+   ],
+   "recent_products": [
+    "Strawberries, 16 oz",
+    "KS MENSJEAN",
+    "Organic 2% milkfat reduced fat milk",
+    "Organic Hass Avocados, 3 count",
+    "HAMPTON WATER ROSÉ"
+   ],
+   "top_departments": [
+    "produce 49%",
+    "dairy eggs 19%",
+    "beverages 10%"
+   ]
+  },
+  "bio": "Lily P., 54, shops for a home of 2 adults. Higher income home with about $141 a week for food; shops about every 14 days, around 14 items a trip.",
+  "shopping_style": "Convenience first - buys what they like, rarely compares prices",
+  "cares_about": [
+   "favourite brands",
+   "produce",
+   "family meals"
+  ],
+  "quote": "I always grab Organic raspberries, 10 oz.",
+  "source": "template",
+  "prompt_version": 1,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "8fb452e79e34342f"
+ },
+ "2096": {
+  "facts": {
+   "shopper_id": 2096,
+   "name": "Aisha V.",
+   "age": 37,
+   "household_size": 3,
+   "kids": 1,
+   "income": "higher income",
+   "weekly_food_budget": 171,
+   "items_per_trip": 3.3,
+   "days_between_trips": 30.0,
+   "repeat_buying": "67%",
+   "price_sensitivity": "somewhat price-sensitive",
+   "favorite_day": "Friday",
+   "habit_products": [
+    "Organic Large Grade AA Brown Eggs",
+    "Organic low fat milk",
+    "YELLOW ONIONS"
+   ],
+   "recent_products": [
+    "Bunny Grahams Neapolitan",
+    "Organic Large Grade AA Brown Eggs",
+    "Joseph california green seedless table g",
+    "Lotte Pepero Nude wj towel, 50 g",
+    "Organic Diced Avocado"
+   ],
+   "top_departments": [
+    "dairy eggs 61%",
+    "produce 22%",
+    "snacks 11%"
+   ]
+  },
+  "bio": "Aisha V., 37, shops for a home of 3 (2 adults, 1 child). Higher income home with about $171 a week for food; shops about every 30 days, around 3 items a trip.",
+  "shopping_style": "Steady regular - mostly the usual items, notices big deals",
+  "cares_about": [
+   "favourite brands",
+   "dairy eggs",
+   "kids' food"
+  ],
+  "quote": "I always grab Organic Large Grade AA Brown Eggs.",
+  "source": "template",
+  "prompt_version": 1,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "beadfae4aaf18fef"
+ },
+ "1959": {
+  "facts": {
+   "shopper_id": 1959,
+   "name": "Brian D.",
+   "age": 30,
+   "household_size": 5,
+   "kids": 3,
+   "income": "higher income",
+   "weekly_food_budget": 226,
+   "items_per_trip": 16.2,
+   "days_between_trips": 10.5,
+   "repeat_buying": "18%",
+   "price_sensitivity": "very price-sensitive",
+   "favorite_day": "Tuesday",
+   "habit_products": [
+    "Zucchini, 1 large (produce)",
+    "Banana, 3 lb (produce)",
+    "Asparagus (produce)",
+    "Organic strawberries, 40 oz (produce)",
+    "Organic Hass Avocado, 4 ct (produce)"
+   ],
+   "recent_products": [
+    "Flamin' Hot Crunchy, 425.2g, 15 oz (snacks)",
+    "'00' Pizza Flour (pantry)",
+    "Organic Grape Tomatoes (produce)",
+    "Zucchini, 1 large (produce)",
+    "DOUBLE CHOCOLATE PROTEIN BAR (snacks)"
+   ],
+   "top_departments": [
+    "produce 46%",
+    "dairy eggs 12%",
+    "frozen 7%"
+   ]
+  },
+  "bio": "Brian D., 30, shops roughly every 10 days, typically on Tuesdays, feeding a family of five. He focuses on fresh produce.",
+  "shopping_style": "High-volume, produce-centric",
+  "cares_about": [
+   "Freshness",
+   "Family meals",
+   "Variety"
+  ],
+  "quote": "Give me the best zucchini and strawberries.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "fa74cd669b1d4f2a"
+ },
+ "666": {
+  "facts": {
+   "shopper_id": 666,
+   "name": "Claire W.",
+   "age": 49,
+   "household_size": 1,
+   "kids": 0,
+   "income": "lower income",
+   "weekly_food_budget": 52,
+   "items_per_trip": 2.2,
+   "days_between_trips": 29.7,
+   "repeat_buying": "38%",
+   "price_sensitivity": "very price-sensitive",
+   "favorite_day": "Monday",
+   "habit_products": [
+    "Organic Apple Juice (beverages)",
+    "Banana, 3 lb (produce)",
+    "Organic Baby Spinach (produce)"
+   ],
+   "recent_products": [
+    "Fruit First Waffles (frozen)",
+    "Organic Apple Juice (beverages)",
+    "White Rice (dry goods pasta)",
+    "Organic light coconut milk (dairy eggs)",
+    "SPAGHETTI, 454g (dry goods pasta)"
+   ],
+   "top_departments": [
+    "produce 50%",
+    "beverages 17%",
+    "dry goods pasta 17%"
+   ]
+  },
+  "bio": "Claire W., 49, shops about once a month, usually on Mondays. She watches every cent.",
+  "shopping_style": "Price-driven, limited basket",
+  "cares_about": [
+   "Value",
+   "Produce",
+   "Beverages"
+  ],
+  "quote": "Do you have any specials on fruit?",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "c541d4ad95450e39"
+ },
+ "2103": {
+  "facts": {
+   "shopper_id": 2103,
+   "name": "David D.",
+   "age": 63,
+   "household_size": 1,
+   "kids": 0,
+   "income": "lower-middle income",
+   "weekly_food_budget": 50,
+   "items_per_trip": 5.1,
+   "days_between_trips": 8.7,
+   "repeat_buying": "71%",
+   "price_sensitivity": "not very price-sensitive",
+   "favorite_day": "Saturday",
+   "habit_products": [
+    "Brussels Sprouts (produce)",
+    "Organic Baby Spinach, 16 oz (produce)",
+    "PROTEIN PUCK (beverages)",
+    "Bluey Cereal (breakfast)",
+    "Sweet Potato Chips Sea Salt, 16 ounces (snacks)"
+   ],
+   "recent_products": [
+    "Organic Baby Spinach, 16 oz (produce)",
+    "Banana, 3 lb (produce)",
+    "Brussels Sprouts (produce)",
+    "Sweet Potato Chips Sea Salt, 16 ounces (snacks)",
+    "PROTEIN PUCK (beverages)"
+   ],
+   "top_departments": [
+    "produce 50%",
+    "beverages 17%",
+    "snacks 10%"
+   ]
+  },
+  "bio": "David D., 63, visits the store about every nine days, favoring Saturdays, to restock produce, snacks, and his Protein Puck beverage. He enjoys a mix of nutritious greens and convenient snack options.",
+  "shopping_style": "Weekly shopper stocking nutritious greens and snack items",
+  "cares_about": [
+   "nutrition",
+   "snacks",
+   "convenience"
+  ],
+  "quote": "I need my greens and protein shake for the week.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "bc4adc220ad9c56b"
+ },
+ "1083": {
+  "facts": {
+   "shopper_id": 1083,
+   "name": "Megan A.",
+   "age": 58,
+   "household_size": 1,
+   "kids": 0,
+   "income": "lower-middle income",
+   "weekly_food_budget": 50,
+   "items_per_trip": 8.9,
+   "days_between_trips": 20.6,
+   "repeat_buying": "28%",
+   "price_sensitivity": "very price-sensitive",
+   "favorite_day": "Monday",
+   "habit_products": [
+    "Banana, 3 lb (produce)",
+    "OG RED SEEDLESS GRAPES (produce)",
+    "Vector, 40 oz (breakfast)",
+    "unscented bathroom tissue (household)",
+    "Cultured milk kefir, 56 fl.oz (dairy eggs)"
+   ],
+   "recent_products": [
+    "Banana, 3 lb (produce)",
+    "unscented bathroom tissue (household)",
+    "Fancy snow peas, 6 oz (produce)",
+    "blueberry low-fat Yogurt (dairy eggs)",
+    "OG RED SEEDLESS GRAPES (produce)"
+   ],
+   "top_departments": [
+    "produce 44%",
+    "beverages 11%",
+    "dairy eggs 11%"
+   ]
+  },
+  "bio": "Megan A., 58, shops roughly every three weeks, typically on Mondays, focusing on low-cost essentials such as bananas, grapes, and unscented bathroom tissue. She watches prices while maintaining a healthy diet.",
+  "shopping_style": "Occasional price-savvy shopper buying bulk produce and basics",
+  "cares_about": [
+   "price",
+   "health",
+   "household basics"
+  ],
+  "quote": "I’m hunting for the lowest price on my staples.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "f7e049edabb4b7bc"
+ },
+ "1402": {
+  "facts": {
+   "shopper_id": 1402,
+   "name": "Omar P.",
+   "age": 32,
+   "household_size": 1,
+   "kids": 0,
+   "income": "middle income",
+   "weekly_food_budget": 60,
+   "items_per_trip": 2.8,
+   "days_between_trips": 16.9,
+   "repeat_buying": "59%",
+   "price_sensitivity": "somewhat price-sensitive",
+   "favorite_day": "Friday",
+   "habit_products": [
+    "Organic Tortilla Chips, 40 oz (snacks)",
+    "Three Cheese Omelets (dry goods pasta)",
+    "Tempura shrimp with sweet soy dipping sa (frozen)"
+   ],
+   "recent_products": [
+    "Tempura shrimp with sweet soy dipping sa (frozen)",
+    "Organic Tortilla Chips, 40 oz (snacks)",
+    "Salted Edamame In Pod (frozen)",
+    "Juicy Gels Strawberry, 13 oz (pantry)",
+    "Hidden valley ranch (alcohol)"
+   ],
+   "top_departments": [
+    "snacks 39%",
+    "dry goods pasta 22%",
+    "frozen 17%"
+   ]
+  },
+  "bio": "Omar P., 32, makes trips roughly every two weeks, favoring Fridays. He enjoys snack and frozen options.",
+  "shopping_style": "Mid-size, snack-focused",
+  "cares_about": [
+   "Snacks",
+   "Frozen foods",
+   "Variety"
+  ],
+  "quote": "Got any new tortilla chips?",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "1057f3642010ae07"
+ },
+ "667": {
+  "facts": {
+   "shopper_id": 667,
+   "name": "Naomi F.",
+   "age": 81,
+   "household_size": 1,
+   "kids": 0,
+   "income": "upper-middle income",
+   "weekly_food_budget": 65,
+   "items_per_trip": 3.5,
+   "days_between_trips": 27.3,
+   "repeat_buying": "33%",
+   "price_sensitivity": "somewhat price-sensitive",
+   "favorite_day": "Tuesday",
+   "habit_products": [
+    "Sparkling Natural Mineral Water, 750 ml (beverages)",
+    "unscented bathroom tissue (household)",
+    "Organic Green Peas, 85 g (frozen)",
+    "Whole Milk Yogurt Plain, 32 fl. oz (dairy eggs)",
+    "Coconut Water With Pressed Coconut, 500 (beverages)"
+   ],
+   "recent_products": [
+    "Sparkling Natural Mineral Water, 750 ml (beverages)",
+    "unscented bathroom tissue (household)",
+    "tart cherry finest yoghurt (dairy eggs)",
+    "Organic Macrobar Sunflower Butter + Choc (snacks)",
+    "SMOKED CHICKEN & APPLE CHICKEN SAUSAGE (meat seafood)"
+   ],
+   "top_departments": [
+    "beverages 33%",
+    "frozen 17%",
+    "dairy eggs 17%"
+   ]
+  },
+  "bio": "Naomi F., 81, shops about once a month, usually on Tuesdays, selecting premium beverages and household basics like sparkling mineral water and unscented tissue. She values quality and reliable hydration.",
+  "shopping_style": "Monthly shopper focused on quality beverages and essentials",
+  "cares_about": [
+   "quality",
+   "hydration",
+   "essentials"
+  ],
+  "quote": "I always make sure I have enough water and tissue.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "d718a43e020a66d0"
+ },
+ "2063": {
+  "facts": {
+   "shopper_id": 2063,
+   "name": "Emma D.",
+   "age": 67,
+   "household_size": 1,
+   "kids": 0,
+   "income": "higher income",
+   "weekly_food_budget": 81,
+   "items_per_trip": 5.5,
+   "days_between_trips": 13.1,
+   "repeat_buying": "65%",
+   "price_sensitivity": "not very price-sensitive",
+   "favorite_day": "Tuesday",
+   "habit_products": [
+    "Protein Almond Coconut Bar (snacks)",
+    "Granny Smith apples (produce)",
+    "Organic Egg Whites, 16 oz (dairy eggs)",
+    "Hamburger Buns (bakery)"
+   ],
+   "recent_products": [
+    "Protein Almond Coconut Bar (snacks)",
+    "Granny Smith apples (produce)",
+    "Organic Blue Corn Tortilla Chips (snacks)",
+    "unsweet Almondmilk, 64 fl oz (dairy eggs)",
+    "Chicken Breast Cutlets (meat seafood)"
+   ],
+   "top_departments": [
+    "snacks 37%",
+    "produce 23%",
+    "dairy eggs 17%"
+   ]
+  },
+  "bio": "Emma D., 67, shops about every two weeks, usually on Tuesdays. She picks a mix of snacks, produce and dairy.",
+  "shopping_style": "Generous, balanced selections",
+  "cares_about": [
+   "Quality",
+   "Health",
+   "Convenience"
+  ],
+  "quote": "I’ll take the almond bar and the apples.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "814b13434064f2c4"
+ },
+ "689": {
+  "facts": {
+   "shopper_id": 689,
+   "name": "Patrick W.",
+   "age": 35,
+   "household_size": 2,
+   "kids": 0,
+   "income": "lower income",
+   "weekly_food_budget": 91,
+   "items_per_trip": 15.4,
+   "days_between_trips": 20.5,
+   "repeat_buying": "47%",
+   "price_sensitivity": "very price-sensitive",
+   "favorite_day": "Monday",
+   "habit_products": [
+    "Fire-Roasted Corn Blend (frozen)",
+    "tart cherry finest yoghurt (dairy eggs)",
+    "Celebration Roast Plant-Based Roast (beverages)",
+    "R-GREENS KALE ORGANIC SH (produce)",
+    "Large Brown Eggs, 18 pcs (dairy eggs)"
+   ],
+   "recent_products": [
+    "washable clear glue (household)",
+    "Trail mix, 6 oz (snacks)",
+    "TABLE CRACKERS (snacks)",
+    "Fire-Roasted Corn Blend (frozen)",
+    "Country Buttermilk Bread (bakery)"
+   ],
+   "top_departments": [
+    "produce 23%",
+    "dairy eggs 23%",
+    "frozen 9%"
+   ]
+  },
+  "bio": "Patrick W., 35, does his grocery run about every three weeks, often on Mondays, buying bulk and plant-based items such as frozen corn and kale. He is very price-sensitive and looks for the best deals.",
+  "shopping_style": "Price-sensitive shopper buying bulk plant-based and frozen items",
+  "cares_about": [
+   "price",
+   "plant-based",
+   "bulk"
+  ],
+  "quote": "I’m looking for the best value on my plant-based foods.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "42bda590785097fa"
+ },
+ "1436": {
+  "facts": {
+   "shopper_id": 1436,
+   "name": "Chloe T.",
+   "age": 39,
+   "household_size": 2,
+   "kids": 0,
+   "income": "lower-middle income",
+   "weekly_food_budget": 88,
+   "items_per_trip": 3.6,
+   "days_between_trips": 6.6,
+   "repeat_buying": "71%",
+   "price_sensitivity": "somewhat price-sensitive",
+   "favorite_day": "Sunday",
+   "habit_products": [
+    "Chopped Spinach (frozen)",
+    "Cilantro Leaf, Organic (produce)",
+    "Italian Mineral Water, 16,9 fl (beverages)",
+    "herahey milk chocolate, 102 g (snacks)",
+    "Organic Chicken Thighs, 16 oz (meat seafood)"
+   ],
+   "recent_products": [
+    "Italian Mineral Water, 16,9 fl (beverages)",
+    "Velveta Shells and Cheese, 5 oz (dry goods pasta)",
+    "Chopped Spinach (frozen)",
+    "CAGE-FREE EGGS GRADE AA LARGE, 48 oz (dairy eggs)",
+    "Gut healthy granola, 8 oz (breakfast)"
+   ],
+   "top_departments": [
+    "produce 29%",
+    "frozen 25%",
+    "snacks 12%"
+   ]
+  },
+  "bio": "Chloe T., 39, shops for her two-person household on Sundays. She balances fresh produce, frozen meals, and a sweet snack while watching her budget.",
+  "shopping_style": "Weekly Sunday shopper, balances price and variety",
+  "cares_about": [
+   "fresh produce",
+   "affordable frozen",
+   "snacks"
+  ],
+  "quote": "I always grab the spinach and water on Sundays.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "e55b80b8321802ae"
+ },
+ "1958": {
+  "facts": {
+   "shopper_id": 1958,
+   "name": "Lily P.",
+   "age": 47,
+   "household_size": 2,
+   "kids": 0,
+   "income": "middle income",
+   "weekly_food_budget": 106,
+   "items_per_trip": 6.0,
+   "days_between_trips": 25.6,
+   "repeat_buying": "50%",
+   "price_sensitivity": "not very price-sensitive",
+   "favorite_day": "Sunday",
+   "habit_products": [
+    "Deli Fresh Oven Roasted Turkey Breast (deli)",
+    "Banana, 3 lb (produce)",
+    "3 Hearts Of Romaine (produce)",
+    "Original spiced apple cider instant drin (beverages)",
+    "Couscous Mix Toasted Pine Nut, 158g (dry goods pasta)"
+   ],
+   "recent_products": [
+    "SE'S Variety Pack, 28.05 oz (household)",
+    "Deli Fresh Oven Roasted Turkey Breast (deli)",
+    "3 Hearts Of Romaine (produce)",
+    "Original spiced apple cider instant drin (beverages)",
+    "Fresh Mozzarella Cheese, 16 oz (dairy eggs)"
+   ],
+   "top_departments": [
+    "produce 28%",
+    "deli 25%",
+    "frozen 14%"
+   ]
+  },
+  "bio": "Lily P., 47, prefers a leisurely monthly trip on Sundays for her household. She focuses on quality deli meats, fresh produce, and convenient pantry items.",
+  "shopping_style": "Monthly Sunday shopper, enjoys premium deli and produce",
+  "cares_about": [
+   "quality deli",
+   "fresh produce",
+   "convenient pantry"
+  ],
+  "quote": "I love picking up the turkey breast on my day off.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "b03389f89af4cebd"
+ },
+ "306": {
+  "facts": {
+   "shopper_id": 306,
+   "name": "Olivia T.",
+   "age": 77,
+   "household_size": 2,
+   "kids": 0,
+   "income": "upper-middle income",
+   "weekly_food_budget": 113,
+   "items_per_trip": 16.3,
+   "days_between_trips": 22.5,
+   "repeat_buying": "25%",
+   "price_sensitivity": "not very price-sensitive",
+   "favorite_day": "Sunday",
+   "habit_products": [
+    "Organic Broccoli, 85 g (produce)",
+    "Organic Baby Spinach, 5 oz (produce)",
+    "Organic Diced Avocado (produce)",
+    "Gingerade Organic & Raw Kombucha, 16 fl (beverages)",
+    "Raspberries, 340 g (produce)"
+   ],
+   "recent_products": [
+    "Organic Broccoli, 85 g (produce)",
+    "APPLE JUNIPER ACTIVE CULTURE PROBIOTIC T (beverages)",
+    "Gingerade Organic & Raw Kombucha, 16 fl (beverages)",
+    "Organic strawberries, 40 oz (produce)",
+    "Organic Whole Milk (dairy eggs)"
+   ],
+   "top_departments": [
+    "produce 34%",
+    "beverages 14%",
+    "dairy eggs 14%"
+   ]
+  },
+  "bio": "Olivia T., 77, makes a monthly Sunday stop for herself and a partner. She prioritizes organic produce, health-focused beverages, and fresh berries.",
+  "shopping_style": "Monthly Sunday shopper focused on organic produce",
+  "cares_about": [
+   "organic produce",
+   "health drinks",
+   "fresh berries"
+  ],
+  "quote": "I always need my kombucha and fresh berries.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "22ed95df091372e6"
+ },
+ "2030": {
+  "facts": {
+   "shopper_id": 2030,
+   "name": "David C.",
+   "age": 52,
+   "household_size": 2,
+   "kids": 0,
+   "income": "upper-middle income",
+   "weekly_food_budget": 113,
+   "items_per_trip": 10.9,
+   "days_between_trips": 6.6,
+   "repeat_buying": "66%",
+   "price_sensitivity": "somewhat price-sensitive",
+   "favorite_day": "Friday",
+   "habit_products": [
+    "Organic strawberries, 40 oz (produce)",
+    "Protein Blend Banana Peanut Butter, 2 lb (snacks)",
+    "Organic 2% reduced fat milk (dairy eggs)",
+    "Beef Franks (meat seafood)",
+    "Lunchables Grape PB&J (deli)"
+   ],
+   "recent_products": [
+    "Organic strawberries, 40 oz (produce)",
+    "Organic Baby Spinach, 16 oz (produce)",
+    "Protein Blend Banana Peanut Butter, 2 lb (snacks)",
+    "Organic Hass Avocados, 3 count (produce)",
+    "Classic Plain Greek Yogurt, 16 oz (dairy eggs)"
+   ],
+   "top_departments": [
+    "produce 48%",
+    "dairy eggs 14%",
+    "frozen 11%"
+   ]
+  },
+  "bio": "David C., 52, visits the store weekly, usually on Fridays. He mixes fresh fruit, protein-rich snacks, and affordable dairy into his meals.",
+  "shopping_style": "Weekly Friday shopper, mixes produce with protein snacks",
+  "cares_about": [
+   "fresh fruit",
+   "protein snacks",
+   "affordable dairy"
+  ],
+  "quote": "Those strawberries are a must for my Friday run.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "8ecb3dd88d6ec512"
+ },
+ "275": {
+  "facts": {
+   "shopper_id": 275,
+   "name": "Julia M.",
+   "age": 23,
+   "household_size": 2,
+   "kids": 0,
+   "income": "higher income",
+   "weekly_food_budget": 141,
+   "items_per_trip": 1.7,
+   "days_between_trips": 22.5,
+   "repeat_buying": "50%",
+   "price_sensitivity": "somewhat price-sensitive",
+   "favorite_day": "Friday",
+   "habit_products": [
+    "Organic baby arugula, 5 oz (produce)",
+    "Caramel Flavoured Syrup (pantry)"
+   ],
+   "recent_products": [
+    "100% whole wheat bread (bakery)",
+    "Organic baby arugula, 5 oz (produce)",
+    "Organic Honey Nut O'S Cereal (breakfast)",
+    "Organic Hass Avocado, 4 ct (produce)",
+    "Caramel Flavoured Syrup (pantry)"
+   ],
+   "top_departments": [
+    "produce 42%",
+    "pantry 33%",
+    "dairy eggs 8%"
+   ]
+  },
+  "bio": "Julia M., 23, does a monthly Friday run for her household. She seeks organic greens, pantry essentials, and light breakfast items.",
+  "shopping_style": "Monthly Friday shopper, seeks organic greens and pantry basics",
+  "cares_about": [
+   "organic greens",
+   "pantry staples",
+   "healthy breakfast"
+  ],
+  "quote": "I just need my arugula and a good syrup.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "675a71c2186a5d8b"
+ },
+ "1575": {
+  "facts": {
+   "shopper_id": 1575,
+   "name": "Beth W.",
+   "age": 32,
+   "household_size": 3,
+   "kids": 1,
+   "income": "lower income",
+   "weekly_food_budget": 111,
+   "items_per_trip": 2.8,
+   "days_between_trips": 16.3,
+   "repeat_buying": "38%",
+   "price_sensitivity": "very price-sensitive",
+   "favorite_day": "Thursday",
+   "habit_products": [
+    "100% Liquid Egg Whites, 32 oz (dairy eggs)",
+    "Old Fashioned Rolled Oats, 32 oz (breakfast)",
+    "Wise Bar Organic Peanut Banana Bar 12 Co (snacks)",
+    "Organic Tofu Extra Firm (deli)"
+   ],
+   "recent_products": [
+    "Zucchini, 1 large (produce)",
+    "100% Liquid Egg Whites, 32 oz (dairy eggs)",
+    "Beef Burgers, 16 oz (frozen)",
+    "Old Fashioned Rolled Oats, 32 oz (breakfast)",
+    "Uncured Genoa Salame (deli)"
+   ],
+   "top_departments": [
+    "dairy eggs 22%",
+    "produce 17%",
+    "snacks 17%"
+   ]
+  },
+  "bio": "Beth W., 32, heads to the store roughly every 16 days, preferring Thursdays. She stretches a tight budget with staples.",
+  "shopping_style": "Budget-tight, staple-heavy",
+  "cares_about": [
+   "Price",
+   "Nutrition",
+   "Kids' meals"
+  ],
+  "quote": "What’s on sale for eggs and oats?",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "d4efb2b6b794d704"
+ },
+ "629": {
+  "facts": {
+   "shopper_id": 629,
+   "name": "Luis S.",
+   "age": 62,
+   "household_size": 3,
+   "kids": 0,
+   "income": "middle income",
+   "weekly_food_budget": 129,
+   "items_per_trip": 12.8,
+   "days_between_trips": 10.2,
+   "repeat_buying": "38%",
+   "price_sensitivity": "very price-sensitive",
+   "favorite_day": "Tuesday",
+   "habit_products": [
+    "Banana, 3 lb (produce)",
+    "Organic Kids Strawberry Banana Lowfat Yo (dairy eggs)",
+    "Lunchables Grape PB&J (deli)",
+    "Organic large brown eggs (dairy eggs)",
+    "unsweet Almondmilk, 64 fl oz (dairy eggs)"
+   ],
+   "recent_products": [
+    "Original Sausage Links (frozen)",
+    "Lunchables Grape PB&J (deli)",
+    "Organic large brown eggs (dairy eggs)",
+    "Banana, 3 lb (produce)",
+    "Organic Kids Strawberry Banana Lowfat Yo (dairy eggs)"
+   ],
+   "top_departments": [
+    "produce 31%",
+    "dairy eggs 29%",
+    "bakery 9%"
+   ]
+  },
+  "bio": "Luis S., 62, makes a store visit roughly every ten days, favoring Tuesdays. He focuses on affordable produce, dairy basics, and quick-prep meals.",
+  "shopping_style": "Every-10-day Tuesday shopper, hunts for value in produce",
+  "cares_about": [
+   "affordable produce",
+   "budget dairy",
+   "convenient meals"
+  ],
+  "quote": "Bananas are my go-to for a quick snack.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "9fff88642d87e9e9"
+ },
+ "1946": {
+  "facts": {
+   "shopper_id": 1946,
+   "name": "Aisha W.",
+   "age": 46,
+   "household_size": 3,
+   "kids": 0,
+   "income": "higher income",
+   "weekly_food_budget": 171,
+   "items_per_trip": 10.1,
+   "days_between_trips": 8.4,
+   "repeat_buying": "59%",
+   "price_sensitivity": "not very price-sensitive",
+   "favorite_day": "Wednesday",
+   "habit_products": [
+    "Organic large brown eggs (dairy eggs)",
+    "OG RED SEEDLESS GRAPES (produce)",
+    "CAULIFLOWER EACH (produce)",
+    "Raisin Bran Cereal, 11 oz (breakfast)",
+    "Organic Celery Hearts (produce)"
+   ],
+   "recent_products": [
+    "Matzo ball soup (international)",
+    "Raisin Bran Cereal, 11 oz (breakfast)",
+    "Organic large brown eggs (dairy eggs)",
+    "Honey Maid Graham Crackers, 14.4 oz (snacks)",
+    "KIKKOMAN SOY SAUCE 5 FLOZ PK 12 (international)"
+   ],
+   "top_departments": [
+    "produce 35%",
+    "dairy eggs 15%",
+    "breakfast 10%"
+   ]
+  },
+  "bio": "Aisha W., 46, shops weekly on Wednesdays for her three-person home. She enjoys premium produce, quality eggs, and wholesome breakfast cereals.",
+  "shopping_style": "Weekly Wednesday shopper, enjoys premium produce and eggs",
+  "cares_about": [
+   "fresh produce",
+   "quality eggs",
+   "healthy cereals"
+  ],
+  "quote": "I love picking fresh grapes while I shop.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "5349499fe46249eb"
+ },
+ "1353": {
+  "facts": {
+   "shopper_id": 1353,
+   "name": "Julia S.",
+   "age": 62,
+   "household_size": 4,
+   "kids": 0,
+   "income": "middle income",
+   "weekly_food_budget": 150,
+   "items_per_trip": 28.9,
+   "days_between_trips": 11.4,
+   "repeat_buying": "69%",
+   "price_sensitivity": "somewhat price-sensitive",
+   "favorite_day": "Saturday",
+   "habit_products": [
+    "Gala Organic Apples, 4 ct (produce)",
+    "Fresh Roma Tomato, 1 medium whole (produce)",
+    "Organic Tortilla Chips, 40 oz (snacks)",
+    "Sourdough Bread, 34 g (bakery)",
+    "Organic Whole Milk Strawberry Beet Berry (dairy eggs)"
+   ],
+   "recent_products": [
+    "Gala Organic Apples, 4 ct (produce)",
+    "Total Greek Yogurt, 5.3 (dairy eggs)",
+    "Simple Orange Medium Pulp (beverages)",
+    "Organic raspberries, 10 oz (produce)",
+    "T BAG CANVAS MINI TOTE PAS (snacks)"
+   ],
+   "top_departments": [
+    "produce 41%",
+    "dairy eggs 17%",
+    "snacks 9%"
+   ]
+  },
+  "bio": "Julia S., 62, shops about every 11 days, often on Saturdays, buying in bulk for her family. She fills many aisles.",
+  "shopping_style": "Large, bulk-oriented trips",
+  "cares_about": [
+   "Produce",
+   "Snacks",
+   "Dairy"
+  ],
+  "quote": "Need a lot of apples and chips for the week.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "25150820edb6562d"
+ },
+ "1293": {
+  "facts": {
+   "shopper_id": 1293,
+   "name": "Owen M.",
+   "age": 45,
+   "household_size": 4,
+   "kids": 2,
+   "income": "higher income",
+   "weekly_food_budget": 200,
+   "items_per_trip": 6.7,
+   "days_between_trips": 13.9,
+   "repeat_buying": "43%",
+   "price_sensitivity": "not very price-sensitive",
+   "favorite_day": "Saturday",
+   "habit_products": [
+    "Organic Chili Medium, net wt. 14.7oz (canned goods)",
+    "Organig Baby Spinach (produce)",
+    "Strawberries, 907g (produce)",
+    "blueberry yoghurt (dairy eggs)",
+    "California Sourdough, 16 oz (bakery)"
+   ],
+   "recent_products": [
+    "California Sourdough, 16 oz (bakery)",
+    "CUT FRUIT BPK MNGO CHNK 10OZ (deli)",
+    "Frosted Mini Wheats Original, 20 oz (breakfast)",
+    "Organig Baby Spinach (produce)",
+    "Organic Chili Medium, net wt. 14.7oz (canned goods)"
+   ],
+   "top_departments": [
+    "produce 24%",
+    "dairy eggs 21%",
+    "canned goods 12%"
+   ]
+  },
+  "bio": "Owen M., 45, selects a few premium items each visit to feed his family of four, including two children. He shops about every two weeks, preferring Saturday trips for fresh produce and dairy.",
+  "shopping_style": "Biweekly Saturday shopper, picks a few premium fresh items",
+  "cares_about": [
+   "quality ingredients",
+   "family meals",
+   "convenient options"
+  ],
+  "quote": "I just need the essentials for the kids.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "a4cb5dbd5990cfdf"
+ },
+ "1375": {
+  "facts": {
+   "shopper_id": 1375,
+   "name": "Carlos C.",
+   "age": 31,
+   "household_size": 5,
+   "kids": 3,
+   "income": "middle income",
+   "weekly_food_budget": 170,
+   "items_per_trip": 18.0,
+   "days_between_trips": 16.4,
+   "repeat_buying": "51%",
+   "price_sensitivity": "very price-sensitive",
+   "favorite_day": "Friday",
+   "habit_products": [
+    "Banana, 3 lb (produce)",
+    "Greek Yogurt plain, 1 gal (dairy eggs)",
+    "Alpine Spring Water, 3.78 l (beverages)",
+    "Purified water, 1l (beverages)",
+    "Classic Roast, 8 oz (beverages)"
+   ],
+   "recent_products": [
+    "Banana, 3 lb (produce)",
+    "Vermont Cheddar Mac & Cheese Bowl, 13 oz (frozen)",
+    "Mild Taco Seasoning, 1.31 oz (pantry)",
+    "CREAM CHEESE SPREAD, 31 g (dairy eggs)",
+    "Greek Yogurt plain, 1 gal (dairy eggs)"
+   ],
+   "top_departments": [
+    "produce 31%",
+    "beverages 20%",
+    "dairy eggs 19%"
+   ]
+  },
+  "bio": "Carlos C., 31, looks for affordable staples to feed his household of five, which includes three kids. He shops roughly every three weeks on Fridays, focusing on low-price produce and dairy.",
+  "shopping_style": "Every few weeks on Friday, focuses on affordable staples",
+  "cares_about": [
+   "low prices",
+   "family nutrition",
+   "bulk basics"
+  ],
+  "quote": "Give me the biggest deal you have on bananas.",
+  "source": "llm:groq/openai/gpt-oss-120b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "b1536e42aec6f3f6"
+ },
+ "1179": {
+  "facts": {
+   "shopper_id": 1179,
+   "name": "Ravi J.",
+   "age": 70,
+   "household_size": 1,
+   "kids": 0,
+   "income": "upper-middle income",
+   "weekly_food_budget": 65,
+   "items_per_trip": 7.0,
+   "days_between_trips": 4.0,
+   "repeat_buying": "46%",
+   "price_sensitivity": "not very price-sensitive",
+   "favorite_day": "Friday",
+   "habit_products": [
+    "Reduced Fat Milk 2% Milkfat, 1 gallon (dairy eggs)",
+    "Organic 2% milkfat reduced fat milk (dairy eggs)",
+    "Lunchables Grape PB&J (deli)",
+    "Coconut  Organic Unsweetened, 28 fl oz (dairy eggs)",
+    "Vanilla light nonfat yogurt (dairy eggs)"
+   ],
+   "recent_products": [
+    "Organic 2% milkfat reduced fat milk (dairy eggs)",
+    "Spaghetti no. 12, 453g (dry goods pasta)",
+    "Corn Tortillas, 7.2 oz (bakery)",
+    "Vanilla light nonfat yogurt (dairy eggs)",
+    "Rice Pilaf Mix Original, 6.09 (dry goods pasta)"
+   ],
+   "top_departments": [
+    "dairy eggs 40%",
+    "produce 19%",
+    "deli 14%"
+   ]
+  },
+  "bio": "Ravi J., 70, lives alone, loves dairy products and lunchables.",
+  "shopping_style": "organized and planned",
+  "cares_about": [
+   "price",
+   "convenience",
+   "brand"
+  ],
+  "quote": "Everything must be just right!",
+  "source": "llm:ollama/llama3.2:3b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "3e996dd99493707c"
+ },
+ "48": {
+  "facts": {
+   "shopper_id": 48,
+   "name": "Jordan D.",
+   "age": 71,
+   "household_size": 2,
+   "kids": 0,
+   "income": "middle income",
+   "weekly_food_budget": 106,
+   "items_per_trip": 17.8,
+   "days_between_trips": 25.0,
+   "repeat_buying": "20%",
+   "price_sensitivity": "very price-sensitive",
+   "favorite_day": "Monday",
+   "habit_products": [
+    "Organic Diced Avocado (produce)",
+    "Organic Hass Avocado, 4 ct (produce)",
+    "Zucchini, 1 large (produce)",
+    "Organic Broccoli, 85 g (produce)",
+    "Fig fruit spread (pantry)"
+   ],
+   "recent_products": [
+    "California Walnut Halves & Pieces, 16 oz (snacks)",
+    "unsweet Almondmilk, 64 fl oz (dairy eggs)",
+    "Whole raw almonds, 11 oz (snacks)",
+    "Classic Round Crackers (snacks)",
+    "Lactose free half and half (dairy eggs)"
+   ],
+   "top_departments": [
+    "produce 31%",
+    "dairy eggs 25%",
+    "snacks 9%"
+   ]
+  },
+  "bio": "Jordan D., 71, lives with two others, prioritizes healthy snacks.",
+  "shopping_style": "thorough and detailed",
+  "cares_about": [
+   "price",
+   "nutrition",
+   "sustainability"
+  ],
+  "quote": "I need something that's really good for me!",
+  "source": "llm:ollama/llama3.2:3b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "85da27532011b4a2"
+ },
+ "1267": {
+  "facts": {
+   "shopper_id": 1267,
+   "name": "Emma S.",
+   "age": 33,
+   "household_size": 3,
+   "kids": 1,
+   "income": "upper-middle income",
+   "weekly_food_budget": 138,
+   "items_per_trip": 22.3,
+   "days_between_trips": 25.0,
+   "repeat_buying": "75%",
+   "price_sensitivity": "not very price-sensitive",
+   "favorite_day": "Tuesday",
+   "habit_products": [
+    "Gala Organic Apples, 4 ct (produce)",
+    "12 Large Brown Eggs, 24 oz (dairy eggs)",
+    "Pure Irish butter, 8 oz (dairy eggs)",
+    "triple chocolate brownie flavor light ic (frozen)",
+    "Total Greek Yogurt, 5.3 (dairy eggs)"
+   ],
+   "recent_products": [
+    "Gala Organic Apples, 4 ct (produce)",
+    "12 Large Brown Eggs, 24 oz (dairy eggs)",
+    "Mini Pretzels, 9.2 oz (snacks)",
+    "triple chocolate brownie flavor light ic (frozen)",
+    "BURRATA FRESH MOZZARELLA CHEESE FILLED W (dairy eggs)"
+   ],
+   "top_departments": [
+    "produce 33%",
+    "dairy eggs 32%",
+    "frozen 10%"
+   ]
+  },
+  "bio": "Emma S., 33, lives with three others, enjoys organic and high-end products.",
+  "shopping_style": "flexible and spontaneous",
+  "cares_about": [
+   "quality",
+   "convenience",
+   "taste"
+  ],
+  "quote": "I want something that's really delicious!",
+  "source": "llm:ollama/llama3.2:3b",
+  "prompt_version": 2,
+  "data_label": "SIMULATED - words written from simulated NPC facts; invented name",
+  "key": "41e84fff6a030593"
+ }
+}

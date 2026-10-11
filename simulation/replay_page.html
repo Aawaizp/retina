@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RETINA Store Replay</title>
+<style>
+:root{--bg:#f3f1ec;--panel:#fff;--ink:#1e2226;--muted:#687079;--line:#e1ddd4;--floor:#faf8f4;--aisle:#f1eee7;
+--walk:#33577d;--buy:#2b8a4b;--oos:#c4432c;--sub:#cf8618;--skip:#959ba2;--queue:#7a5ea8;--accent:#33577d}
+@media (prefers-color-scheme:dark){:root{--bg:#15171a;--panel:#1d2024;--ink:#e7e5e0;--muted:#9aa0a7;--line:#30343a;
+--floor:#1a1d21;--aisle:#202428;--walk:#8db4dc;--buy:#5bc27d;--oos:#ef6b53;--sub:#e8aa45;--skip:#7c828a;--queue:#b59ae0;--accent:#8db4dc}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{padding:14px 20px 6px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline}
+h1{font-size:18px;margin:0}.sub{color:var(--muted)}
+.tag{font-size:11px;font-weight:600;letter-spacing:.6px;padding:2px 7px;border-radius:4px;background:var(--line);color:var(--muted)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:8px 20px 16px;align-items:start}
+@media (max-width:960px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+#mapwrap{padding:10px;position:relative}canvas{width:100%;display:block;border-radius:6px}
+#tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:6px;
+padding:6px 9px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.12);display:none;max-width:240px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:2px 10px 12px}
+button,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px 11px;cursor:pointer}
+button.on{background:var(--accent);color:var(--panel);border-color:var(--accent)}
+input[type=range]{flex:1;min-width:150px;accent-color:var(--accent)}
+#clock{font-variant-numeric:tabular-nums;font-weight:700;font-size:16px;min-width:52px}
+aside{display:flex;flex-direction:column;gap:12px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-radius:10px;overflow:hidden}
+.stat{background:var(--panel);padding:9px 12px}.stat b{display:block;font-size:19px;font-variant-numeric:tabular-nums}
+.stat span{color:var(--muted);font-size:12px}
+.box{padding:12px 14px}.box h2{font-size:12px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin:0 0 8px}
+ul.list{list-style:none;margin:0;padding:0;font-size:13px;max-height:250px;overflow:auto}
+ul.list li{padding:4px 0;border-bottom:1px solid var(--line);display:flex;gap:8px}ul.list li:last-child{border:0}
+.t{color:var(--muted);font-variant-numeric:tabular-nums;min-width:38px}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;margin-top:5px}
+.legend{display:flex;flex-wrap:wrap;gap:5px 13px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.future{opacity:.38}.guide{font-size:12px;color:var(--muted);columns:2;column-gap:14px}.guide div{break-inside:avoid;padding:1px 0}
+.guide b{color:var(--ink);display:inline-block;min-width:18px}
+footer{padding:0 20px 20px;color:var(--muted);font-size:12px;max-width:1100px}
+</style></head><body>
+<header><h1>RETINA Store Replay</h1><span class="sub" id="title"></span><span class="tag">SIMULATED</span></header>
+<main>
+ <section class="card"><div id="mapwrap"><canvas id="map"></canvas><div id="tip"></div></div>
+  <div class="controls">
+   <button id="play">Pause</button>
+   <select id="speed"><option value="2">2 min / sec</option><option value="5" selected>5 min / sec</option>
+    <option value="15">15 min / sec</option><option value="60">1 hour / sec</option></select>
+   <span id="clock">--:--</span><input type="range" id="time" step="0.25">
+   <button id="v-people" class="on">People</button><button id="v-traffic">Shelf traffic</button>
+  </div></section>
+ <aside>
+  <div class="stats">
+   <div class="stat"><b id="s-in">0</b><span>shoppers in the store</span></div>
+   <div class="stat"><b id="s-q">0</b><span>waiting at checkout</span></div>
+   <div class="stat"><b id="s-trips">0</b><span>trips so far</span></div>
+   <div class="stat"><b id="s-rev">$0</b><span>paid at checkout</span></div>
+   <div class="stat"><b id="s-units">0</b><span>units bought</span></div>
+   <div class="stat"><b id="s-min">–</b><span>average minutes in store</span></div>
+   <div class="stat"><b id="s-oos">0</b><span>empty shelves found</span></div>
+   <div class="stat"><b id="s-sub">0</b><span>swaps / skips</span></div>
+  </div>
+  <div class="card box" id="legendbox"><h2>Legend</h2><div class="legend" id="legend"></div></div>
+  <div class="card box"><h2 id="jtitle">Click a shopper to follow them</h2><ul class="list" id="journey"></ul></div>
+  <div class="card box"><h2>What just happened</h2><ul class="list" id="feed"></ul></div>
+  <div class="card box"><h2>Aisle guide</h2><div class="guide" id="guide"></div></div>
+ </aside>
+</main>
+<footer>Shoppers, their routes, choices, prices, minutes and totals all come from the RETINA simulation
+(SIMULATED data for an assumed store, not a real one). The floor plan, walking speed and checkout times are
+ESTIMATED assumptions. Hover over a shelf to see which aisle it is.</footer>
+<script>
+const D = __DATA__;
+const L = D.layout;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+document.getElementById("title").textContent =
+  `${D.store} · ${D.date}` + (D.scenario ? ` · scenario: ${D.scenario}` : " · normal store");
+const pname = i => (D.products[i] || "a product");
+const short = (s, n = 32) => s.length > n ? s.slice(0, n - 1) + "…" : s;
+const money = v => "$" + v.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const clock = m => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(Math.floor(m % 60)).padStart(2, "0")}`;
+const REASON = {had_at_home: "still has some at home", too_expensive: "felt too expensive", aisle_removed: "no longer sold",
+  other_store: "will buy it elsewhere", delay: "will buy it next trip", skip: "went without",
+  out_of_stock: "shelf was empty", price_switch: "usual one got pricier", delisted_switch: "usual one no longer sold",
+  over_budget: "this week's food money is spent"};
+const WHY = {need: ", ran out at home", repeat: ", usual item", partner: ", goes with the last item"};
+const COLOR = {PURCHASE: "--buy", STOCKOUT: "--oos", SUBSTITUTE: "--sub", SKIP: "--skip"};
+
+// ---------------------------------------------------------------- the floor
+const aisleIdx = Object.fromEntries(L.aisles.map((a, i) => [a.name, i]));
+const corridorOf = a => { const c = L.corridor_x.findIndex(x => Math.abs(x - a.x) < 0.01); return c; };
+// aisle guide: what is in each walkway (front to back), plus the walls
+const guide = L.corridor_x.map(() => []);
+L.aisles.forEach(a => { const c = corridorOf(a); if (c >= 0) guide[c].push(a); });
+const wallDepts = new Set();
+L.shelves.forEach(([a, x0, y0, x1, y1]) => { if (x0 < 0.5 || x1 > L.width - 0.5 || y1 <= 1.0) wallDepts.add(L.aisles[a].department); });
+document.getElementById("guide").innerHTML = guide.map((list, c) => {
+  const depts = [...new Set(list.sort((p, q) => q.y - p.y).map(a => a.department))].filter(d => !wallDepts.has(d) || c === 0 || c === guide.length - 1);
+  return `<div><b>${c + 1}</b> ${depts.join(" · ")}</div>`;
+}).join("") + `<div><b>↑</b> back wall: ${[...new Set(L.shelves.filter(s => s[4] <= 1.0).map(s => L.aisles[s[0]].department))].join(" · ")}</div>`;
+
+// ---------------------------------------------------------------- trips
+const trips = new Map();
+for (const e of D.events) {
+  if (!trips.has(e.shopper)) trips.set(e.shopper, {shopper: e.shopper, events: []});
+  const tr = trips.get(e.shopper); tr.events.push(e);
+  if (e.event === "SHOPPER_ENTER") Object.assign(tr, {group: e.group, mission: e.mission, path: e.path, seen: e.seen || [], minutes: e.minutes, start: e.t});
+  if (e.event === "CHECKOUT") Object.assign(tr, {lane: e.lane, served: e.t, ready: e.t - e.wait_min, total: e.total, items: e.items});
+  if (e.event === "LEAVE") tr.end = e.t;
+}
+const T = [...trips.values()].filter(t => t.path && t.path.length);
+T.forEach(t => { t.end = t.path[t.path.length - 1][0]; t.events.sort((a, b) => a.t - b.t); });
+const all = D.events.filter(e => e.t !== undefined).sort((a, b) => a.t - b.t);
+let c = {trips: 0, units: 0, rev: 0, oos: 0, sub: 0, mins: 0, done: 0};
+const cum = all.map(e => {
+  if (e.event === "SHOPPER_ENTER") c.trips++;
+  if (e.event === "PURCHASE") c.units += e.qty;
+  if (e.event === "CHECKOUT") c.rev += e.total;
+  if (e.event === "STOCKOUT") c.oos++;
+  if (e.event === "SUBSTITUTE" || e.event === "SKIP") c.sub++;
+  if (e.event === "LEAVE") { c.done++; c.mins += trips.get(e.shopper).minutes || 0; }
+  return {...c};
+});
+const idxAt = t => { let lo = 0, hi = all.length; while (lo < hi) { const m = (lo + hi) >> 1; if (all[m].t <= t) lo = m + 1; else hi = m; } return lo; };
+const tMin = Math.floor(Math.min(...T.map(t => t.start)) / 60) * 60;
+const tMax = Math.ceil(Math.max(...T.map(t => t.end)) / 60) * 60;
+// shelf traffic for the whole day: shoppers who walked past / bought there
+const passed = new Array(L.aisles.length).fill(0), bought = new Array(L.aisles.length).fill(0);
+T.forEach(t => {
+  t.seen.forEach(a => passed[a]++);
+  new Set(t.events.filter(e => e.event === "PURCHASE" && D.product_aisle[e.product] !== undefined)
+    .map(e => D.product_aisle[e.product])).forEach(a => bought[a]++);
+});
+const maxPassed = Math.max(1, ...passed);
+
+function describe(e) {
+  const who = `Shopper ${e.shopper}`;
+  switch (e.event) {
+    case "SHOPPER_ENTER": return `${who} came in (${D.groups[e.group]}${e.mission ? ", " + e.mission.replace("_", "-") + " trip" : ""})`;
+    case "MOVE_TO_DEPARTMENT": return `${who} walked to ${e.aisle} (${e.department})`;
+    case "VIEW_PRODUCT": return `${who} looked for ${short(pname(e.product))}`;
+    case "PURCHASE": return `${who} put ${short(pname(e.product))}${e.qty > 1 ? " ×" + e.qty : ""} in the basket – ${money(e.price)}${e.promo ? " (deal)" : ""}${e.route === "impulse" ? ", unplanned" : (WHY[e.route] || "")}`;
+    case "STOCKOUT": return `${who} found ${short(pname(e.product))} out of stock`;
+    case "SUBSTITUTE": return `${who} took ${short(pname(e.product), 24)} instead of ${short(pname(e.instead_of), 24)} (${REASON[e.reason] || e.reason})`;
+    case "SKIP": return `${who} skipped ${e.product >= 0 ? short(pname(e.product)) : "an aisle"} (${REASON[e.reason] || e.reason})`;
+    case "CHECKOUT": return `${who} paid ${money(e.total)} for ${e.items} item${e.items === 1 ? "" : "s"} at lane ${e.lane + 1}${e.wait_min >= 0.5 ? ` after waiting ${e.wait_min.toFixed(1)} min` : ""}`;
+    case "LEAVE": return `${who} left the store`;
+  }
+  return e.event;
+}
+
+// ---------------------------------------------------------------- drawing
+const cv = document.getElementById("map"), ctx = cv.getContext("2d");
+let S = 10, view = "people", now = tMin, playing = true, followed = null, hover = -1, last = performance.now();
+function resize() {
+  const w = cv.parentElement.clientWidth - 20, dpr = window.devicePixelRatio || 1;
+  S = w / L.width; cv.style.height = L.depth * S + "px";
+  cv.width = w * dpr; cv.height = L.depth * S * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+function posAt(tr, t) {
+  const p = tr.path;
+  if (t <= p[0][0]) return {x: p[0][1], y: p[0][2]};
+  for (let i = 1; i < p.length; i++) if (t <= p[i][0]) {
+    const a = p[i - 1], b = p[i], f = (t - a[0]) / Math.max(b[0] - a[0], 1e-6);
+    return {x: a[1] + (b[1] - a[1]) * f, y: a[2] + (b[2] - a[2]) * f};
+  }
+  const z = p[p.length - 1]; return {x: z[1], y: z[2]};
+}
+function heat(v) {                              // light -> deep blue, for shelf traffic
+  const k = Math.pow(v, 0.7), a = [233, 239, 246], b = [24, 74, 140];
+  return `rgb(${a.map((x, i) => Math.round(x + (b[i] - x) * k)).join(",")})`;
+}
+function text(s, x, y, size, color, weight = 600, align = "left", angle = 0) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.fillStyle = color; ctx.textAlign = align;
+  ctx.textBaseline = "middle"; ctx.font = `${weight} ${size}px system-ui`; ctx.fillText(s, 0, 0); ctx.restore();
+}
+function drawFloor() {
+  const ink = css("--ink"), muted = css("--muted"), line = css("--line");
+  ctx.fillStyle = css("--floor"); ctx.fillRect(0, 0, L.width * S, L.depth * S);
+  ctx.fillStyle = css("--aisle");                 // walkways and cross aisles
+  ctx.fillRect(0, (L.y_back - 1.5) * S, L.width * S, 3 * S);
+  ctx.fillRect(0, (L.y_front - 1.5) * S, L.width * S, 3 * S);
+  L.corridor_x.forEach(x => ctx.fillRect((x - 1.2) * S, L.y_top * S, 2.4 * S, (L.y_bottom - L.y_top) * S));
+  for (const [a, x0, y0, x1, y1] of L.shelves) {
+    const dep = L.aisles[a].department;
+    ctx.fillStyle = view === "traffic" ? heat(passed[a] / maxPassed) : L.colors[dep] + (a === hover ? "ff" : "bb");
+    ctx.fillRect(x0 * S, y0 * S, (x1 - x0) * S, (y1 - y0) * S);
+    if (a === hover) { ctx.strokeStyle = ink; ctx.lineWidth = 1.5; ctx.strokeRect(x0 * S, y0 * S, (x1 - x0) * S, (y1 - y0) * S); }
+  }
+  ctx.strokeStyle = line; ctx.lineWidth = 2; ctx.strokeRect(1, 1, L.width * S - 2, L.depth * S - 2);
+  // wall labels: one per department on the walls
+  const boxes = {};
+  for (const [a, x0, y0, x1, y1] of L.shelves) {
+    const wall = y1 <= 1.0 ? "B" : x0 < 0.5 ? "L" : x1 > L.width - 0.5 ? "R" : null; if (!wall) continue;
+    const k = wall + L.aisles[a].department, b = boxes[k] || (boxes[k] = {wall, d: L.aisles[a].department, x0, y0, x1, y1});
+    b.x0 = Math.min(b.x0, x0); b.y0 = Math.min(b.y0, y0); b.x1 = Math.max(b.x1, x1); b.y1 = Math.max(b.y1, y1);
+  }
+  const fs = Math.max(9, S * 1.0);
+  for (const b of Object.values(boxes)) {
+    const name = b.d.toUpperCase();
+    if (b.wall === "B") text(name, (b.x0 + b.x1) / 2 * S, (b.y1 + 0.75) * S, fs, muted, 700, "center");
+    else text(name, (b.wall === "L" ? b.x1 + 0.6 : b.x0 - 0.6) * S, (b.y0 + b.y1) / 2 * S, fs, muted, 700, "center", b.wall === "L" ? -Math.PI / 2 : Math.PI / 2);
+  }
+  // walkway numbers at the front end
+  L.corridor_x.forEach((x, i) => {
+    const y = (L.y_bottom + 0.9) * S, r = Math.max(7, S * 0.7);
+    ctx.fillStyle = css("--accent"); ctx.beginPath(); ctx.arc(x * S, y, r, 0, 7); ctx.fill();
+    text(String(i + 1), x * S, y + 0.5, Math.max(8, S * 0.75), css("--panel"), 700, "center");
+  });
+  // checkout lanes (open ones darker), door
+  const open = (D.layout.lanes_open || [])[Math.floor(now / 60) % 24] || L.lanes_x.length;
+  L.lanes_x.forEach((x, i) => {
+    ctx.fillStyle = i < open ? css("--muted") : line;
+    ctx.fillRect((x - 0.4) * S, (L.lane_y - 1.2) * S, 0.8 * S, 2.4 * S);
+    text(String(i + 1), x * S, (L.lane_y + 2.2) * S, Math.max(8, S * 0.7), muted, 600, "center");
+  });
+  text("CHECKOUT", (L.lanes_x[0] - 1.5) * S, (L.lane_y) * S, Math.max(9, S * 0.9), muted, 700, "right");
+  text("ENTRANCE ↑", L.entrance[0] * S, (L.entrance[1] + 1.2) * S, Math.max(9, S * 0.9), css("--buy"), 700, "left");
+  text("↓ EXIT", L.exit[0] * S, (L.exit[1] + 1.2) * S, Math.max(9, S * 0.9), css("--oos"), 700, "right");
+}
+function stateOf(tr) {
+  if (tr.ready !== undefined && now >= tr.ready && now < tr.served) return {col: css("--queue"), label: null};
+  for (let i = tr.events.length - 1; i >= 0; i--) {
+    const e = tr.events[i]; if (e.t > now) continue;
+    if (now - e.t < 1.5 && COLOR[e.event]) return {col: css(COLOR[e.event]), e};
+    break;
+  }
+  return {col: css("--walk"), e: null};
+}
+function draw() {
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  drawFloor();
+  const ink = css("--ink"), panel = css("--panel");
+  // queue order at each lane (people waiting stand in a line)
+  const waiting = {};
+  T.forEach(t => { if (t.ready !== undefined && now >= t.ready && now < t.served) (waiting[t.lane] = waiting[t.lane] || []).push(t); });
+  Object.values(waiting).forEach(list => list.sort((a, b) => a.ready - b.ready).forEach((t, k) => t.qrank = k));
+  if (followed) {                                  // their whole route: walked solid, still to walk faint
+    ctx.lineWidth = 2; ctx.setLineDash([]);
+    ctx.strokeStyle = css("--accent") + "55"; ctx.beginPath();
+    followed.path.forEach((p, i) => i ? ctx.lineTo(p[1] * S, p[2] * S) : ctx.moveTo(p[1] * S, p[2] * S)); ctx.stroke();
+    ctx.strokeStyle = css("--accent"); ctx.beginPath();
+    let started = false;
+    for (const p of followed.path) { if (p[0] > now) break; started ? ctx.lineTo(p[1] * S, p[2] * S) : (ctx.moveTo(p[1] * S, p[2] * S), started = true); }
+    if (started && now >= followed.start && now <= followed.end) { const q = posAt(followed, now); ctx.lineTo(q.x * S, q.y * S); }
+    ctx.stroke();
+  }
+  let inStore = 0, queue = 0;
+  const r = Math.max(3.2, S * 0.5);
+  for (const tr of T) {
+    if (now < tr.start || now > tr.end) continue;
+    inStore++;
+    let p = posAt(tr, now);
+    const st = stateOf(tr);
+    if (tr.qrank !== undefined && now >= tr.ready && now < tr.served) { queue++; p = {x: L.lanes_x[tr.lane], y: L.lane_y - 1.6 - tr.qrank * 1.2}; }
+    tr.qrank = undefined;
+    tr.drawn = p;
+    const x = p.x * S, y = p.y * S;
+    ctx.fillStyle = st.col; ctx.strokeStyle = panel; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke();
+    const units = tr.events.reduce((n, e) => n + (e.event === "PURCHASE" && e.t <= now ? e.qty : 0), 0);
+    if (units > 0 && now < tr.served) {            // basket: fuller as they shop
+      const h = Math.min(1, units / 15);
+      ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.strokeRect(x + r * 0.7, y - r * 0.2, r * 1.1, r * 0.9);
+      ctx.fillStyle = css("--buy"); ctx.fillRect(x + r * 0.7, y - r * 0.2 + r * 0.9 * (1 - h), r * 1.1, r * 0.9 * h);
+    }
+    if (tr === followed) { ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r + 4, 0, 7); ctx.stroke(); }
+    if (st.e && (tr === followed || st.e.event === "STOCKOUT")) {
+      const lab = st.e.event === "PURCHASE" ? "+ " + short(pname(st.e.product), 22) : st.e.event === "STOCKOUT" ? "✕ empty: " + short(pname(st.e.product), 18)
+        : st.e.event === "SUBSTITUTE" ? "↺ " + short(pname(st.e.product), 22) : "– skipped";
+      ctx.font = `600 ${Math.max(10, S * 0.85)}px system-ui`;
+      const w = ctx.measureText(lab).width + 8;
+      ctx.fillStyle = panel; ctx.strokeStyle = st.col; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.roundRect(x - w / 2, y - r - 20, w, 16, 4); ctx.fill(); ctx.stroke();
+      text(lab, x, y - r - 12, Math.max(10, S * 0.85), ink, 600, "center");
+    }
+  }
+  // panel
+  const i = idxAt(now), k = i > 0 ? cum[i - 1] : {trips: 0, units: 0, rev: 0, oos: 0, sub: 0, mins: 0, done: 0};
+  const set = (id, v) => document.getElementById(id).textContent = v;
+  set("s-in", inStore); set("s-q", queue); set("s-trips", k.trips); set("s-units", k.units.toLocaleString());
+  set("s-rev", "$" + Math.round(k.rev).toLocaleString()); set("s-oos", k.oos); set("s-sub", k.sub);
+  set("s-min", k.done ? (k.mins / k.done).toFixed(1) : "–"); set("clock", clock(now));
+  document.getElementById("time").value = now;
+  const feed = [];
+  for (let j = i - 1; j >= 0 && feed.length < 9; j--) {
+    const e = all[j]; if (["VIEW_PRODUCT", "MOVE_TO_DEPARTMENT", "LEAVE"].includes(e.event)) continue;
+    feed.push(`<li><span class="t">${clock(e.t)}</span><span class="dot" style="background:var(${COLOR[e.event] || "--walk"})"></span><span>${describe(e)}</span></li>`);
+  }
+  document.getElementById("feed").innerHTML = feed.join("");
+  if (followed) document.getElementById("journey").innerHTML = followed.events.filter(e => e.event !== "VIEW_PRODUCT").map(e =>
+    `<li class="${e.t > now ? "future" : ""}"><span class="t">${clock(e.t)}</span><span class="dot" style="background:var(${COLOR[e.event] || "--walk"})"></span><span>${describe(e)}</span></li>`).join("");
+}
+function legend() {
+  document.getElementById("legend").innerHTML = view === "people"
+    ? [["--walk", "walking"], ["--buy", "picked an item"], ["--oos", "empty shelf"], ["--sub", "swapped product"], ["--skip", "skipped"], ["--queue", "waiting to pay"]]
+        .map(([v, n]) => `<span><i style="background:var(${v})"></i>${n}</span>`).join("") + `<span>□ basket fills as they shop</span>`
+    : `<span><i style="background:${heat(0.05)}"></i>few shoppers walked past</span><span><i style="background:${heat(1)}"></i>most shoppers walked past</span><span>(whole day)</span>`;
+}
+
+// ---------------------------------------------------------------- interaction
+const tip = document.getElementById("tip");
+cv.addEventListener("mousemove", ev => {
+  const rect = cv.getBoundingClientRect(), x = (ev.clientX - rect.left) / S, y = (ev.clientY - rect.top) / S;
+  hover = -1;
+  for (const [a, x0, y0, x1, y1] of L.shelves) if (x >= x0 - 0.3 && x <= x1 + 0.3 && y >= y0 && y <= y1) { hover = a; break; }
+  if (hover >= 0) {
+    const a = L.aisles[hover];
+    tip.innerHTML = `<b>${a.name}</b><br>${a.department}<br>walked past by ${passed[hover]} of ${T.length} shoppers today · ${bought[hover]} bought here`;
+    tip.style.display = "block"; tip.style.left = (ev.clientX - rect.left + 22) + "px"; tip.style.top = (ev.clientY - rect.top + 4) + "px";
+  } else tip.style.display = "none";
+  if (!playing) draw();
+});
+cv.addEventListener("mouseleave", () => { hover = -1; tip.style.display = "none"; });
+cv.addEventListener("click", ev => {
+  const rect = cv.getBoundingClientRect(), x = (ev.clientX - rect.left) / S, y = (ev.clientY - rect.top) / S;
+  let best = null, bd = 4;
+  for (const tr of T) { if (now < tr.start || now > tr.end || !tr.drawn) continue;
+    const d = (tr.drawn.x - x) ** 2 + (tr.drawn.y - y) ** 2; if (d < bd) { bd = d; best = tr; } }
+  followed = best;
+  document.getElementById("jtitle").textContent = best
+    ? `Shopper ${best.shopper} · ${D.groups[best.group]}${best.mission ? " · " + best.mission.replace("_", "-") + " trip" : ""} · ${best.minutes} min in store` : "Click a shopper to follow them";
+  if (!best) document.getElementById("journey").innerHTML = "";
+  draw();
+});
+const slider = document.getElementById("time");
+slider.min = tMin; slider.max = tMax;
+slider.addEventListener("input", () => { now = +slider.value; draw(); });
+document.getElementById("play").onclick = e => { playing = !playing; e.target.textContent = playing ? "Pause" : "Play"; last = performance.now(); };
+for (const v of ["people", "traffic"]) document.getElementById("v-" + v).onclick = () => {
+  view = v; document.getElementById("v-people").classList.toggle("on", v === "people");
+  document.getElementById("v-traffic").classList.toggle("on", v === "traffic"); legend(); draw();
+};
+window.addEventListener("resize", () => { resize(); draw(); });
+function tick(t) {
+  const dt = Math.min((t - last) / 1000, 0.25); last = t;
+  if (playing) { now += dt * +document.getElementById("speed").value; if (now > tMax) now = tMin; draw(); }
+  requestAnimationFrame(tick);
+}
+// start at the first busy moment
+const busy = all.find(e => e.event === "SHOPPER_ENTER" && e.t >= 8 * 60);
+now = busy ? Math.floor(busy.t / 60) * 60 : tMin;
+resize(); legend(); draw(); requestAnimationFrame(tick);
+</script></body></html>
