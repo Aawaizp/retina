@@ -188,6 +188,12 @@ def collect_main(argv):
     ap.add_argument("--compare", choices=("gemini",), help="ask a second LLM the situations Groq labelled; "
                     "report agreement (uses only that LLM's free quota)")
     ap.add_argument("--items", type=int, default=200, help="situations to compare (default 200)")
+    ap.add_argument("--export", type=int, metavar="N", help="write N situations (prompt + shuffled options, no answers) as JSONL")
+    ap.add_argument("--which", choices=("new", "labelled"), default="new",
+                    help="--export: new = not yet labelled by Groq (default); labelled = the ones Groq labelled (compare)")
+    ap.add_argument("--out", help="--export: file (default data/teacher/export_<which>_<N>.jsonl)")
+    ap.add_argument("--import", dest="import_file", metavar="JSONL", help="read another teacher's answers (checked like Groq's)")
+    ap.add_argument("--compare-with", metavar="NAME/MODEL", help="report Groq vs this teacher (no new questions)")
     args = ap.parse_args(argv)
     os.environ["RETINA_STORE"] = "generic_supermarket"           # situations come from the supermarket
     from retina.student import collect as C
@@ -195,6 +201,14 @@ def collect_main(argv):
     store = LabelStore()
     if args.status:
         C.status(store)
+    elif args.export:
+        out = args.out or C.TEACHER_DIR / f"export_{args.which}_{args.export}.jsonl"
+        C.export_situations(out, args.export, args.which, store=store)
+    elif args.import_file:
+        C.import_labels(args.import_file, store=store)
+    elif args.compare_with:
+        provider, _, model = args.compare_with.partition("/")
+        C.compare_report(store, provider, model or None)
     elif args.compare:
         C.compare(args.compare, args.items, store=store)
     elif args.repeat:

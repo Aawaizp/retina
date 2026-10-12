@@ -266,7 +266,7 @@ def compare_report(store, other="gemini", other_model=None, close_gap=0.05, say=
     """Groq vs `other` on the same situations, next to Groq's self-agreement (the ceiling) and chance.
     Decision rule (owner's): agreement close to self-agreement (within close_gap) -> both may teach;
     else Groq only trains and the other's labels stay a comparison set."""
-    other_model = other_model or llm.PROVIDERS[other]["model"]
+    other_model = other_model or (llm.PROVIDERS[other]["model"] if other in llm.PROVIDERS else None)
     base = {r["id"]: r for r in store.rows(0, *TEACHER)}
     them = {r["id"]: r for r in store.rows(0, other, other_model) if r["id"] in base}
     both = [i for i in them if base[i]["choice"] is not None and them[i]["choice"] is not None]
@@ -302,6 +302,133 @@ def compare_report(store, other="gemini", other_model=None, close_gap=0.05, say=
     say(f"  Decision: {out['decision']}")
     (store.path.parent / f"compare_{other}.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
     return out
+
+
+# ===================================================== export / import (any teacher)
+def trip_key(t):
+    return f"{t['day']}-{t['npc']}"
+
+
+def choose_situations(which, n, store, pool):
+    """Trips holding n situations: 'labelled' = the first n THE teacher (Groq) labelled (for comparing
+    teachers), 'new' = the first n of the pool Groq has not labelled yet."""
+    groq = store.ids(0, teacher_of(*TEACHER))
+    if which == "labelled":
+        wanted = [r["id"] for r in store.rows(0, *TEACHER)][:n]
+    else:
+        wanted = [it["id"] for t in pool for it in t["items"] if it["id"] not in groq][:n]
+    keep = set(wanted)
+    trips = []
+    for t in pool:
+        items = [it for it in t["items"] if it["id"] in keep]
+        if items:
+            trips.append({**t, "items": items})
+    return trips, len(wanted)
+
+
+def export_situations(path, n=200, which="new", store=None, pool=None, say=print):
+    """One JSON line per trip: the exact prompt THE teacher gets (system + situation + reply format),
+    options in the same shuffled order, and every item's situation id. No answers in the file."""
+    from retina.mind.teacher import SYSTEM, batch_prompt
+    store = store or LabelStore()
+    pool = pool if pool is not None else load_pool(say=say)
+    trips, count = choose_situations(which, n, store, pool)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        for t in trips:
+            items = [{"id": it["id"], "item": i, "aisle": it["aisle"],
+                      "options": [{k: o[k] for k in ("letter", "name", "price", "regular", "deal", "in_stock", "times")}
+                                  for o in it["options"]]}
+                     for i, it in enumerate(t["items"], 1)]
+            f.write(json.dumps({"trip": trip_key(t), "system": SYSTEM,
+                                "prompt": batch_prompt([npc_block(1, t["card"], [], t, t["items"])]),
+                                "items": items, "data_label": "SIMULATED"}, ensure_ascii=False) + "\n")
+    say(f"Exported {count} situations in {len(trips)} trips ({which}) -> {path}\n"
+        f"  Import answers with: retina collect --import <answers.jsonl>  - one line per answer:\n"
+        '  {"id": "<situation id>", "teacher": "<name>/<model>", "choice": "B", "reason_type": "price", "why": "..."}\n'
+        '  or a whole reply per trip: the exported line itself plus "teacher": "<name>/<model>" and '
+        '"reply": "<the JSON list the teacher wrote>"')
+    return count
+
+
+def import_labels(path, store=None, pool=None, say=print):
+    """Read answers from another teacher and check them exactly like Groq's (offered letter, not sold
+    out, or SKIP). Valid ones become labels with that teacher (source 'import'). An import may NOT
+    claim to be THE training teacher: only labels RETINA collected itself can train the student."""
+    from retina.mind.teacher import REASON_TYPES, parse_answers
+    store = store or LabelStore()
+    pool = pool if pool is not None else load_pool(say=say)
+    by_id = {it["id"]: (t, it) for t in pool for it in t["items"]}
+    by_trip = {trip_key(t): t for t in pool}
+    rows, problems, seen = [], [], set()
+
+    def keep(t, it, teacher, ans, line):
+        provider, _, model = teacher.partition("/")
+        if not provider or not model:
+            problems.append((line, f"teacher '{teacher}' must look like name/model"))
+            return
+        if (provider, model) == TEACHER:
+            problems.append((line, f"{teacher} is the training teacher - its labels come only from retina collect"))
+            return
+        if (it["id"], teacher) in seen:
+            problems.append((line, f"{it['id']}: answered twice by {teacher} (first kept)"))
+            return
+        seen.add((it["id"], teacher))
+        rows.extend(label_rows([{**t, "items": [it]}], {(1, 1): ans}, provider, model, 0))
+        rows[-1]["source"] = "import"
+
+    with open(path, encoding="utf-8-sig") as f:
+        for line, text in enumerate(f, 1):
+            if not text.strip():
+                continue
+            try:
+                rec = json.loads(text)
+            except json.JSONDecodeError as error:
+                problems.append((line, f"not JSON ({error.msg})"))
+                continue
+            teacher = str(rec.get("teacher", "")).strip()
+            if not teacher:
+                problems.append((line, "no teacher field"))
+                continue
+            if "reply" in rec:                                    # a whole raw reply for one trip
+                t = by_trip.get(str(rec.get("trip")))
+                if t is None:
+                    problems.append((line, f"unknown trip '{rec.get('trip')}'"))
+                    continue
+                items = [it for it in t["items"] if it["id"] in {x.get("id") for x in rec.get("items", [])}] \
+                    if rec.get("items") else t["items"]
+                answers = parse_answers(str(rec["reply"]), [{"items": items}])
+                for i, it in enumerate(items, 1):
+                    if (1, i) in answers:
+                        keep(t, it, teacher, answers[(1, i)], line)
+                    else:
+                        problems.append((line, f"{it['id']}: no valid answer in the reply"))
+                continue
+            found = by_id.get(str(rec.get("id")))
+            if found is None:
+                problems.append((line, f"unknown situation id '{rec.get('id')}'"))
+                continue
+            t, it = found
+            one = json.dumps([{"shopper": 1, "item": 1, "choice": rec.get("choice"),
+                               "reason_type": rec.get("reason_type", "other"), "why": rec.get("why", "")}])
+            answers = parse_answers(one, [{"items": [it]}])
+            if (1, 1) not in answers:
+                letters = [o["letter"] for o in it["options"] if o["in_stock"]]
+                problems.append((line, f"{it['id']}: choice '{rec.get('choice')}' is not one of "
+                                       f"{', '.join(letters)} (in stock) or SKIP"))
+                continue
+            keep(t, it, teacher, answers[(1, 1)], line)
+    if rows:
+        store.add(rows)
+    teachers = sorted({r["teacher"] for r in rows})
+    say(f"Imported {len(rows)} labels from {path}" + (f" ({', '.join(teachers)})" if teachers else "")
+        + f"; {len(problems)} problem(s)")
+    for line, message in problems[:30]:
+        say(f"  line {line}: {message}")
+    if len(problems) > 30:
+        say(f"  ... and {len(problems) - 30} more")
+    return len(rows), problems
 
 
 def self_agreement(store, provider, model):

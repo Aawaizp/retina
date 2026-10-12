@@ -168,6 +168,43 @@ def test_second_teacher_comparison_keeps_both_labels(trained, tmp_path, monkeypa
     assert {"repeat_share", "deal_share"} <= set(out["fake"]) and "pending" in out["decision"]
 
 
+def test_export_then_import_another_teacher(trained, tmp_path, monkeypatch):
+    _, pool, _, _ = trained
+    monkeypatch.setattr(C, "TEACHER", ("fake", "rules-v1"))
+    store = LabelStore(tmp_path / "labels.sqlite")
+    C.collect(40, provider="fake", store=store, pool=pool, say=lambda *a: None)
+    out = tmp_path / "export.jsonl"
+    assert C.export_situations(out, 30, "labelled", store=store, pool=pool, say=lambda *a: None) == 30
+    lines = [json.loads(x) for x in out.read_text(encoding="utf-8").splitlines()]
+    items = [it for line in lines for it in line["items"]]
+    labelled = [r["id"] for r in store.rows(0, "fake", "rules-v1")][:30]
+    assert sorted(it["id"] for it in items) == sorted(labelled)                       # the same 30 situations
+    assert all("Reply as ONE JSON list" in line["prompt"] and "choice" not in json.dumps(line["items"]) for line in lines)
+    # answers: good, wrong letter, sold out, unknown id, no teacher, claims the training teacher, twice, raw reply
+    first, second = items[0], items[1]
+    ok = next(o["letter"] for o in first["options"] if o["in_stock"])
+    gone = next((o["letter"] for o in second["options"] if not o["in_stock"]), "Z")
+    rows = [{"id": first["id"], "teacher": "human/me", "choice": ok, "reason_type": "price", "why": "cheap"},
+            {"id": second["id"], "teacher": "human/me", "choice": "Q"},
+            {"id": second["id"], "teacher": "human/me", "choice": gone},
+            {"id": "c-nope", "teacher": "human/me", "choice": "A"},
+            {"id": first["id"], "choice": "A"},
+            {"id": first["id"], "teacher": "fake/rules-v1", "choice": ok},
+            {"id": first["id"], "teacher": "human/me", "choice": ok}]
+    raw = dict(lines[-1], teacher="other/llm-x",
+               reply=json.dumps([{"shopper": 1, "item": i, "choice": "SKIP", "reason_type": "budget", "why": "x"}
+                                 for i in range(1, len(lines[-1]["items"]) + 1)]))
+    answers = tmp_path / "answers.jsonl"
+    answers.write_text("\n".join(json.dumps(r) for r in rows + [raw]) + "\nnot json\n", encoding="utf-8")
+    n, problems = C.import_labels(answers, store=store, pool=pool, say=lambda *a: None)
+    assert n == 1 + len(lines[-1]["items"]) and len(problems) == 7
+    me = store.rows(0, "human", "me")
+    assert len(me) == 1 and me[0]["teacher"] == "human/me" and me[0]["source"] == "import"
+    assert store.rows(0, "other", "llm-x")[0]["choice"] == -1                         # SKIP kept as a SKIP
+    report = C.compare_report(store, "other", "llm-x", say=lambda *a: None)
+    assert report["situations"] == len(lines[-1]["items"])
+
+
 def test_collect_keeps_only_the_one_teacher(trained, tmp_path, monkeypatch):
     _, pool, _, _ = trained
     monkeypatch.setattr(llm, "PACER", llm.Pacer(tmp_path / "usage.json"))
