@@ -50,7 +50,7 @@ def examples(rows):
         if len(opts) < 2 or len(pick) != 1:
             continue
         w = np.array([max(o["w"], 1e-9) for o in opts])
-        out.append({"X": X, "y": pick[0], "opts": opts, "w": w / w.sum(), "npc": r["npc"],
+        out.append({"id": r["id"], "weight": 1.0, "X": X, "y": pick[0], "opts": opts, "w": w / w.sum(), "npc": r["npc"],
                     "engine": int(np.argmax(w)), "split": split_of(r["npc"]), "variation": r.get("variation")})
     return out, skips
 
@@ -62,6 +62,42 @@ def softmax(scores, temperature=1.0):
 
 
 # ================================================================== models
+def weighted_logit(sets, weights, iters=60, ridge=1e-2):
+    """Conditional logit (Newton) where each decision counts `weight` times (consensus weighting)."""
+    k = sets[0][0].shape[1]
+    b = np.zeros(k)
+    for _ in range(iters):
+        grad, hess = -ridge * b, -ridge * np.eye(k)
+        for (X, y), w in zip(sets, weights):
+            u = X @ b
+            p = np.exp(u - u.max())
+            p /= p.sum()
+            xbar = p @ X
+            grad += w * (y - p) @ X
+            hess -= w * ((X * p[:, None]).T @ X - np.outer(xbar, xbar))
+        step = np.linalg.solve(hess, grad)
+        b -= step
+        if np.abs(step).max() < 1e-6:
+            break
+    return b
+
+
+def consensus_weights(sets, store, other, weight, disagree=1.0):
+    """Give a decision `weight` when a second teacher picked the same option, `disagree` when it picked
+    another one; 1.0 when the second teacher did not see it. Returns counts."""
+    provider, _, model = other.partition("/")
+    theirs = {r["id"]: r["choice"] for r in store.rows(0, provider, model or None)}
+    counts = {"agree": 0, "disagree": 0, "not_seen": 0}
+    for d in sets:
+        if d["id"] not in theirs:
+            counts["not_seen"] += 1
+        elif theirs[d["id"]] == d["opts"][d["y"]]["product"]:
+            d["weight"], counts["agree"] = weight, counts["agree"] + 1
+        else:
+            d["weight"], counts["disagree"] = disagree, counts["disagree"] + 1
+    return counts
+
+
 class Logit:
     name = "conditional logit"
 
@@ -69,7 +105,7 @@ class Logit:
         X = np.vstack([d["X"] for d in train])
         self.mean, self.std = X.mean(0), X.std(0) + 1e-6
         sets = [((d["X"] - self.mean) / self.std, np.eye(len(d["X"]))[d["y"]]) for d in train]
-        self.b = conditional_logit(sets, iters=60, ridge=1e-2)
+        self.b = weighted_logit(sets, [d["weight"] for d in train])
         return self
 
     def scores(self, X):
@@ -88,8 +124,9 @@ class Ranker:
         y = np.concatenate([np.eye(len(d["X"]), dtype=int)[d["y"]] for d in train])
         Xv = np.vstack([d["X"] for d in val])
         yv = np.concatenate([np.eye(len(d["X"]), dtype=int)[d["y"]] for d in val])
+        weights = np.concatenate([np.full(len(d["X"]), d["weight"]) for d in train])    # per row, same in a decision
         self.model = lgb.LGBMRanker(**params).fit(
-            X, y, group=[len(d["X"]) for d in train], eval_X=(Xv,), eval_y=(yv,), eval_group=[[len(d["X"]) for d in val]],
+            X, y, group=[len(d["X"]) for d in train], sample_weight=weights, eval_X=(Xv,), eval_y=(yv,), eval_group=[[len(d["X"]) for d in val]],
             eval_at=[1], callbacks=[lgb.early_stopping(40, verbose=False)])
         return self
 
@@ -200,11 +237,20 @@ def onnx_matches(path, model, sets):
 
 
 # ================================================================== main
-def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=print, min_sets=100):
+def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=print, min_sets=100,
+          consensus=None, consensus_weight=2.0):
+    """consensus = 'name/model' of a second teacher: training decisions where it picked the same option
+    count consensus_weight times (validation and test are never weighted)."""
     store = store or LabelStore()
     rows = store.rows(0, provider, model)
     sets, skips = examples(rows)
     parts = {k: [d for d in sets if d["split"] == k] for k in ("train", "val", "test")}
+    weighting = None
+    if consensus:
+        counts = consensus_weights(parts["train"], store, consensus, consensus_weight)
+        weighting = {"with": consensus, "weight": consensus_weight, **counts}
+        say(f"Consensus weighting with {consensus}: {counts['agree']} training decisions agree (x{consensus_weight:g}), "
+            f"{counts['disagree']} disagree, {counts['not_seen']} not seen by it")
     say(f"Labels from {provider}/{model}: {len(rows):,} valid ({skips} SKIPs not learned) -> {len(sets):,} choice sets | "
         + " | ".join(f"{k} {len(v):,} sets / {len({d['npc'] for d in v})} NPCs" for k, v in parts.items()))
     if len(parts["train"]) < min_sets or len(parts["val"]) < 20 or len(parts["test"]) < 20:
@@ -239,7 +285,8 @@ def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=
             "test": results, "teacher_on_test": teacher_side(parts["test"]),
             "self_agreement": {"rate": ceiling, "items": n_rep}, "position_bias": position_bias(rows),
             "routing_curve_test": test_curve, "onnx_max_diff": diff, "real_repeat_share": REAL_REPEAT,
-            "output": "scores per choosable option; probabilities = softmax(scores / temperature) within a decision"}
+            "output": "scores per choosable option; probabilities = softmax(scores / temperature) within a decision",
+            "consensus_weighting": weighting}
     (out / "student.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     card = model_card(meta)
     (out / "MODEL_CARD.md").write_text(card, encoding="utf-8")
@@ -272,6 +319,10 @@ def model_card(m):
         "(store states varied on purpose: price up, deal, sold out, remembered price) and teacher answers from mix runs.",
         f"- Split by NPC: train {m['sets']['train']:,} / validation {m['sets']['val']:,} / test {m['sets']['test']:,} "
         "decision sets; test NPCs were never seen in training.",
+        (f"- Consensus weighting: training decisions where {m['consensus_weighting']['with']} picked the same option "
+         f"count x{m['consensus_weighting']['weight']:g} ({m['consensus_weighting']['agree']} agree, "
+         f"{m['consensus_weighting']['disagree']} disagree, {m['consensus_weighting']['not_seen']} not seen); "
+         "validation and test are not weighted." if m.get("consensus_weighting") else "- No consensus weighting."),
         f"- Features ({len(m['features'])}): NPC traits, why the item is on the list, trip type, price change, price level, "
         "deal, bought before, usual, engine pick, best seller, popularity, price vs last paid. NOT the option's position.", "",
         "## Results on held-out NPCs", *rows, "",

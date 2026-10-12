@@ -257,7 +257,9 @@ def pick_shares(rows):
     """Repeat share (picked something bought before) and deal share of a teacher's picks; skips."""
     picks = [next((o for o in r["options"] if o["product"] == r["choice"]), None) for r in rows]
     chosen = [o for o in picks if o is not None]
+    offered = [any(o["times"] > 0 and o["in_stock"] for o in r["options"]) for r in rows]
     return {"picks": len(chosen), "skips": sum(r["choice"] is not None and r["choice"] < 0 for r in rows),
+            "repeat_possible": round(float(np.mean(offered)), 3) if rows else None,
             "repeat_share": round(float(np.mean([o["times"] > 0 for o in chosen])), 3) if chosen else None,
             "deal_share": round(float(np.mean([o["deal"] for o in chosen])), 3) if chosen else None}
 
@@ -278,12 +280,16 @@ def compare_report(store, other="gemini", other_model=None, close_gap=0.05, say=
     self_rate, self_n = self_agreement(store, *TEACHER)
     by_variation = {}
     for i in both:
-        by_variation.setdefault(base[i].get("variation", "natural"), []).append(base[i]["choice"] == them[i]["choice"])
+        by_variation.setdefault(base[i].get("variation", "natural"), []).append(i)
+    kinds = [k for k in ("natural", "deal", "price_up", "paid_less", "sold_out") if k in by_variation]
     out = {"situations": len(both), "agreement": round(agree, 3), "chance": round(chance, 3),
            "groq_self_agreement": None if self_rate is None else round(self_rate, 3), "groq_self_items": self_n,
-           "by_variation": {k: round(float(np.mean(v)), 3) for k, v in sorted(by_variation.items())},
+           "by_variation": {k: round(float(np.mean([base[i]["choice"] == them[i]["choice"] for i in by_variation[k]])), 3)
+                            for k in kinds},
            TEACHER[0]: pick_shares([base[i] for i in both]), other: pick_shares([them[i] for i in both]),
-           "real_repeat_share": 0.60}
+           "shares_by_variation": {name: {k: pick_shares([rows[i] for i in by_variation[k]]) for k in kinds}
+                                   for name, rows in ((TEACHER[0], base), (other, them))},
+           "real_repeat_share": 0.60, "real_compares_with": "natural only (other types are changed on purpose)"}
     if self_rate is None:
         out["decision"] = "pending: Groq's self-agreement is not measured yet (retina collect --repeat 100)"
     elif agree >= self_rate - close_gap:
@@ -296,9 +302,19 @@ def compare_report(store, other="gemini", other_model=None, close_gap=0.05, say=
     say(f"  agreement {pct(agree)} | chance {pct(chance)} | Groq self-agreement "
         + (f"{pct(self_rate)} on {self_n} items" if self_rate is not None else "not measured yet"))
     say("  agreement by situation type: " + ", ".join(f"{k} {pct(v)}" for k, v in out["by_variation"].items()))
-    say(f"  {'':<8}{'repeat share':>14}{'deal share':>12}{'skips':>7}   (real repeat share ~60%)")
+    say(f"  {'':<8}{'repeat share':>14}{'deal share':>12}{'skips':>7}   (all types together)")
     for name, s in ((TEACHER[0], g), (other, o)):
         say(f"  {name:<8}{pct(s['repeat_share']):>14}{pct(s['deal_share']):>12}{s['skips']:>7}")
+    say(f"\n  By situation type - repeat share / deal share (n = situations); real ~60% repeat applies to "
+        f"'natural' ONLY:")
+    say(f"  {'':<11}" + "".join(f"{k:>17}" for k in kinds))
+    for name in (TEACHER[0], other):
+        cells = [out["shares_by_variation"][name][k] for k in kinds]
+        say(f"  {name:<11}" + "".join(f"{pct(c['repeat_share']) + ' / ' + pct(c['deal_share']):>17}" for c in cells))
+    say(f"  {'n':<11}" + "".join(f"{len(by_variation[k]):>17}" for k in kinds))
+    say(f"  {'possible':<11}" + "".join(f"{pct(out['shares_by_variation'][TEACHER[0]][k]['repeat_possible']):>17}"
+                                        for k in kinds) + "   (a bought-before option was in stock)")
+    say(f"  {'real':<11}" + "".join(f"{'~60% / -' if k == 'natural' else '-':>17}" for k in kinds))
     say(f"  Decision: {out['decision']}")
     (store.path.parent / f"compare_{other}.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
     return out

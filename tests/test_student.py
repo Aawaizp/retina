@@ -205,6 +205,19 @@ def test_export_then_import_another_teacher(trained, tmp_path, monkeypatch):
     assert report["situations"] == len(lines[-1]["items"])
 
 
+def test_consensus_weighting(trained, tmp_path, monkeypatch):
+    folder, pool, store, _ = trained
+    monkeypatch.setitem(llm.PROVIDERS, "gemini", dict(llm.PROVIDERS["gemini"], model="gemini-test"))
+    monkeypatch.setattr(C, "TEACHER", ("fake", "rules-v1"))
+    C.compare("gemini", 200, store=store, pool=pool, say=lambda *a: None, teacher=SecondTeacher())
+    meta = train(store, "fake", "rules-v1", out=tmp_path / "m", say=lambda *a: None, min_sets=50,
+                 consensus="gemini/gemini-test", consensus_weight=3.0)
+    w = meta["consensus_weighting"]
+    assert w["agree"] + w["disagree"] > 0 and w["agree"] + w["disagree"] + w["not_seen"] == meta["sets"]["train"]
+    assert "Consensus weighting" in (tmp_path / "m" / "MODEL_CARD.md").read_text(encoding="utf-8")
+    assert meta["onnx_max_diff"] < 1e-3
+
+
 def test_collect_keeps_only_the_one_teacher(trained, tmp_path, monkeypatch):
     _, pool, _, _ = trained
     monkeypatch.setattr(llm, "PACER", llm.Pacer(tmp_path / "usage.json"))

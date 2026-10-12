@@ -223,10 +223,12 @@ def collect_main(argv):
 def train_main(argv):
     ap = argparse.ArgumentParser(prog="retina train", description="Train, compare and export the student model.")
     ap.add_argument("--out", help="folder for the model (default models/student)")
+    ap.add_argument("--consensus", metavar="NAME/MODEL", help="weight up decisions where this second teacher agrees")
+    ap.add_argument("--consensus-weight", type=float, default=2.0, help="weight of an agreed decision (default 2)")
     args = ap.parse_args(argv)
     os.environ["RETINA_STORE"] = "generic_supermarket"
     from retina.student.train import train, MODEL_DIR
-    train(out=args.out or MODEL_DIR)
+    train(out=args.out or MODEL_DIR, consensus=args.consensus, consensus_weight=args.consensus_weight)
 
 
 def main(argv=None):
