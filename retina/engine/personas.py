@@ -30,12 +30,13 @@ import time
 import numpy as np
 import pandas as pd
 
-from .config import ROOT, PROFILE, stream
+from .config import ROOT, PROFILE, RUN_ID, stream
+from . import csvsafe
 
 PROMPT_VERSION = 2                      # change it when the prompt changes: personas are rewritten
 BATCH = 8                               # NPCs per LLM request (fewer requests on free tiers)
 STREAM_PERSONA = 8                      # random stream for names and ages
-PERSONA_DIR = ROOT / "data" / "personas" / PROFILE["id"]
+PERSONA_DIR = ROOT / "data" / "personas" / RUN_ID
 PERSONA_FILE = PERSONA_DIR / "personas.json"
 INCOME = ["lower income", "lower-middle income", "middle income", "upper-middle income", "higher income"]
 SENSITIVITY = ["not very price-sensitive", "somewhat price-sensitive", "very price-sensitive"]
@@ -227,7 +228,7 @@ def save(saved):
         facts = {k: ("; ".join(x) if isinstance(x, list) else x) for k, x in v["facts"].items()}
         rows.append({**facts, **{k: v[k] for k in ("bio", "shopping_style", "quote", "source")},
                      "cares_about": "; ".join(v["cares_about"]), "data_label": "SIMULATED"})
-    pd.DataFrame(rows).sort_values("shopper_id").to_csv(PERSONA_DIR / "personas.csv", index=False)
+    csvsafe.to_csv(pd.DataFrame(rows).sort_values("shopper_id"), PERSONA_DIR / "personas.csv", index=False)
 
 
 def varied_sample(sim, n):

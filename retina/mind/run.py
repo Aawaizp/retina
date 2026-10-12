@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from retina.engine import llm, traffic
+from retina.engine.csvsafe import to_csv
 from retina.mind.mind import Mind, BATCH
 from retina.mind.teacher import MAX_REQUEST_TOKENS
 
@@ -116,7 +117,7 @@ def day_done(mind, day, run_dir):
     df["options"] = df["options"].map(json.dumps)
     df["data_label"] = "SIMULATED"
     path = run_dir / "decisions.csv"
-    df.to_csv(path, mode="a", header=not path.exists(), index=False)
+    to_csv(df, path, mode="a", header=not path.exists(), index=False)
     kinds = df["mind"].value_counts()
     cached = int(df.loc[df["mind"].isin(["llm", "llm_fallback"]), "cached"].sum())
     print(f"  mind: {len(df)} choices by thinking NPCs | {kinds.get('autopilot', 0)} autopilot | "

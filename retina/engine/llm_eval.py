@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 
 from .config import ROOT, PRICE_ELASTICITY, REFERENCE_SHARE, LOSS_AVERSION
+from . import csvsafe
 from . import focus as F
 from . import personas as P
 from .engine import Simulation
@@ -259,7 +260,7 @@ def main():
         if m["answered"] == 0:
             print(f"[{provider}] gave no usable answers - left out")
             continue
-        df.assign(data_label="SIMULATED").to_csv(out_dir / f"eval_{provider}.csv", index=False)
+        csvsafe.to_csv(df.assign(data_label="SIMULATED"), out_dir / f"eval_{provider}.csv", index=False)
         results.append(m)
     if not results:
         print("No provider answered. Check keys ($env:GROQ_API_KEY / $env:GEMINI_API_KEY) or start Ollama.")

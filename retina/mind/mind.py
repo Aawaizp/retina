@@ -15,7 +15,7 @@ are checked again by the engine. Every decision is logged in the NPC memory (ret
 
 import numpy as np
 
-from retina.engine.config import ROOT, PROFILE, stream
+from retina.engine.config import ROOT, PROFILE, RUN_ID, stream
 from retina.engine.personas import npc_facts, template_persona, varied_sample, clean
 from retina.memory.store import MemoryStore
 from retina.mind.cache import AnswerCache, fingerprint
@@ -168,7 +168,7 @@ class Mind:
                 card = self.card(s, day)
                 memory_lines = self.remembers(s, day)
                 situation = npc_block(0, card, memory_lines, trip, items)
-                key = fingerprint(PROFILE["id"], self.sim.seed, PROMPT_VERSION, int(s), day, situation)
+                key = fingerprint(RUN_ID, self.sim.seed, PROMPT_VERSION, int(s), day, situation)
                 asking.append({"s": s, "items": items, "key": key, "card": card, "memory": memory_lines,
                                "trip": trip, "cached": self.cache.get(key)})
         self._teach(asking, out)

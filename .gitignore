@@ -15,6 +15,9 @@ data/export/
 data/experiments/
 data/focus/*/llm_cache.json
 data/cache/
+# Uploaded product files and their converted catalogs (retina --products): the user's own data
+data/uploads/
+retina_products/
 
 # Per-shopper statistics derived from Instacart: keep local (Instacart terms: no redistribution).
 # Without it RETINA draws habits from the published distributions instead (still runs).

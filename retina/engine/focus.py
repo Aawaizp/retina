@@ -30,7 +30,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from . import config
+from . import config, csvsafe
 from .config import ROOT, PROFILE, SENSITIVITY_GROUPS, STREAM_TRIPS, stream
 from . import shopping
 from . import traffic
@@ -41,7 +41,7 @@ from .world import remove_spoiled, receive_deliveries, sample_from
 PROMPT_VERSION = 1
 STREAM_FOCUS = 9                       # dice for shuffling the order options are shown in
 MAX_OPTIONS = 5
-FOCUS_DIR = ROOT / "data" / "focus" / PROFILE["id"]
+FOCUS_DIR = ROOT / "data" / "focus" / config.RUN_ID
 CACHE_FILE = FOCUS_DIR / "llm_cache.json"
 LETTERS = "ABCDE"
 
@@ -280,8 +280,8 @@ def share(x):
 def save_and_report(rows, npcs, day, offline, say=print):
     out_dir = FOCUS_DIR / f"day{day:03d}"
     out_dir.mkdir(parents=True, exist_ok=True)
-    rows.to_csv(out_dir / "decisions.csv", index=False)
-    npcs.to_csv(out_dir / "npcs.csv", index=False)
+    csvsafe.to_csv(rows, out_dir / "decisions.csv", index=False)
+    csvsafe.to_csv(npcs, out_dir / "npcs.csv", index=False)
     lines = [f"RETINA focus group - day {day} - {len(npcs)} NPCs, {len(rows)} list items (SIMULATED)"]
     if offline or rows.empty:
         lines.append("Offline: trips and options saved; no LLM choices to compare.")

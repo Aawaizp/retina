@@ -22,7 +22,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from . import config
+from . import config, csvsafe
 from .config import *
 from .engine import run_simulation, load_scenario, Interventions, SEGMENTS
 from . import traffic
@@ -272,8 +272,8 @@ def save(scenario, days, seeds, per_run, lines, summary):
             for n, c in enumerate(r[part]["changes"], start=1):
                 for name, v in c["metrics"].items():
                     rows.append((r["seed"], part, f"change {n}", name, round(float(v), 2)))
-    pd.DataFrame(rows, columns=["seed", "run", "scope", "measure", "value"]).to_csv(
-        folder / "runs.csv", index=False)
+    csvsafe.to_csv(pd.DataFrame(rows, columns=["seed", "run", "scope", "measure", "value"]),
+                   folder / "runs.csv", index=False)
     info = {"name": scenario.get("name"), "created": datetime.now().isoformat(timespec="seconds"),
             "data_label": "SIMULATED", "runs": len(seeds), "seeds": seeds, "days": days,
             "store_profile": PROFILE, "summary": summary,

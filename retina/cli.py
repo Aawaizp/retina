@@ -17,6 +17,13 @@ Minds (how NPCs choose at the shelf):
   today's free limits (add --yes to run anyway). --provider fake = fixed rules, no LLM (dry runs, tests).
   retina --store supermarket --mind mix --report     the panel-vs-crowd report of that run
 
+Your own products (USD prices; values labelled USER_PROVIDED):
+  retina products --template                  example CSV + the list of 124 aisles
+  retina products --check my.csv              check every row, change nothing
+  retina --products my.csv --days 10          a store that sells ONLY your products
+  retina --products my.csv --products-mode add    the US catalog plus your products
+  retina export --products my.csv --days 30 --csv   a dataset (Parquet/CSV + data card) of that store
+
 Other tools still run as modules, e.g.  python -m retina.engine.studio  or  python -m retina.engine.export
 """
 
@@ -80,8 +87,51 @@ def build_parser():
     ap.add_argument("--wait", type=float, default=0, help="seconds to wait between days (to watch --view)")
     ap.add_argument("--scale", type=float, help="new store only: NPCs per real shopper (0.1 = 1 in 10)")
     ap.add_argument("--per-week", type=int, help="new store only: real shoppers a week")
+    ap.add_argument("--products", metavar="CSV", help="your own products (see: retina products --template)")
+    ap.add_argument("--products-mode", choices=("only", "add"), default="only",
+                    help="only = the store sells just your products (default); add = the US catalog plus yours")
+    ap.add_argument("--skip-bad-rows", action="store_true", help="leave rows with errors out instead of stopping")
     ap.add_argument("--version", action="version", version=f"retina {__version__}")
     return ap
+
+
+def products_main(argv):
+    """retina products --template [--out FOLDER] | --check CSV [--skip-bad-rows]"""
+    ap = argparse.ArgumentParser(prog="retina products", description="Your own products: template and check.")
+    ap.add_argument("--template", action="store_true", help="write an example file + the list of 124 aisles")
+    ap.add_argument("--out", default="retina_products", help="folder for --template (default retina_products)")
+    ap.add_argument("--check", metavar="CSV", help="check a product file row by row (changes nothing)")
+    ap.add_argument("--skip-bad-rows", action="store_true", help="count rows with errors as skipped")
+    args = ap.parse_args(argv)
+    if args.template:
+        from retina.products.convert import write_template
+        example, aisles = write_template(args.out)
+        print(f"Wrote {example} (example rows - replace them with your products) and {aisles} "
+              f"(the 124 aisles: write one in the 'category' or 'aisle' column).")
+    elif args.check:
+        from retina.products.check import check_file, report_text
+        result = check_file(args.check, args.skip_bad_rows)
+        print(report_text(result))
+        sys.exit(0 if result.ok else 1)
+    else:
+        ap.print_help()
+
+
+def use_products(path, mode, skip_bad_rows):
+    """Check + convert the upload, then point the engine at it (before the engine is imported)."""
+    from retina.products.check import check_file, report_text
+    from retina.products.convert import save
+    result = check_file(path, skip_bad_rows)
+    if not result.ok:
+        print(report_text(result))
+        sys.exit(1)
+    catalog, tag, summary = save(result, path, mode)
+    covered = summary["demand_covered"]
+    print(f"Products: {summary['uploaded_products']:,} from {summary['file']} in {summary['aisles']} aisles "
+          f"({summary['warnings']} warning(s), details in data/uploads/{tag}/check_report.txt)"
+          + (f"\n  these aisles hold ~{covered:.0%} of what real shoppers buy; wants elsewhere are recorded "
+             f"as 'not sold here'" if covered is not None and mode == "only" else ""))
+    os.environ.update(RETINA_CATALOG=str(catalog), RETINA_CATALOG_KIND=mode, RETINA_CATALOG_TAG=tag)
 
 
 def live_args(args):
@@ -100,7 +150,31 @@ def live_args(args):
     return out
 
 
+def export_main(argv):
+    """retina export [--store S] [--products CSV [--products-mode only|add]] [--days N] [--csv] ...
+    The store and products are chosen here; every other option goes to retina.engine.export."""
+    ap = argparse.ArgumentParser(prog="retina export", description="Export a dataset (Parquet/CSV + data card).",
+                                 epilog="Other options (--days, --seed, --csv, --name, --no-realism) are passed on.")
+    ap.add_argument("--store", default=os.environ.get("RETINA_STORE", "generic_supermarket"))
+    ap.add_argument("--products", metavar="CSV")
+    ap.add_argument("--products-mode", choices=("only", "add"), default="only")
+    ap.add_argument("--skip-bad-rows", action="store_true")
+    args, rest = ap.parse_known_args(argv)
+    os.environ["RETINA_STORE"] = resolve_store(args.store)
+    if args.products:
+        use_products(args.products, args.products_mode, args.skip_bad_rows)
+    from retina.engine import export
+    export.main(rest)
+
+
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["products"]:
+        products_main(argv[1:])
+        return
+    if argv[:1] == ["export"]:
+        export_main(argv[1:])
+        return
     args = build_parser().parse_args(argv)
     if args.stores:
         list_stores()
@@ -111,6 +185,8 @@ def main(argv=None):
     if args.panel < 1:
         sys.exit("--panel must be 1 or more.")
     os.environ["RETINA_STORE"] = store                 # must be set BEFORE the engine is imported
+    if args.products:
+        use_products(args.products, args.products_mode, args.skip_bad_rows)
     from retina.engine import live
     try:
         live.main(live_args(args))

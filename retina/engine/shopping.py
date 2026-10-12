@@ -86,7 +86,13 @@ def build_aisle_partners(store):
     together = pairs.set_index(["aisle_a", "aisle_b"])["together_orders"]
     # each aisle's normal share of NEW picks: department share x share inside the department
     base = {}
-    for name, share in zip(store.dept_names, np.diff(np.r_[0, store.dept_cum])):
+    if NOT_SOLD_HERE:                     # custom store: missions can lead to aisles it does not sell
+        want = store.want
+        for name, share in zip(want["dept_names"], np.diff(np.r_[0, want["dept_cum"]])):
+            names, cum = want["aisles"][name]
+            for a, s in zip(names, np.diff(np.r_[0, cum])):
+                base[a] = share * s
+    for name, share in zip(store.dept_names, np.diff(np.r_[0, store.dept_cum])) if not NOT_SOLD_HERE else ():
         d = store.departments[name]
         for a, s in zip(d.aisle_names, np.diff(np.r_[0, d.aisle_cum])):
             base[a] = share * s
@@ -164,7 +170,7 @@ def make_list(s, day, store, shoppers, tables, promo, rng, prices=None):
     trip_type = trip_mission(n_items, shoppers.basket_mean[s])
     favorites, pantry, home = shoppers.favorites[s], shoppers.pantry[s], shoppers.home[s]
     group = tables[shoppers.sensitivity_group[s]]
-    effects, log = [], []
+    effects, log, not_sold = [], [], []
     budget = np.inf
     if BUDGET_ON and shoppers.weekly_budget is not None and prices is not None:
         budget = shoppers.weekly_budget[s] * max(since, 7) / 7   # a week's food money (more if longer)
@@ -218,10 +224,19 @@ def make_list(s, day, store, shoppers, tables, promo, rng, prices=None):
                 ud = (u[2] - AISLE_AFFINITY) / (1 - AISLE_AFFINITY) if plan_aisles else u[2]
             mission = store.aisle_partners.get(plan_aisles[int(u[3] * len(plan_aisles))]) if on_mission else None
             if mission is not None:
-                aisle = store.aisles[mission[0][pick_index(mission[1], ud)]]
+                aisle_name = mission[0][pick_index(mission[1], ud)]
+            elif NOT_SOLD_HERE:                                # custom store: wants follow ALL aisles
+                want_dept = store.want["dept_names"][pick_index(store.want["dept_cum"], ud)]
+                want_aisles, want_cum = store.want["aisles"][want_dept]
+                aisle_name = want_aisles[pick_index(want_cum, u[3])]
             else:
                 d = store.departments[store.dept_names[pick_index(store.dept_cum, ud)]]
-                aisle = store.aisles[d.aisle_names[pick_index(d.aisle_cum, u[3])]]
+                aisle_name = d.aisle_names[pick_index(d.aisle_cum, u[3])]
+            if aisle_name not in store.aisles:                 # custom store does not sell this aisle:
+                not_sold.append(aisle_name)                    # lost demand, never a substitute
+                log.append(("SKIP", -1, {"reason": "not_sold_here", "aisle": aisle_name}))
+                continue
+            aisle = store.aisles[aisle_name]
             if group["cum"][aisle.name] is None:              # whole aisle taken off the shelves
                 effects.append((s, aisle.product_idx[0], "walked_away", 1))
                 log.append(("SKIP", -1, {"reason": "aisle_removed"}))
@@ -238,7 +253,7 @@ def make_list(s, day, store, shoppers, tables, promo, rng, prices=None):
         plan_aisles.append(store.aisle_of[wanted])
         last = wanted
     return {"plan": plan, "effects": effects, "log": log, "budget": budget,
-            "mission": trip_type, "planned": n_items}
+            "mission": trip_type, "planned": n_items, "not_sold": not_sold}
 
 
 def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_points=False, prices=None,
@@ -383,7 +398,7 @@ def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_po
             lasts = HOME_FACTOR * store.product_cycle[product] * gap * qty * (0.5 + j)
             home[product] = max(home.get(product, -1), day + int(lasts))
     info = {"mission": trip_type, "routes": routes, "budget": budget, "spent": spent, "planned": n_items,
-            "minds": minds}
+            "minds": minds, "not_sold": trip.get("not_sold", [])}
     return basket, misses, effects, walk, info
 
 
@@ -425,7 +440,7 @@ def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, table
         arrive[s] = hour * 60 + stream(STREAM_WALK, day, s).random() * 60
     order = sorted(visitors, key=lambda v: arrive[v])          # early shoppers find fuller shelves
 
-    rows, misses, effects, trips, chunks = [], [], [], [], {}
+    rows, misses, effects, trips, chunks, not_sold_trips = [], [], [], [], {}, []
     thinkers = [s for s in order if mind.thinks(s)] if mind is not None else []
     ready, ctx = {}, {"prices_g": prices_g, "regular": regular, "promo_g": promo_g, "tables": tables,
                       "hour": {s: int(arrive[s] // 60) for s in order}}
@@ -473,6 +488,7 @@ def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, table
         trips.append([day, trip_id, s, arrive[s], reach[-1], walk.cum_m[-1], len(walk.stops),
                       len(walk.passed), items, len(basket), info["mission"], info["planned"],
                       round(min(info["budget"], 1e6), 2), round(info["spent"], 2)])
+        not_sold_trips.append(info["not_sold"])
         if recording:
             chunk = RECORDER["events"][first:]
             del RECORDER["events"][first:]
@@ -493,6 +509,9 @@ def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, table
     lane, wait, leave = floor.checkout_queue(trips["ready_min"].to_numpy(), trips["items"].to_numpy())
     trips["lane"], trips["wait_min"], trips["leave_min"] = lane, wait, leave
     trips["minutes_in_store"] = trips["leave_min"] - trips["arrive_min"]
+    if NOT_SOLD_HERE:                                          # custom store: wants it does not sell
+        trips["not_sold_here"] = [len(x) for x in not_sold_trips]
+        trips["not_sold_aisles"] = ["; ".join(x) for x in not_sold_trips]
     if recording:
         add_trip_events(day, floor, trips, chunks)
 

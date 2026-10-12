@@ -70,6 +70,8 @@ def build_store(catalog, departments):
     depts = {}
     for name, info in departments.items():
         idx = np.flatnonzero((products["department"] == name).to_numpy())
+        if NOT_SOLD_HERE and len(idx) == 0:
+            continue                       # custom store: a department it does not sell has no shelves
         weights = products["popularity"].to_numpy()[idx]
         depts[name] = Department(
             name=name,
@@ -81,8 +83,10 @@ def build_store(catalog, departments):
 
     names = list(depts)
     shares = np.array([depts[n].share for n in names])
-    return Store(products=products, departments=depts, dept_names=names,
-                 dept_shares=shares / shares.sum())
+    store = Store(products=products, departments=depts, dept_names=names,
+                  dept_shares=shares / shares.sum())
+    store.department_info = departments          # every department's real share (custom stores need all)
+    return store
 
 
 def summarize_store(store):
@@ -324,6 +328,26 @@ def expected_daily_demand(store, shoppers):
     popularity within the department."""
     items_per_day = (shoppers.basket_mean / shoppers.gap_mean).sum()
     demand = np.zeros(len(store.products))
+    if NOT_SOLD_HERE and getattr(store, "aisle_demand", None):
+        # Custom store: forecast with the aisle mix NPCs really use - re-buys (share r) follow the real
+        # re-bought mix of the aisles sold here; new picks follow the real mix over ALL aisles, and
+        # the part that lands on aisles not sold here is not demand for this store.
+        r = float(np.mean(shoppers.reorder_prob))
+        for a, aisle in store.aisles.items():
+            share = r * store.aisle_demand["rebuy"].get(a, 0.0) + (1 - r) * store.aisle_demand["new"].get(a, 0.0)
+            demand[aisle.product_idx] = items_per_day * share * aisle.pick_prob
+        if shoppers.counts is not None and any(shoppers.counts):
+            # once NPCs have a history (seed_history): re-buys follow what they really bought - habits
+            # pile onto each aisle's best sellers far more than popularity alone says (few products/aisle)
+            bought = np.zeros(len(store.products))
+            for counts in shoppers.counts:
+                for p, k in counts.items():
+                    bought[p] += k
+            new = np.zeros(len(store.products))
+            for a, aisle in store.aisles.items():
+                new[aisle.product_idx] = store.aisle_demand["new"].get(a, 0.0) * aisle.pick_prob
+            demand = items_per_day * (r * bought / max(bought.sum(), 1) + (1 - r) * new)
+        return demand
     for name, share in zip(store.dept_names, store.dept_shares):
         d = store.departments[name]
         demand[d.product_idx] = items_per_day * share * d.pick_prob
@@ -403,6 +427,56 @@ def build_aisles(store):
                 store.product_cycle[d.product_idx] = cycles[a]
     print(f"\nAisles: {len(store.aisles)} substitute groups across {len(store.departments)} departments"
           + (" | aisle shares: real Instacart order lines" if real is not None else ""))
+    if NOT_SOLD_HERE:
+        build_demand_map(store, stats)
+
+
+def build_demand_map(store, stats):
+    """Custom stores (uploaded products): what NPCs WANT is not limited to what the store sells.
+    New picks follow the real mix over ALL aisles of the US catalog (department share -> aisle,
+    real first-time Instacart lines, same rules as above); a pick in an aisle the store does not
+    sell becomes 'not sold here' (lost demand) in shopping.make_list - never a substitute.
+    store.want = {dept_names, dept_cum, aisles: {department: (aisle names, running total)}};
+    store.carried_share = share of those wants that land on an aisle this store sells."""
+    from retina.products.aisles import aisle_table
+    universe = aisle_table()
+    first = (stats["lines"] - stats["rebought"]) if stats is not None else None
+    names_out, weights, by_dept = [], [], {}
+    for name, info in store.department_info.items():
+        names = list(universe.index[universe["department"] == name])
+        if first is not None:
+            w = np.array([float(first.get(a, 0)) for a in names])
+        else:
+            w = (universe.loc[names, "median_popularity"] * universe.loc[names, "products"]).to_numpy(float)
+        if not names or w.sum() <= 0:
+            continue
+        share = info["share"] * DEPARTMENT_WEIGHTS.get(name, 1.0)
+        if stats is not None:                           # department mix of first-time purchases
+            known = [a for a in names if a in stats.index]
+            lines = stats.loc[known, "lines"].sum()
+            share *= first[known].sum() / lines if lines else 1.0
+        names_out.append(name)
+        weights.append(share)
+        by_dept[name] = (names, np.cumsum(w / w.sum()))
+    dept_p = np.array(weights) / sum(weights)
+    store.want = {"dept_names": names_out, "dept_cum": np.cumsum(dept_p), "aisles": by_dept}
+    want_p = {}                                          # chance a NEW pick lands in each aisle
+    for name, pd_ in zip(names_out, dept_p):
+        names, cum = by_dept[name]
+        for a, p in zip(names, np.diff(np.r_[0, cum])):
+            want_p[a] = want_p.get(a, 0.0) + pd_ * p
+    sold = sum(p for a, p in want_p.items() if a in store.aisles)
+    store.carried_share = float(sold)
+    # where RE-BUYS land: the real re-bought mix over the aisles sold here (as seed_history)
+    if stats is not None:
+        rebought = {a: float(stats.at[a, "rebought"]) for a in store.aisles if a in stats.index}
+    else:
+        rebought = {a: float(store.aisles[a].share) for a in store.aisles}
+    total = sum(rebought.values()) or 1.0
+    store.aisle_demand = {"new": {a: p for a, p in want_p.items() if a in store.aisles},
+                          "rebuy": {a: v / total for a, v in rebought.items()}}
+    print(f"Demand map (custom store): NPCs look for things in {sum(len(v[0]) for v in by_dept.values())} aisles; "
+          f"{sold:.0%} of new picks land on an aisle sold here - the rest is recorded as 'not sold here'")
 
 def add_favorites(store, shoppers, s, products):
     """Remember what a shopper bought. Which AISLE they re-buy from follows the aisle's real re-buy
@@ -488,7 +562,10 @@ def build_inventory(store, shoppers, rng):
     sellable = np.zeros(len(p), dtype=bool)
     for d in store.departments.values():
         sellable[d.product_idx] = True
-    shelf_life = p["department"].map(SHELF_LIFE_DAYS).fillna(0).astype(int).to_numpy()
+    shelf_life = p["department"].map(SHELF_LIFE_DAYS).fillna(0)
+    if "shelf_life_days" in p:                           # uploaded products may give their own
+        shelf_life = pd.to_numeric(p["shelf_life_days"], errors="coerce").fillna(shelf_life)
+    shelf_life = shelf_life.astype(int).to_numpy()
     # Fresh items are ordered every day, one day of demand at a time (like real stores)
     order_days = np.where(shelf_life > 0, 1, ORDER_DAYS)
     inv = Inventory(

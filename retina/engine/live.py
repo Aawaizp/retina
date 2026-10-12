@@ -28,7 +28,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from . import config
+from . import config, csvsafe
 from .config import ROOT, PROFILE, TRAFFIC
 from . import traffic
 from . import shopping
@@ -41,10 +41,17 @@ STATE = LIVE_DIR / "state.pkl"
 
 def use_run_dir(mind):
     """fast runs keep data/live/<store>/; thinking runs get their own folder (<store>_mix, <store>_llm),
-    so engine-only data and thinking-NPC data never mix in one file."""
+    and uploaded products too (<store>+<upload tag>), so different data never mixes in one file."""
     global LIVE_DIR, STATE
-    LIVE_DIR = ROOT / "data" / "live" / (PROFILE["id"] if mind == "fast" else f"{PROFILE['id']}_{mind}")
+    name = config.RUN_ID
+    LIVE_DIR = ROOT / "data" / "live" / (name if mind == "fast" else f"{name}_{mind}")
     STATE = LIVE_DIR / "state.pkl"
+
+
+def not_sold_department(aisle):
+    from retina.products.aisles import aisle_table
+    t = aisle_table()
+    return t.at[aisle, "department"] if aisle in t.index else ""
 
 
 def clock(minutes):
@@ -68,9 +75,10 @@ def open_store(scale, per_week):
 
 
 def load_store():
-    mind = LIVE_DIR.name[len(PROFILE["id"]) + 1:] or "fast"
+    mind = next((m for m in ("mix", "llm") if LIVE_DIR.name.endswith(f"_{m}")), "fast")
+    products = " --products <your file>" if config.CATALOG_TAG else ""
     reset = (f"This saved store was made by an older RETINA version. Start a new one: "
-             f"retina --store {PROFILE['id']} --mind {mind} --reset")
+             f"retina --store {PROFILE['id']}{products} --mind {mind} --reset")
     try:
         with open(STATE, "rb") as f:
             sim = pickle.load(f)
@@ -96,7 +104,7 @@ def save_store(sim):
 
 def append(df, name):
     path = LIVE_DIR / name
-    df.to_csv(path, mode="a", header=not path.exists(), index=False)
+    csvsafe.to_csv(df, path, mode="a", header=not path.exists(), index=False)
 
 
 def hourly_table(sim, day, sales, trips):
@@ -246,6 +254,14 @@ def main(argv=None):
         trips = trips.assign(date=sim.book.dates[day].date(), arrive_time=clock(trips["arrive_min"]),
                              leave_time=clock(trips["leave_min"]), data_label="SIMULATED")
         append(trips.round(2), "trips.csv")
+        if config.NOT_SOLD_HERE:                          # custom store: lost demand, one row per want
+            lost = trips.loc[trips["not_sold_here"] > 0, ["date", "trip_id", "shopper_id", "arrive_time",
+                                                          "not_sold_aisles"]]
+            lost = lost.assign(aisle=lost["not_sold_aisles"].str.split("; ")).explode("aisle")
+            if len(lost):
+                lost = lost.drop(columns="not_sold_aisles").assign(
+                    department=lambda x: x["aisle"].map(not_sold_department), data_label="SIMULATED")
+                append(lost, "not_sold_here.csv")
         if len(misses):
             append(build_stockout_log(misses, sim.store, sim.book).assign(data_label="SIMULATED"), "stockouts.csv")
         append(hourly, "hourly.csv")

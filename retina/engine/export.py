@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
-from . import config
+from . import config, csvsafe
 from .config import ROOT, PROFILE, DATA_LABELS, CATALOG_LABEL_COLUMNS
 from . import traffic
 
@@ -234,7 +234,7 @@ def write_table(df, path, csv):
             df[c] = df[c].dt.date
     df.to_parquet(path.with_suffix(".parquet"), index=False)
     if csv:
-        df.to_csv(path.with_suffix(".csv.gz"), index=False, compression="gzip")
+        csvsafe.to_csv(df, path.with_suffix(".csv.gz"), index=False, compression="gzip")
 
 
 def dictionary_rows(tables, truth):
@@ -266,6 +266,7 @@ def dataset_card(name, tables, truth, run, realism, checks, args):
     money = run["money"]
     sc = run["scorecard"] or []
     passed = sum(r[4] == "PASS" for r in sc)
+    judged = sum(r[4] != "N/A" for r in sc)
     first, last = tx["date"].min(), tx["date"].max()
     lines = [
         f"# {name}", "",
@@ -293,8 +294,15 @@ def dataset_card(name, tables, truth, run, realism, checks, args):
               "- **Behaviour**: needs (products run out at home), habits, shopping missions (real aisle pairs), "
               "price memory and elasticity, promotions (brand switch / stock up / impulse), empty-shelf reactions "
               "(Gruen et al. 2002), budgets, walking a floor plan and queuing at checkout.",
-              "- **Store**: (s, S) re-ordering with forecast errors and late suppliers, spoilage, margins.", "",
-              f"## Quality: scorecard {passed}/{len(sc)}",
+              "- **Store**: (s, S) re-ordering with forecast errors and late suppliers, spoilage, margins.", ""]
+    if config.NOT_SOLD_HERE:
+        lines += ["- **Custom product range**: this store sells products UPLOADED by the user "
+                  f"({'only those products' if config.CATALOG_KIND == 'only' else 'added to the US catalog'}). "
+                  "Their names, prices, deals and aisles are labelled USER_PROVIDED (not checked against real stores). "
+                  "NPCs still want what real shoppers want; a want in an aisle the store does not sell is recorded "
+                  "as 'not sold here' (trips: not_sold_here, not_sold_aisles) - lost demand, never a substitute.", ""]
+    lines += [f"## Quality: scorecard {passed}/{judged}" + (f" ({len(sc) - judged} N/A for a custom range)"
+                                                         if judged < len(sc) else ""),
               "| check | type | simulated | real | result |", "|---|---|---|---|---|"]
     lines += [f"| {c[0]} | {c[1]} | {c[2]} | {c[3]} | {c[4]} |" for c in sc]
     lines += ["", "'input' = fed in (proves the code works), 'emergent' = not fed in (real evidence), "
@@ -330,19 +338,19 @@ def dataset_card(name, tables, truth, run, realism, checks, args):
     return "\n".join(lines)
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description="Export a RETINA synthetic retail dataset.")
     ap.add_argument("--seed", type=int, default=None, help="random seed (default: the store profile's)")
     ap.add_argument("--days", type=int, default=None, help="days to simulate (default: the store profile's)")
     ap.add_argument("--name", help="folder name (default retina_<store>_seed<seed>)")
     ap.add_argument("--csv", action="store_true", help="also write .csv.gz files")
     ap.add_argument("--no-realism", action="store_true", help="skip the realism test")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     if args.seed is not None:
         config.set_seed(args.seed)
     from .retina_mart import run_pipeline
     run = run_pipeline(seed=args.seed, days=args.days, save=True)
-    name = args.name or f"retina_{PROFILE['id']}_seed{config.SEED}" + (f"_{args.days}d" if args.days else "")
+    name = args.name or f"retina_{config.RUN_ID}_seed{config.SEED}" + (f"_{args.days}d" if args.days else "")
     out = EXPORT_DIR / name
     print(f"\nExporting to {out.relative_to(ROOT)} ...")
     tables, truth = build_tables(run)
@@ -351,7 +359,10 @@ def main():
     for k, v in truth.items():
         write_table(v, out / "truth" / k, args.csv)
     realism = None
-    if not args.no_realism:
+    if config.NOT_SOLD_HERE and not args.no_realism:
+        print("\nRealism test: N/A for a custom product range (it compares baskets with real Instacart "
+              "baskets of the full US range).")
+    elif not args.no_realism:
         try:
             from . import realism as realism_mod
             print("\nRealism test (held-out real baskets)...")
@@ -360,12 +371,12 @@ def main():
             print(f"Realism test skipped: {str(error)[:120]}")
     checks = run_checks(tables, truth, run)
     sc = pd.DataFrame(run["scorecard"] or [], columns=["check", "type", "simulated", "real", "result"])
-    sc.to_csv(out / "scorecard.csv", index=False)
+    csvsafe.to_csv(sc, out / "scorecard.csv", index=False)
     if realism:
         (out / "realism.json").write_text(json.dumps(realism, indent=1, default=float), encoding="utf-8")
     (out / "checks.json").write_text(json.dumps(checks, indent=1), encoding="utf-8")
     d = dictionary_rows(tables, truth)
-    d.to_csv(out / "data_dictionary.csv", index=False)
+    csvsafe.to_csv(d, out / "data_dictionary.csv", index=False)
     (out / "DATA_DICTIONARY.md").write_text(dictionary_md(d, tables, truth), encoding="utf-8")
     (out / "DATASET_CARD.md").write_text(dataset_card(name, tables, truth, run, realism, checks, args), encoding="utf-8")
     info = {"name": name, "retina_version": VERSION, "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),

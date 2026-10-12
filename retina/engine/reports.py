@@ -328,6 +328,9 @@ def pair_report(sales, store):
     n_trips = trips["trip_id"].nunique()
     pairs["sim_lift"] = (pairs["together"] * n_trips
                          / (pairs["a"].map(count).to_numpy() * pairs["b"].map(count).to_numpy()))
+    if len(pairs) < 2:          # e.g. uploaded products: no real Instacart pairs to compare with
+        return {"pairs": len(pairs), "corr": np.nan, "above_chance": np.nan,
+                "median_real": np.nan, "median_sim": np.nan}
     return {"pairs": len(pairs),
             "corr": np.corrcoef(np.log(pairs["real_lift"]), np.log(pairs["sim_lift"]))[0, 1],
             "above_chance": (pairs["sim_lift"] > 1).mean(),
@@ -354,13 +357,18 @@ def scorecard(log, params, store, stock_stats, stockouts, money, promo_log, pair
         return sum(float(k) * v for k, v in dist.items())
 
     rows = []
-    def check(name, kind, sim, real, ok):
+    def check(name, kind, sim, real, ok, mix=False):
+        """mix=True: compared with the Instacart aisle / department mix - a custom store (uploaded
+        products) sells a different range on purpose, so there the check is 'N/A', not PASS or FAIL."""
+        if mix and NOT_SOLD_HERE:
+            rows.append((name, kind, sim, real, "N/A"))
+            return
         rows.append((name, kind, sim, real, "PASS" if ok else "FAIL"))
 
     trips = log.groupby("trip_id")["quantity"].sum()
     real_basket = mean_of(params["basket_size"])
     check("items per trip (average)", "input", f"{trips.mean():.1f}", f"{real_basket:.1f}",
-          abs(trips.mean() - real_basket) / real_basket < 0.15)
+          abs(trips.mean() - real_basket) / real_basket < 0.15, mix=True)
 
        # Planned items only: promotion extras (stocking up, impulse buys) are checked separately
     extras = promo_log[promo_log["effect"].isin(["stock_up", "impulse"])]
@@ -370,7 +378,7 @@ def scorecard(log, params, store, stock_stats, stockouts, money, promo_log, pair
 
     real_dept = pd.Series(dict(zip(store.dept_names, store.dept_shares)))
     gap = (sim_dept.reindex(real_dept.index).fillna(0) - real_dept).abs().max()
-    check("department shares (largest gap)", "input", f"{gap * 100:.1f} pts", "0", gap < 0.02)
+    check("department shares (largest gap)", "input", f"{gap * 100:.1f} pts", "0", gap < 0.02, mix=True)
 
     hours = log.drop_duplicates("trip_id")["hour"].value_counts(normalize=True)
     if traffic.enabled():                                 # the store's traffic schedule (open hours)
@@ -430,7 +438,7 @@ def scorecard(log, params, store, stock_stats, stockouts, money, promo_log, pair
     check("promo bump split (switch/stock/extra)", "tuned",
              "/".join(f"{v * 100:.0f}" for v in split), "33/33/33", split.between(0.2, 0.45).all())
     check("real pairs bought together (lift corr.)", "input", f"{pair_stats['corr']:.2f}", "high",
-             pair_stats["corr"] >= 0.7 and pair_stats["above_chance"] >= 0.9)
+             pair_stats["corr"] >= 0.7 and pair_stats["above_chance"] >= 0.9, mix=True)
     real = real_shopping_stats()              # real receipts and price tags (Open Prices)
     if real:
         u = real["units_per_receipt_line"]
@@ -454,13 +462,17 @@ def scorecard(log, params, store, stock_stats, stockouts, money, promo_log, pair
     if AISLE_CYCLES_FILE.exists():
         sim_next, real_next = rebuy_next_trip(log, store)
         check("same product again next trip", "tuned", f"{sim_next * 100:.0f}%", f"{real_next * 100:.0f}%",
-              abs(sim_next - real_next) < 0.05)
+              abs(sim_next - real_next) < 0.05, mix=True)
     print("\nSCORECARD - simulated year vs real data (Instacart orders, Open Prices receipts)")
     print(f"  {'check':<38} {'type':<9} {'simulated':>10} {'real':>10}  result")
     for name, kind, sim, real, res in rows:
         print(f"  {name:<38} {kind:<9} {sim:>10} {real:>10}  {res}")
     passed = sum(r[4] == "PASS" for r in rows)
-    print(f"  {passed}/{len(rows)} passed. FAILs show what to improve next - that is the point.")
+    judged = sum(r[4] != "N/A" for r in rows)
+    print(f"  {passed}/{judged} passed. FAILs show what to improve next - that is the point.")
+    if judged < len(rows):
+        print(f"  {len(rows) - judged} check(s) N/A: this store sells its own range, so the Instacart "
+              f"aisle/department mix is not the right yardstick.")
     return rows
 
 

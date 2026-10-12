@@ -104,6 +104,37 @@ first look, not a verdict. As in v1, LLM shoppers are more deal-driven than the 
 
 ---
 
+## Your own products (v2)
+
+```powershell
+retina products --template                       # example CSV + the 124 aisles to choose from
+retina products --check my_products.csv          # every row checked, nothing changed
+retina --products my_products.csv --days 10      # a store that sells ONLY your products
+retina --products my_products.csv --products-mode add   # the US catalog plus yours
+retina export --products my_products.csv --days 30 --csv  # a dataset of that store
+```
+
+Columns: `name, brand, category, price, pack_size` (+ optional `aisle`, `promo_price`,
+`popularity`, `shelf_life_days`, `product_id`). Prices in US dollars for now (NPC budgets come
+from US statistics). The file may be UTF-8 (with or without BOM) or Windows-1252, comma-, semicolon-
+or tab-separated, up to 50,000 rows; pack sizes like `500 g`, `12 x 330 ml`, `1 lb 11.2 oz` are read.
+
+- **Every product sits in one of 124 aisles**, so the engine can use what real shoppers do there.
+  A category that is not an aisle gets a *suggestion* (`biscuits` → did you mean `cookies cakes`?),
+  never an automatic change: you confirm it in an `aisle` column.
+- **Not sold here:** NPCs still want what real shoppers want. A want in an aisle your store does not
+  sell is recorded as **lost demand** (`not_sold_here.csv`), never swapped for something else.
+  NPC histories and habits come only from products the store sells.
+- **Honest labels:** uploaded values are `USER_PROVIDED`; defaults we fill in are `ESTIMATED`.
+  Scorecard checks that compare with the Instacart aisle mix say **N/A** for a custom range.
+- **Spreadsheet-safe:** a text cell starting with `= + - @` is written as text in every CSV RETINA
+  makes, so a product name can never run as an Excel formula.
+
+Test run (200 real products in 25 aisles, supermarket, 3 weeks; SIMULATED): those aisles hold ~60%
+of what real shoppers buy; ~1.8 of ~9.9 wanted items per trip were "not sold here".
+
+---
+
 ## How it works
 
 ```mermaid
@@ -228,6 +259,7 @@ loaders/      build the data layer from public sources (catalog, aisle stats, pr
 retina/       the Python package (`pip install -e .` gives the `retina` command, retina/cli.py)
   mind/            v2: router, autopilot, LLM teacher (batched, cached), run estimate, report
   memory/          v2: NPC memory cards and decision log (SQLite, one file per run)
+  products/        v2: your own products - read, check ("did you mean"), convert (USER_PROVIDED)
   app/             v2, later: local app
 retina/engine/   the v1 engine and tools (run one with python -m retina.engine.<tool>)
   config.py        settings from the store profile, random streams
@@ -257,6 +289,9 @@ web/          the website (v2, later)
 | FMI, USDA ERS (ATUS) | store footfall, weekday pattern | published statistics |
 | Gruen, Corsten & Bharadwaj 2002; Van Heerde et al. 2004; Bijmolt et al. 2005 | stockout reactions, promotion effects, elasticity | research |
 
+The test file `tests/fixtures/products_200.csv` is a small extract of the catalog (Open Food Facts
+names/brands/sizes, Open Prices prices) and is shared under ODbL 1.0 - see `tests/fixtures/README.md`.
+
 RETINA is a **non-commercial portfolio project**. Store formats are generic ("supermarket"),
 never presented as any real retailer.
 
@@ -270,13 +305,17 @@ never presented as any real retailer.
 
 ## Tests
 
-`python -m pytest` runs 26 checks in about a minute (also on every push, via GitHub Actions):
+`python -m pytest` runs 39 checks in about a minute and a half (also on every push, via GitHub Actions):
 same seed gives the same data; stopping and continuing a run changes nothing; receipts, trips and
 daily totals agree; prices and promotions make sense; store traffic and households follow their
 inputs; every store format runs and differs as it should; the LLM guardrails (JSON reading, persona fact check, valid choices) work without any key.
 Thinking NPCs (with stand-in teachers, no key): a mix run stopped and continued equals one run; the
 cache makes a rerun identical with zero LLM calls; a broken LLM falls back to the engine; memory
 rolls back an unsaved day; big batches are split under the token cap; the rate limiter waits.
+Your own products: files with a BOM, Windows-1252, semicolons, quoted commas are read; rows over
+the limit are refused; "did you mean" never changes a row; USD only; formula cells are neutralised;
+200 uploaded products run in all four store formats with lost demand recorded and histories only
+from products the store sells; the Instacart-mix scorecard checks say N/A.
 
 ## Skills shown
 

@@ -44,8 +44,20 @@ def load_profile(store_id):
 
 
 PROFILE = load_profile(os.environ.get("RETINA_STORE", "generic_supermarket"))
-CATALOG_FILE = ROOT / PROFILE["catalog_file"]
-OUTPUT_DIR = ROOT / "data" / "simulated" / PROFILE["id"]    # each store keeps its own results
+BUILTIN_CATALOG_FILE = ROOT / PROFILE["catalog_file"]           # the US catalog (23,011 products)
+# Uploaded products (retina --products my.csv; retina/products/): the command converts the upload and
+# sets these BEFORE the engine is imported. builtin = the US catalog; only = just the uploaded products;
+# add = the US catalog plus the uploaded ones.
+CATALOG_KIND = os.environ.get("RETINA_CATALOG_KIND", "builtin")
+if CATALOG_KIND not in ("builtin", "only", "add"):
+    raise ValueError(f"RETINA_CATALOG_KIND must be builtin, only or add (not '{CATALOG_KIND}')")
+CATALOG_FILE = Path(os.environ["RETINA_CATALOG"]) if CATALOG_KIND != "builtin" else BUILTIN_CATALOG_FILE
+CATALOG_TAG = os.environ.get("RETINA_CATALOG_TAG", "") if CATALOG_KIND != "builtin" else ""
+# Custom stores: NPCs still WANT what real shoppers want (all aisles of the US catalog); a want in an
+# aisle the store does not sell is recorded as "not sold here" (lost demand), never swapped.
+NOT_SOLD_HERE = CATALOG_KIND != "builtin"
+RUN_ID = PROFILE["id"] + (f"+{CATALOG_TAG}" if CATALOG_TAG else "")   # store (+ uploaded products)
+OUTPUT_DIR = ROOT / "data" / "simulated" / RUN_ID           # each store keeps its own results
 
 # ============================================== settings from the profile
 _sim, _shop, _price = PROFILE["simulation"], PROFILE["shoppers"], PROFILE["pricing"]
@@ -110,6 +122,7 @@ DATA_LABELS = {
     "PUBLIC_STATISTIC": "a published figure from an official body or study (CPI, survey results)",
     "ESTIMATED": "worked out by us (name matching, keyword rules, assumptions)",
     "SIMULATED": "produced by the RETINA simulation",
+    "USER_PROVIDED": "given by the person who uploaded the products (retina --products); not checked against real stores",
 }
 CATALOG_LABEL_COLUMNS = ["price_label", "product_facts_label", "popularity_label",
                          "department_label", "cpi_category_label","aisle_label"]
