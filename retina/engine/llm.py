@@ -7,6 +7,14 @@ in the code (it would end up in screenshots, GitHub, ...).
 "auto" (the default) uses a CHAIN: Groq first (best), then Gemini, then Ollama on your PC.
 If one has no key, hits its free limit or cannot be reached, the next one answers - and the busy
 one rests for a minute. Change the order:  $env:RETINA_LLM_CHAIN = "gemini,groq,ollama"
+Cerebras is available but NOT in the default chain: in Oct 2026 its free trial asks for a verified
+payment method (RETINA rule: nothing that needs a card). Opt in:  $env:RETINA_LLM_CHAIN = "cerebras,groq,..."
+
+Rate limiter: before every request the PACER waits until the provider's per-minute limits
+(requests and tokens) have room - so free tiers are not hit in the first place (retries on 429
+stay as a safety net). Daily use is counted in data/cache/llm_usage.json; a provider whose free
+day is used up is skipped until tomorrow (UTC). Limits: LIMITS below, or override one provider:
+  $env:RETINA_LIMITS_GROQ = "rpm=30,tpm=8000,rpd=1000,tpd=200000"
 
 Test it:   python -m retina.engine.llm               (auto: asks one short question)
            python -m retina.engine.llm groq          (one provider)
@@ -17,6 +25,9 @@ import json
 import os
 import sys
 import time
+from collections import deque
+from datetime import datetime, timezone
+from pathlib import Path
 
 import requests
 
@@ -30,11 +41,113 @@ PROVIDERS = {
            "model": "openai/gpt-oss-120b"},
     "ollama": {"url": "http://localhost:11434/v1", "key": None,          # runs on your own PC, free
                "model": "llama3.2:3b"},                                   # 2 GB; smaller: qwen3:1.7b (1.4 GB)
+    "cerebras": {"url": "https://api.cerebras.ai/v1", "key": "CEREBRAS_API_KEY",   # opt-in (see above)
+                 "model": "gpt-oss-120b"},
 }
 DEFAULT_PROVIDER = os.environ.get("RETINA_LLM", "auto")   # change without editing code
 CHAIN = [p.strip() for p in os.environ.get("RETINA_LLM_CHAIN", "groq,gemini,ollama").split(",") if p.strip()]
 RESTING = {}                 # provider -> time it may be used again (after a limit or a dropped line)
 LAST_USED = {"provider": None, "model": None}     # who answered the last chat() call
+
+# Free-tier limits per provider (default model). rpm/tpm = per minute, rpd/tpd = per day; None = no limit.
+# groq: console.groq.com/docs/rate-limits (gpt-oss-120b, checked 12 Oct 2026) - PUBLIC_STATISTIC
+# cerebras: inference-docs.cerebras.ai/support/rate-limits (free trial, checked 12 Oct 2026) - PUBLIC_STATISTIC
+# gemini: Google shows limits only inside AI Studio; these are cautious guesses - ESTIMATED
+# ollama: your own PC, no limits
+LIMITS = {
+    "groq": {"rpm": 30, "tpm": 8_000, "rpd": 1_000, "tpd": 200_000},
+    "gemini": {"rpm": 10, "tpm": 250_000, "rpd": 250, "tpd": None},
+    "cerebras": {"rpm": 5, "tpm": 30_000, "rpd": None, "tpd": 1_000_000},
+    "hf": {"rpm": 10, "tpm": None, "rpd": None, "tpd": None},
+    "ollama": {"rpm": None, "tpm": None, "rpd": None, "tpd": None},
+}
+USAGE_FILE = Path(__file__).resolve().parents[2] / "data" / "cache" / "llm_usage.json"
+
+
+def limits(provider):
+    """LIMITS for a provider, with $env:RETINA_LIMITS_<PROVIDER> = "rpm=30,tpm=8000" applied on top."""
+    out = dict(LIMITS.get(provider, {"rpm": None, "tpm": None, "rpd": None, "tpd": None}))
+    for part in os.environ.get(f"RETINA_LIMITS_{provider.upper()}", "").split(","):
+        name, _, value = part.partition("=")
+        if name.strip() in out and value.strip():
+            out[name.strip()] = None if value.strip().lower() == "none" else int(value)
+    return out
+
+
+def estimate_tokens(messages, reply_tokens=800):
+    """Rough token count of a request: ~4 characters per token, plus room for the reply."""
+    return sum(len(m.get("content") or "") for m in messages) // 4 + reply_tokens
+
+
+class Pacer:
+    """Keeps each provider under its per-minute limits (waits BEFORE sending) and counts daily use.
+    The per-minute window lives in memory; daily totals are saved in USAGE_FILE (UTC days)."""
+
+    def __init__(self, usage_file=USAGE_FILE, clock=time.time, sleep=time.sleep):
+        self.file, self.clock, self.sleep = Path(usage_file), clock, sleep
+        self.window = {}                                   # provider -> deque of (time, tokens)
+
+    def today(self):
+        return datetime.fromtimestamp(self.clock(), timezone.utc).strftime("%Y-%m-%d")
+
+    def _usage(self):
+        try:
+            data = json.loads(self.file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            data = {}
+        return data if data.get("day") == self.today() else {"day": self.today(), "providers": {}}
+
+    def used_today(self, provider):
+        u = self._usage()["providers"].get(provider, {})
+        return u.get("requests", 0), u.get("tokens", 0)
+
+    def left_today(self, provider):
+        """(requests, tokens) still free today; None = no daily limit."""
+        lim, (req, tok) = limits(provider), self.used_today(provider)
+        return (None if lim["rpd"] is None else max(lim["rpd"] - req, 0),
+                None if lim["tpd"] is None else max(lim["tpd"] - tok, 0))
+
+    def wait(self, provider, tokens, say=print):
+        """Block until one more request of `tokens` fits this minute. Raises if today's limit is used up."""
+        lim = limits(provider)
+        req_left, tok_left = self.left_today(provider)
+        if (req_left is not None and req_left < 1) or (tok_left is not None and tok_left < tokens):
+            raise RuntimeError(f"{provider}: daily limit reached (free tier) - try again tomorrow")
+        window = self.window.setdefault(provider, deque())
+        told = False
+        while True:
+            now = self.clock()
+            while window and window[0][0] <= now - 60:
+                window.popleft()
+            busy_req = lim["rpm"] is not None and len(window) + 1 > lim["rpm"]
+            busy_tok = lim["tpm"] is not None and window and sum(t for _, t in window) + tokens > lim["tpm"]
+            if not (busy_req or busy_tok):
+                window.append((now, tokens))
+                return
+            pause = max(window[0][0] + 60 - now, 0.5)
+            if not told:
+                say(f"  ({provider}: pacing under its free per-minute limit - {pause:.0f}s)")
+                told = True
+            self.sleep(pause)
+
+    def spent(self, provider, tokens):
+        """After a request: replace the guess in this minute's window by the real count, add to today."""
+        window = self.window.get(provider)
+        if window:
+            t, _ = window.pop()
+            window.append((t, tokens))
+        data = self._usage()
+        u = data["providers"].setdefault(provider, {"requests": 0, "tokens": 0})
+        u["requests"] += 1
+        u["tokens"] += int(tokens)
+        try:
+            self.file.parent.mkdir(parents=True, exist_ok=True)
+            self.file.write_text(json.dumps(data, indent=1), encoding="utf-8")
+        except OSError:
+            pass                                           # counting is a help, never a reason to stop
+
+
+PACER = Pacer()
 
 
 def connect(provider):
@@ -93,7 +206,8 @@ def chat_auto(messages, temperature=0.2, reasoning=None):
             return chat(messages, provider, None, temperature, reasoning, patient=False)
         except RuntimeError as error:
             text = str(error)
-            if any(k in text for k in ("429", "Could not reach", "error 5", "error 403", "error 401")):
+            if any(k in text for k in ("429", "Could not reach", "error 5", "error 403", "error 401",
+                                       "daily limit")):
                 RESTING[provider] = time.time() + 60          # let it rest, use the next one
                 problems.append(f"{provider}: {text[:80]}")
                 print(f"  ({provider} busy or unavailable - switching to the next provider)")
@@ -118,6 +232,8 @@ def chat(messages, provider=None, model=None, temperature=0.2, reasoning=None, p
         body["reasoning_effort"] = reasoning
     if reasoning == "low" and "qwen3" in model.lower():      # small Qwen3 models: skip "thinking" = faster
         body["messages"] = messages[:-1] + [{**messages[-1], "content": messages[-1]["content"] + "\n/no_think"}]
+    guess = estimate_tokens(body["messages"])
+    PACER.wait(provider, guess)                               # stay under the per-minute limits
     try:
         data = send("POST", url + "/chat/completions", headers, provider, patient, json=body)
     except RuntimeError as error:
@@ -125,6 +241,7 @@ def chat(messages, provider=None, model=None, temperature=0.2, reasoning=None, p
             raise
         body.pop("reasoning_effort")                      # this provider does not accept it
         data = send("POST", url + "/chat/completions", headers, provider, patient, json=body)
+    PACER.spent(provider, (data.get("usage") or {}).get("total_tokens") or guess)
     LAST_USED.update(provider=provider, model=model)
     message = data["choices"][0]["message"]
     text = (message.get("content") or "").strip()

@@ -39,6 +39,14 @@ LIVE_DIR = ROOT / "data" / "live" / PROFILE["id"]
 STATE = LIVE_DIR / "state.pkl"
 
 
+def use_run_dir(mind):
+    """fast runs keep data/live/<store>/; thinking runs get their own folder (<store>_mix, <store>_llm),
+    so engine-only data and thinking-NPC data never mix in one file."""
+    global LIVE_DIR, STATE
+    LIVE_DIR = ROOT / "data" / "live" / (PROFILE["id"] if mind == "fast" else f"{PROFILE['id']}_{mind}")
+    STATE = LIVE_DIR / "state.pkl"
+
+
 def clock(minutes):
     m = np.asarray(minutes)
     return [f"{int(x // 60):02d}:{int(x % 60):02d}" for x in m]
@@ -60,8 +68,9 @@ def open_store(scale, per_week):
 
 
 def load_store():
+    mind = LIVE_DIR.name[len(PROFILE["id"]) + 1:] or "fast"
     reset = (f"This saved store was made by an older RETINA version. Start a new one: "
-             f"retina --store {PROFILE['id']} --reset")
+             f"retina --store {PROFILE['id']} --mind {mind} --reset")
     try:
         with open(STATE, "rb") as f:
             sim = pickle.load(f)
@@ -175,7 +184,16 @@ def main(argv=None):
     ap.add_argument("--per-week", type=int, help="new store only: real shoppers a week")
     ap.add_argument("--view", action="store_true", help="write view.html: the NPCs walking, day by day")
     ap.add_argument("--wait", type=float, default=0, help="seconds to wait between days (to watch --view)")
+    ap.add_argument("--mind", choices=("fast", "mix", "llm"), default="fast",
+                    help="fast = engine only; mix = a panel of thinking NPCs; llm = every NPC thinks (small runs)")
+    ap.add_argument("--panel", type=int, default=50, help="new mix run only: thinking NPCs (default 50)")
+    ap.add_argument("--provider", default="auto", help="LLM teacher: auto (chain), groq, gemini, ollama, cerebras, "
+                                                       "or fake (fixed rules, no LLM - for tests)")
+    ap.add_argument("--model", help="model name for that provider")
+    ap.add_argument("--yes", action="store_true", help="run even if the estimate is above today's free LLM limits")
+    ap.add_argument("--report", action="store_true", help="thinking runs: print the panel-vs-crowd report and stop")
     args = ap.parse_args(argv)
+    use_run_dir(args.mind)
 
     if args.reset and LIVE_DIR.exists():
         shutil.rmtree(LIVE_DIR)
@@ -188,14 +206,24 @@ def main(argv=None):
     else:
         sim = open_store(args.scale, args.per_week)
         save_store(sim)
+    if args.mind != "fast":
+        from retina.mind import run as mind_run
+        sim.mind = mind_run.attach(sim, args.mind, LIVE_DIR, args.panel, args.provider, args.model)
     if args.status:
         status(sim)
+        return
+    if args.report:
+        if args.mind == "fast":
+            raise SystemExit("--report is for thinking runs (--mind mix or --mind llm).")
+        mind_run.finish(sim.mind, LIVE_DIR)
         return
 
     days = min(args.days, sim.days - sim.day)
     if days <= 0:
         print(f"The price calendar ends after {sim.days} days. Use --reset, or raise simulation.days "
               f"in the store profile.")
+        return
+    if args.mind != "fast" and not mind_run.check_estimate(sim, days, args.yes):
         return
     t = time.time()
     first = sim.day
@@ -221,6 +249,8 @@ def main(argv=None):
         if len(misses):
             append(build_stockout_log(misses, sim.store, sim.book).assign(data_label="SIMULATED"), "stockouts.csv")
         append(hourly, "hourly.csv")
+        if args.mind != "fast":                           # memory first: a newer memory is rolled back
+            mind_run.day_done(sim.mind, day, LIVE_DIR)    # on load, an older one could not catch up
         save_store(sim)                                   # after every day: safe to stop at any time
         if args.view:
             write_view(sim, day, events, first_time=(k == 0))
@@ -229,6 +259,8 @@ def main(argv=None):
                 time.sleep(args.wait)
     print(f"\nSaved {days} day(s) ({sim.book.dates[first]:%d %b} to {sim.book.dates[sim.day - 1]:%d %b %Y}) "
           f"in {time.time() - t:.0f}s -> {LIVE_DIR.relative_to(ROOT)}. Run again to continue.")
+    if args.mind != "fast":
+        mind_run.finish(sim.mind, LIVE_DIR)
 
 
 if __name__ == "__main__":

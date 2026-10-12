@@ -69,6 +69,41 @@ plays each day and then loads the next one by itself.
 
 ---
 
+## Thinking NPCs (v2, in progress)
+
+```powershell
+retina --store supermarket --mind mix --days 10    # a panel of 50 NPCs think; the rest is the engine
+retina --store supermarket --mind mix --report     # LLM panel vs engine crowd
+retina --mind mix --provider fake --days 3         # dry run: fixed rules, no LLM, no key
+```
+
+The engine still makes each NPC's shopping list. At the shelf, a **router** sends each choice to
+the cheapest mind that can make it: **autopilot** for routine buys (the usual product, in stock,
+price as remembered), the **LLM teacher** for everything worth a thought (something new, the usual
+is sold out or dearer, a deal next to it, plus a 5% check). Up to 5 NPCs share one request;
+Python checks every answer, and a bad or missing one falls back to the engine. Each thinking NPC
+has a **memory card** (SQLite) - persona, past trips, prices paid, empty shelves - so a returning
+NPC is the same person. Every decision is logged (`decisions.csv`): training data for the
+student model that comes next.
+
+- **Same data every time:** answers are cached per NPC + day + situation, so a rerun - or the
+  same days in pieces (4 + 6 = 10) - gives byte-identical data and costs no LLM calls.
+- **Free tiers respected:** a rate limiter paces requests under each provider's per-minute limits,
+  counts daily use, and an estimate of requests and tokens is shown before every run.
+
+First real run (supermarket, 10 days, Groq + Gemini, 12 Oct 2026; SIMULATED):
+
+| | trips | repeat buys | deal lines | own-price elasticity* |
+|---|---|---|---|---|
+| LLM panel (50 NPCs) | 42 | 49% | 27% | −1.4 |
+| engine crowd | 1,828 | 45% | 12% | −2.0 |
+
+330 LLM choices, 2 fell back to the engine, 13 requests, ~67,000 tokens.
+*Conditional logit on the same option sets; research on grocery choice ≈ −2.5. Small sample: a
+first look, not a verdict. As in v1, LLM shoppers are more deal-driven than the engine.
+
+---
+
 ## How it works
 
 ```mermaid
@@ -191,7 +226,9 @@ Each export includes `DATASET_CARD.md` (how it was made, quality, limits, licenc
 ```
 loaders/      build the data layer from public sources (catalog, aisle stats, profiles, trip needs)
 retina/       the Python package (`pip install -e .` gives the `retina` command, retina/cli.py)
-  mind/ memory/ app/   v2, being built: NPC mind, NPC memory cards, local app
+  mind/            v2: router, autopilot, LLM teacher (batched, cached), run estimate, report
+  memory/          v2: NPC memory cards and decision log (SQLite, one file per run)
+  app/             v2, later: local app
 retina/engine/   the v1 engine and tools (run one with python -m retina.engine.<tool>)
   config.py        settings from the store profile, random streams
   world.py         store, shoppers, prices, stock          households.py  household, income, budget
@@ -233,10 +270,13 @@ never presented as any real retailer.
 
 ## Tests
 
-`python -m pytest` runs 18 checks in under a minute (also on every push, via GitHub Actions):
+`python -m pytest` runs 26 checks in about a minute (also on every push, via GitHub Actions):
 same seed gives the same data; stopping and continuing a run changes nothing; receipts, trips and
 daily totals agree; prices and promotions make sense; store traffic and households follow their
 inputs; every store format runs and differs as it should; the LLM guardrails (JSON reading, persona fact check, valid choices) work without any key.
+Thinking NPCs (with stand-in teachers, no key): a mix run stopped and continued equals one run; the
+cache makes a rerun identical with zero LLM calls; a broken LLM falls back to the engine; memory
+rolls back an unsaved day; big batches are split under the token cap; the rate limiter waits.
 
 ## Skills shown
 

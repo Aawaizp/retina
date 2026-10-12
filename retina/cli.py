@@ -8,7 +8,15 @@
 Each store keeps its own saved state and CSV files in data/live/<store id>/; running again carries on
 where it stopped (3 x 10 days = exactly one 30-day run). Every row is SIMULATED.
 
-Minds: fast = the v1 statistical engine (Phase 1). llm and mix arrive in Phase 2.
+Minds (how NPCs choose at the shelf):
+  fast  the statistical engine only (v1) - data/live/<store>/
+  mix   a panel of 50 thinking NPCs (autopilot for routine buys, the LLM teacher for the rest);
+        everyone else is the engine - data/live/<store>_mix/  (memory.sqlite, decisions.csv, report.txt)
+  llm   every NPC asks the LLM for every choice - small runs only - data/live/<store>_llm/
+  A thinking run prints an ESTIMATE of LLM requests and tokens first, and stops if that is above
+  today's free limits (add --yes to run anyway). --provider fake = fixed rules, no LLM (dry runs, tests).
+  retina --store supermarket --mind mix --report     the panel-vs-crowd report of that run
+
 Other tools still run as modules, e.g.  python -m retina.engine.studio  or  python -m retina.engine.export
 """
 
@@ -55,7 +63,14 @@ def build_parser():
                     help="supermarket (default), supercenter, neighborhood, convenience (or a full id)")
     ap.add_argument("--days", type=int, default=1, help="how many days to simulate now (default 1)")
     ap.add_argument("--mind", choices=MINDS, default="fast",
-                    help="fast = statistical engine (default); llm / mix come in Phase 2")
+                    help="fast = engine only (default); mix = panel of thinking NPCs; llm = every NPC (small runs)")
+    ap.add_argument("--panel", type=int, default=50, help="new mix run only: how many NPCs think (default 50)")
+    ap.add_argument("--provider", default="auto",
+                    help="LLM teacher: auto (Groq -> Gemini -> Ollama), groq, gemini, ollama, cerebras, "
+                         "or fake (fixed rules, no LLM)")
+    ap.add_argument("--model", help="model name for that provider")
+    ap.add_argument("--yes", action="store_true", help="run even if the estimate is above today's free LLM limits")
+    ap.add_argument("--report", action="store_true", help="thinking runs: print the panel-vs-crowd report and stop")
     ap.add_argument("--stores", action="store_true", help="list the store formats and stop")
     ap.add_argument("--status", action="store_true", help="show where the store is and stop")
     ap.add_argument("--reset", action="store_true", help="close the saved store and open a new one")
@@ -71,8 +86,11 @@ def build_parser():
 
 def live_args(args):
     """The same run, as arguments for retina.engine.live."""
-    out = ["--days", str(args.days), "--pace", str(args.pace), "--wait", str(args.wait)]
-    for flag in ("status", "reset", "watch", "view"):
+    out = ["--days", str(args.days), "--pace", str(args.pace), "--wait", str(args.wait), "--mind", args.mind,
+           "--panel", str(args.panel), "--provider", args.provider]
+    if args.model:
+        out += ["--model", args.model]
+    for flag in ("status", "reset", "watch", "view", "yes", "report"):
         if getattr(args, flag):
             out.append(f"--{flag}")
     if args.scale:
@@ -88,10 +106,10 @@ def main(argv=None):
         list_stores()
         return
     store = resolve_store(args.store)
-    if args.mind != "fast":
-        sys.exit(f"--mind {args.mind} is not built yet (v2 Phase 2). Use --mind fast for now.")
     if args.days < 1:
         sys.exit("--days must be 1 or more.")
+    if args.panel < 1:
+        sys.exit("--panel must be 1 or more.")
     os.environ["RETINA_STORE"] = store                 # must be set BEFORE the engine is imported
     from retina.engine import live
     try:

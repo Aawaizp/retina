@@ -90,6 +90,9 @@ def build_sales_log(sales, store, book):
         "reason": sales["reason"],            # need (ran out at home) / partner / new / impulse
         
     })
+    for column in ("mind", "why_type", "why"):  # thinking-NPC runs only (retina --mind mix|llm)
+        if column in sales:
+            log[column] = sales[column].to_numpy()
     month = book.month_of_day[sales["day"].to_numpy()]
     log["unit_cost"] = (p["unit_cost"].to_numpy()[idx] * book.inflation[month, idx]).round(2)
     log["line_total"] = (log["quantity"] * log["unit_price"]).round(2)

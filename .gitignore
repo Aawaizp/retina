@@ -14,6 +14,7 @@ data/live/
 data/export/
 data/experiments/
 data/focus/*/llm_cache.json
+data/cache/
 
 # Per-shopper statistics derived from Instacart: keep local (Instacart terms: no redistribution).
 # Without it RETINA draws habits from the published distributions instead (still runs).

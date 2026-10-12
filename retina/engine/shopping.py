@@ -126,7 +126,16 @@ def poisson_from_u(mean, u):
 
 
 def fill_basket(s, day, store, shoppers, tables, inv, promo, rng, with_points=False, prices=None):
-    """One shopper's trip.
+    """One shopper's trip = make_list (in their head, at home) + walk_shelves (in the store).
+    Same dice, same order as one function: the list never looks at the shelves."""
+    trip = make_list(s, day, store, shoppers, tables, promo, rng, prices)
+    for event, product, info in trip["log"]:
+        record(day, s, event, product, **info)
+    return walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_points, prices)
+
+
+def make_list(s, day, store, shoppers, tables, promo, rng, prices=None):
+    """Step 1 of a trip (see walk_shelves for step 2).
     1) The shopping list (in their head): each item is a repeat (favorites), a partner of the
        previous item (real 'bought together' pairs) or a new pick: department (real share) ->
        aisle (fixed share) -> product (popularity x price). Items still at home are skipped.
@@ -139,8 +148,10 @@ def fill_basket(s, day, store, shoppers, tables, inv, promo, rng, with_points=Fa
     trip's share of the household's food budget is spent.
     Every list item uses its own fixed block of random numbers, so an experiment that changes one
     item's outcome does not shift the dice of the shopper's other items.
-    Returns {product: qty}, out-of-stock moments, behaviour effects, the walk and trip info."""
-    floor = store.floor
+    The list depends only on the shopper's own state (home, pantry, habits) and this week's pick
+    tables - never on the shelves - so lists can be made ahead (the mind batches NPCs this way).
+    Events go into trip["log"] (the caller records them when the shopper really comes in).
+    Returns the trip: the list (plan), effects so far, budget, mission and planned size."""
     last_trip = shoppers.last_trip_day[s]
     since = day - last_trip if last_trip >= 0 else shoppers.gap_mean[s]
     if NEEDS_ON:
@@ -152,13 +163,11 @@ def fill_basket(s, day, store, shoppers, tables, inv, promo, rng, with_points=Fa
         n_items = max(1, rng.poisson(shoppers.basket_mean[s]))
     trip_type = trip_mission(n_items, shoppers.basket_mean[s])
     favorites, pantry, home = shoppers.favorites[s], shoppers.pantry[s], shoppers.home[s]
-    sens = shoppers.price_sensitivity[s]
     group = tables[shoppers.sensitivity_group[s]]
-    basket, misses, effects, routes = {}, [], [], {}
+    effects, log = [], []
     budget = np.inf
     if BUDGET_ON and shoppers.weekly_budget is not None and prices is not None:
         budget = shoppers.weekly_budget[s] * max(since, 7) / 7   # a week's food money (more if longer)
-    spent = 0.0
 
     # 1) the shopping list
     plan, last, plan_aisles = [], -1, []                       # last = previous item on the list
@@ -215,19 +224,38 @@ def fill_basket(s, day, store, shoppers, tables, inv, promo, rng, with_points=Fa
                 aisle = store.aisles[d.aisle_names[pick_index(d.aisle_cum, u[3])]]
             if group["cum"][aisle.name] is None:              # whole aisle taken off the shelves
                 effects.append((s, aisle.product_idx[0], "walked_away", 1))
-                record(day, s, "SKIP", reason="aisle_removed")
+                log.append(("SKIP", -1, {"reason": "aisle_removed"}))
                 continue
             wanted, route = pick_product(aisle, group["cum"][aisle.name], u[4]), "new"
             # Brand switch = without promotions (base table) the same shopper picks something else
             switched = promo[wanted] and wanted != pick_product(aisle, aisle.cum_prob, u[4])
         if pantry.get(wanted, -1) > day:                       # still have some at home
             effects.append((s, wanted, "had_at_home", -1))
-            record(day, s, "SKIP", wanted, reason="had_at_home")
+            log.append(("SKIP", wanted, {"reason": "had_at_home"}))
             continue
         plan.append((wanted, route, switched, together, u))
         on_list.add(wanted)
         plan_aisles.append(store.aisle_of[wanted])
         last = wanted
+    return {"plan": plan, "effects": effects, "log": log, "budget": budget,
+            "mission": trip_type, "planned": n_items}
+
+
+def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_points=False, prices=None,
+                 decisions=None):
+    """Step 2 of a trip: walk the store with the list from make_list, shelf by shelf.
+    decisions = {list position: the mind's decision} for thinking NPCs (retina.mind), else None.
+    A decision with mind "llm" replaces the engine's shelf choice (product, or skip = product -1);
+    every other decision ("autopilot", "llm_fallback") leaves the engine's own rules to choose.
+    Python still checks what the mind picked: budget, and stock when the NPC reaches the shelf."""
+    floor = store.floor
+    plan, budget, trip_type, n_items = trip["plan"], trip["budget"], trip["mission"], trip["planned"]
+    pantry, home = shoppers.pantry[s], shoppers.home[s]
+    sens = shoppers.price_sensitivity[s]
+    group = tables[shoppers.sensitivity_group[s]]
+    basket, misses, routes, minds = {}, [], {}, {}
+    effects = list(trip["effects"])
+    spent = 0.0
 
     # 2) the walk
     walk = floor.plan_route([floor.product_aisle[p[0]] for p in plan], with_points)
@@ -283,22 +311,32 @@ def fill_basket(s, day, store, shoppers, tables, inv, promo, rng, with_points=Fa
             picks += 1
             aisle_name = store.aisle_of[wanted]
             record(day, s, "VIEW_PRODUCT", wanted, route=route, stop=k)
-            boost = group["boost"][wanted]
-            if route != "new" and u[5] < 1 - boost:            # usual item got pricier (or delisted)
-                if group["cum"][aisle_name] is None:              # nothing left in the aisle
-                    effects.append((s, wanted, "walked_away", 1))
-                    record(day, s, "SKIP", wanted, reason="aisle_removed", stop=k)
+            decision = decisions.get(i) if decisions else None
+            if decision is not None and decision["mind"] == "llm":   # the mind already chose here
+                if decision["product"] < 0:
+                    record(day, s, "SKIP", wanted, reason="mind_skip", stop=k)
                     continue
-                choice = pick_product(store.aisles[aisle_name], group["cum"][aisle_name], u[6])
-                if choice != wanted:
-                    why = "delisted_switch" if boost == 0 else "price_switch"
-                    effects.append((s, choice, why, 1))
-                    record(day, s, "SUBSTITUTE", choice, instead_of=int(wanted), reason=why, stop=k)
-                    wanted = choice
-            if u[7] > min(1.0, group["inclusive"][aisle_name] ** CATEGORY_RESPONSE):
-                effects.append((s, wanted, "walked_away", 1))      # aisle feels too expensive today
-                record(day, s, "SKIP", wanted, reason="too_expensive", stop=k)
-                continue
+                if decision["product"] != wanted:
+                    record(day, s, "SUBSTITUTE", decision["product"], instead_of=int(wanted),
+                           reason="mind_choice", stop=k)
+                    wanted, switched = decision["product"], False
+            else:
+                boost = group["boost"][wanted]
+                if route != "new" and u[5] < 1 - boost:            # usual item got pricier (or delisted)
+                    if group["cum"][aisle_name] is None:              # nothing left in the aisle
+                        effects.append((s, wanted, "walked_away", 1))
+                        record(day, s, "SKIP", wanted, reason="aisle_removed", stop=k)
+                        continue
+                    choice = pick_product(store.aisles[aisle_name], group["cum"][aisle_name], u[6])
+                    if choice != wanted:
+                        why = "delisted_switch" if boost == 0 else "price_switch"
+                        effects.append((s, choice, why, 1))
+                        record(day, s, "SUBSTITUTE", choice, instead_of=int(wanted), reason=why, stop=k)
+                        wanted = choice
+                if u[7] > min(1.0, group["inclusive"][aisle_name] ** CATEGORY_RESPONSE):
+                    effects.append((s, wanted, "walked_away", 1))      # aisle feels too expensive today
+                    record(day, s, "SKIP", wanted, reason="too_expensive", stop=k)
+                    continue
             if route != "need" and prices is not None and spent + prices[wanted] > budget:
                 effects.append((s, wanted, "over_budget", 1))      # money for this trip is spent
                 record(day, s, "SKIP", wanted, reason="over_budget", stop=k)
@@ -315,6 +353,8 @@ def fill_basket(s, day, store, shoppers, tables, inv, promo, rng, with_points=Fa
                 continue
             basket[product] = basket.get(product, 0) + 1
             routes.setdefault(product, route)
+            if decision is not None:
+                minds.setdefault(product, decision)
             if prices is not None:
                 spent += prices[product]
             if together and product == wanted:
@@ -342,7 +382,8 @@ def fill_basket(s, day, store, shoppers, tables, inv, promo, rng, with_points=Fa
         for (product, qty), j in zip(basket.items(), rng.random(len(basket))):
             lasts = HOME_FACTOR * store.product_cycle[product] * gap * qty * (0.5 + j)
             home[product] = max(home.get(product, -1), day + int(lasts))
-    info = {"mission": trip_type, "routes": routes, "budget": budget, "spent": spent, "planned": n_items}
+    info = {"mission": trip_type, "routes": routes, "budget": budget, "spent": spent, "planned": n_items,
+            "minds": minds}
     return basket, misses, effects, walk, info
 
 
@@ -357,12 +398,16 @@ def trip_times(floor, walk, arrive):
     return reach, np.r_[pause, 0]
 
 
-def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, tables, inv):
+def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, tables, inv, mind=None):
     """Today's shoppers come in at their own time (earliest first), walk the store, shop, queue
     at a checkout and leave. With a traffic schedule (traffic.py) the number who come follows
     real store footfall, scaled to NPCs; without one, everyone whose trip is planned today comes.
     Each shopper sees their own group's prices (a targeted deal is seen by one group only).
     Evening: the store orders what is running low.
+    mind (retina.mind.Mind, optional): thinking NPCs get their shelf choices from it. When the first
+    one of a batch walks in, the lists of the next few thinking NPCs are made ahead (lists never look
+    at the shelves, and each NPC keeps their own dice) and decided together in one LLM request.
+    Without a mind nothing changes - the same data as before, byte for byte.
     Returns receipt lines, out-of-stock moments, today's stock numbers, behaviour effects, trips."""
     floor = store.floor
     recording = RECORDER["day"] == day
@@ -381,13 +426,30 @@ def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, table
     order = sorted(visitors, key=lambda v: arrive[v])          # early shoppers find fuller shelves
 
     rows, misses, effects, trips, chunks = [], [], [], [], {}
+    thinkers = [s for s in order if mind.thinks(s)] if mind is not None else []
+    ready, ctx = {}, {"prices_g": prices_g, "regular": regular, "promo_g": promo_g, "tables": tables,
+                      "hour": {s: int(arrive[s] // 60) for s in order}}
     for s in order:
         rng = dice[s]
         prices, promo = prices_g[shoppers.sensitivity_group[s]], promo_g[shoppers.sensitivity_group[s]]
         first = len(RECORDER["events"])
         record(day, s, "SHOPPER_ENTER", hour=int(arrive[s] // 60), group=int(shoppers.sensitivity_group[s]))
-        basket, missed, eff, walk, info = fill_basket(s, day, store, shoppers, tables, inv, promo, rng, recording,
-                                                      prices)
+        thinking = mind is not None and mind.thinks(s)
+        if thinking:
+            if s not in ready:                                  # lists of the next batch, made ahead
+                at = thinkers.index(s)
+                batch = [t for t in thinkers[at:] if t not in ready][:mind.batch]
+                lists = {t: make_list(t, day, store, shoppers, tables, promo_g[shoppers.sensitivity_group[t]],
+                                      dice[t], prices_g[shoppers.sensitivity_group[t]]) for t in batch}
+                ready.update(mind.decide(day, lists, ctx))
+            trip, decisions = ready.pop(s)
+            for event, product, extra in trip["log"]:
+                record(day, s, event, product, **extra)
+            basket, missed, eff, walk, info = walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip,
+                                                           recording, prices, decisions)
+        else:
+            basket, missed, eff, walk, info = fill_basket(s, day, store, shoppers, tables, inv, promo, rng,
+                                                          recording, prices)
         shoppers.last_trip_day[s] = day
         reach, pause = trip_times(floor, walk, arrive[s])
         misses.extend((day, int(arrive[s] // 60), *m) for m in missed)
@@ -395,9 +457,15 @@ def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, table
         trip_id = f"D{day:03d}-S{s:04d}"
         for product, qty in basket.items():
             is_repeat = product in shoppers.counts[s]
-            rows.append((day, int(arrive[s] // 60), trip_id, s, product, qty, prices[product],
-                         regular[product], promo[product], is_repeat, info["mission"],
-                         info["routes"].get(product, "new")))
+            row = (day, int(arrive[s] // 60), trip_id, s, product, qty, prices[product],
+                   regular[product], promo[product], is_repeat, info["mission"],
+                   info["routes"].get(product, "new"))
+            if mind is not None:                               # who decided, and why (thinking runs)
+                d = info["minds"].get(product)
+                row += (d["mind"], d["why_type"], d["why"]) if d else ("engine", "", "")
+            rows.append(row)
+        if thinking:
+            mind.after_trip(day, s, int(arrive[s] // 60), basket, info, missed, prices, regular, promo)
         floor.traffic[walk.passed] += 1                        # who walked past each aisle
         bought = np.unique(floor.product_aisle[list(basket)]) if basket else []
         floor.buyers[bought] += 1                              # ... and who bought there
@@ -439,6 +507,8 @@ def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, table
     place_orders(day, inv, stream(STREAM_DELIVERIES, day))
     columns = ["day", "hour", "trip_id", "shopper_id", "product_idx", "quantity",
                "unit_price", "regular_price", "on_promo", "is_repeat", "mission", "reason"]
+    if mind is not None:
+        columns += ["mind", "why_type", "why"]
     miss_columns = ["day", "hour", "shopper_id", "product_idx", "reaction", "substitute_idx"]
     return (pd.DataFrame(rows, columns=columns), pd.DataFrame(misses, columns=miss_columns),
             stock_today, effects, trips)

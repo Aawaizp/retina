@@ -222,7 +222,8 @@ class Simulation:
         for item in iv.active(day, "remove"):              # delisted: nothing left on the shelf
             inv.stock[item["idx"]] = 0
         sales_today, misses_today, stock_today, effects_today, trips_today = simulate_day(
-            day, store, self.shoppers, self.params, prices_g, regular, promo_g, self.tables, inv)
+            day, store, self.shoppers, self.params, prices_g, regular, promo_g, self.tables, inv,
+            getattr(self, "mind", None))
         self.daily_trips.append(trips_today)
         self.effects.extend(effects_today)
         self.daily_sales.append(sales_today)
@@ -230,6 +231,13 @@ class Simulation:
         self.daily_stock.append(stock_today)
         self.day += 1
         return sales_today, trips_today
+
+    def __getstate__(self):
+        """Saving (pickle): the mind (retina.mind, attached by live.py for thinking runs) holds open
+        database files - it is not part of the saved store and is attached again after loading."""
+        state = dict(self.__dict__)
+        state.pop("mind", None)
+        return state
 
     def results(self):
         return Results(self.store, self.shoppers, self.book, self.inv, self.params,
