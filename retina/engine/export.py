@@ -21,18 +21,20 @@ Every row is SIMULATED. Inputs and their labels: see DATASET_CARD.md.
 
 import argparse
 import json
+import os
 import platform
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from . import config, csvsafe
-from .config import ROOT, PROFILE, DATA_LABELS, CATALOG_LABEL_COLUMNS
+from .config import ROOT, PROFILE, DATA_LABELS, CATALOG_LABEL_COLUMNS, shown
 from . import traffic
 
-EXPORT_DIR = ROOT / "data" / "export"
+EXPORT_DIR = Path(os.environ["RETINA_EXPORT_DIR"]) if os.environ.get("RETINA_EXPORT_DIR") else ROOT / "data" / "export"
 VERSION = "1.0"
 
 # ============================================================ data dictionary
@@ -352,7 +354,7 @@ def main(argv=None):
     run = run_pipeline(seed=args.seed, days=args.days, save=True)
     name = args.name or f"retina_{config.RUN_ID}_seed{config.SEED}" + (f"_{args.days}d" if args.days else "")
     out = EXPORT_DIR / name
-    print(f"\nExporting to {out.relative_to(ROOT)} ...")
+    print(f"\nExporting to {shown(out)} ...")
     tables, truth = build_tables(run)
     for k, v in tables.items():
         write_table(v, out / k, args.csv)
@@ -385,7 +387,7 @@ def main(argv=None):
             "label": "SIMULATED DATA - not real sales"}
     (out / "run_info.json").write_text(json.dumps(info, indent=1, default=str), encoding="utf-8")
     size = sum(f.stat().st_size for f in out.rglob("*") if f.is_file()) / 1e6
-    print(f"\nDataset ready: {out.relative_to(ROOT)}  ({size:.0f} MB)")
+    print(f"\nDataset ready: {shown(out)}  ({size:.0f} MB)")
     for k, v in tables.items():
         print(f"  {k:<15} {len(v):>9,} rows")
     for k, v in truth.items():

@@ -13,6 +13,9 @@ Python checks every LLM answer (offered, not sold out); at the shelf the budget 
 are checked again by the engine. Every decision is logged in the NPC memory (retina.memory).
 """
 
+import os
+from pathlib import Path
+
 import numpy as np
 
 from retina.engine.config import ROOT, PROFILE, RUN_ID, stream
@@ -29,7 +32,8 @@ PRICE_UP = 1.05               # dearer than remembered by more than 5% = worth a
 BATCH = 5                     # NPCs per LLM request
 PANEL = 50                    # thinking NPCs in a mix run (decided 12 Oct 2026)
 MAX_OPTIONS = 5
-CACHE_FILE = ROOT / "data" / "cache" / "mind_cache.sqlite"
+CACHE_FILE = (Path(os.environ["RETINA_CACHE_DIR"]) if os.environ.get("RETINA_CACHE_DIR")      # (release builds,
+              else ROOT / "data" / "cache") / "mind_cache.sqlite"                               # tests)
 WHY_HERE = {"need": "ran out at home", "repeat": "you buy this regularly",
             "new": "new on your list today", "partner": "goes with another item on your list"}
 

@@ -124,6 +124,32 @@ becomes a new label.
 
 ---
 
+## Releases, local app and Docker (v2)
+
+**Sample datasets.** Every version tag (`v*`) makes GitHub Actions run `retina release`: the four
+store formats, one simulated year each (engine), plus a thinking-NPC dataset made by the student
+model once one is trained - no LLM in CI. The release page gets one zip per dataset (Parquet + CSV,
+dataset card, data dictionary, scorecard), `manifest.json` (sha256, rows, how it was built) and
+release notes. CI builds have no private Instacart per-shopper profiles and no realism test, and
+each dataset card says so. Nothing a visitor does can start a build. Try it locally:
+
+```powershell
+retina release --version test --days 7 --stores convenience     # -> dist/test/
+```
+
+**Local app** (your PC only, binds to 127.0.0.1): `retina app`, then http://localhost:8000/docs -
+list stores and runs, start a run (one at a time), see the report, download a run's CSVs.
+
+**Docker:**
+```powershell
+docker build -t retina .
+docker run -p 127.0.0.1:8000:8000 -v retina-runs:/app/data/live retina
+```
+LLM keys are passed at start (`-e GROQ_API_KEY`), never stored in the image; the image has no raw
+Instacart files or per-shopper profiles.
+
+---
+
 ## Your own products (v2)
 
 ```powershell
@@ -280,7 +306,9 @@ retina/       the Python package (`pip install -e .` gives the `retina` command,
   mind/            v2: router, autopilot, LLM teacher (batched, cached), run estimate, report
   memory/          v2: NPC memory cards and decision log (SQLite, one file per run)
   products/        v2: your own products - read, check ("did you mean"), convert (USER_PROVIDED)
-  app/             v2, later: local app
+  app/             v2: local app (FastAPI, retina app)
+  student/         v2: student model - collect, train, ONNX
+  release.py       v2: retina release (sample datasets for GitHub Releases)
 retina/engine/   the v1 engine and tools (run one with python -m retina.engine.<tool>)
   config.py        settings from the store profile, random streams
   world.py         store, shoppers, prices, stock          households.py  household, income, budget
@@ -293,6 +321,7 @@ retina/engine/   the v1 engine and tools (run one with python -m retina.engine.<
 stores/       store formats (supercenter, supermarket, neighborhood market, convenience):
               every assumption with its data label and source
 scenarios/    what-if scenario files
+models/       the trained student model (models/student)
 web/          the website (v2, later)
 ```
 
@@ -325,7 +354,7 @@ never presented as any real retailer.
 
 ## Tests
 
-`python -m pytest` runs 46 checks in about a minute and a half (also on every push, via GitHub Actions):
+`python -m pytest` runs 55 checks in about two minutes (also on every push, via GitHub Actions):
 same seed gives the same data; stopping and continuing a run changes nothing; receipts, trips and
 daily totals agree; prices and promotions make sense; store traffic and households follow their
 inputs; every store format runs and differs as it should; the LLM guardrails (JSON reading, persona fact check, valid choices) work without any key.

@@ -1,0 +1,24 @@
+# Keep the image small and free of private or local data
+.git
+.github
+.venv
+.pytest_cache
+**/__pycache__
+_backup*
+dist
+tests
+RETINA_CONTEXT.md
+CLAUDE.md
+retina_products
+data/raw
+data/live
+data/export
+data/simulated
+data/experiments
+data/focus
+data/personas
+data/cache
+data/teacher
+data/uploads
+# Instacart terms: per-shopper derived statistics are never redistributed
+data/processed/instacart_shopper_profiles.csv

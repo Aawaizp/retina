@@ -2,6 +2,7 @@
 (the same file the website will use in the browser). probabilities = softmax(scores / temperature)."""
 
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -9,7 +10,7 @@ import numpy as np
 from retina.student.features import FEATURES, matrix
 
 ROOT = Path(__file__).resolve().parents[2]
-MODEL_DIR = ROOT / "models" / "student"
+MODEL_DIR = Path(os.environ["RETINA_STUDENT_DIR"]) if os.environ.get("RETINA_STUDENT_DIR") else ROOT / "models" / "student"
 
 
 class Student:

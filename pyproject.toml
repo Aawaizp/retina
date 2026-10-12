@@ -24,10 +24,12 @@ dependencies = [
     "onnxruntime",
     "skl2onnx",
     "onnxmltools",
+    "fastapi",
+    "uvicorn",
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "httpx"]
 
 [project.scripts]
 retina = "retina.cli:main"

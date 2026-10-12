@@ -234,9 +234,37 @@ def train_main(argv):
     train(out=args.out or MODEL_DIR, consensus=args.consensus, consensus_weight=args.consensus_weight)
 
 
+def release_main(argv):
+    ap = argparse.ArgumentParser(prog="retina release", description="Build the sample datasets of a release "
+                                 "(GitHub Actions runs this on every version tag).")
+    ap.add_argument("--version", required=True, help="e.g. v2.0.0-alpha.1")
+    ap.add_argument("--days", type=int, help="days per store (default: the profile's 365)")
+    ap.add_argument("--stores", help="comma list, e.g. supermarket,convenience (default: all four)")
+    ap.add_argument("--out", help="folder (default dist/<version>)")
+    ap.add_argument("--realism", action="store_true", help="also run the realism test (needs the raw Instacart files)")
+    ap.add_argument("--no-student", action="store_true", help="leave out the thinking-NPC (student) dataset")
+    args = ap.parse_args(argv)
+    from retina.release import release
+    stores = [resolve_store(s.strip()) for s in args.stores.split(",")] if args.stores else None
+    release(args.version, args.days, stores, args.out, args.realism, not args.no_student)
+
+
+def app_main(argv):
+    ap = argparse.ArgumentParser(prog="retina app", description="The local RETINA app (FastAPI) - your PC only.")
+    ap.add_argument("--host", default="127.0.0.1", help="127.0.0.1 (default: this PC only); Docker uses 0.0.0.0")
+    ap.add_argument("--port", type=int, default=8000)
+    args = ap.parse_args(argv)
+    import uvicorn
+    from retina.app.server import app
+    print(f"RETINA app on http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port} "
+          f"(API docs: /docs). Ctrl+C stops it.")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
-    commands = {"products": products_main, "export": export_main, "collect": collect_main, "train": train_main}
+    commands = {"products": products_main, "export": export_main, "collect": collect_main, "train": train_main,
+                "release": release_main, "app": app_main}
     if argv[:1] and argv[0] in commands:
         commands[argv[0]](argv[1:])
         return

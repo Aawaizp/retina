@@ -1,0 +1,44 @@
+# Builds RETINA's own sample datasets and publishes them on the GitHub Release of a version tag.
+# Runs ONLY when a version tag is pushed (v*) or when the owner presses "Run workflow" (a test build,
+# kept 7 days as an artifact, not published). Nothing a website visitor does can start it.
+name: release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write          # to create the release and upload its files
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('test-{0}', github.run_number) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt && pip install -e .
+      - run: python -m pytest -q
+      - name: Build the datasets (4 store formats x 1 year, + the student dataset when a model exists)
+        run: retina release --version "$VERSION"
+      - name: Publish on the release page (tags only)
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pre=""
+          if [[ "$VERSION" == *-* ]]; then pre="--prerelease"; fi
+          gh release create "$VERSION" dist/"$VERSION"/* --title "RETINA $VERSION" \
+            --notes-file dist/"$VERSION"/RELEASE_NOTES.md $pre
+      - name: Keep the test build (manual runs only)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: retina-datasets-${{ env.VERSION }}
+          path: dist/
+          retention-days: 7

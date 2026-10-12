@@ -14,6 +14,14 @@ import pandas as pd
 # ================================================================ paths
 ROOT = Path(__file__).resolve().parents[2]          # the project folder (retina/engine/config.py)
 STORES_DIR = ROOT / "stores"
+
+
+def shown(path):
+    """A path for messages: short inside the project, in full outside it (RETINA_*_DIR overrides)."""
+    try:
+        return Path(path).relative_to(ROOT)
+    except ValueError:
+        return path
 PROCESSED_DIR = ROOT / "data" / "processed"
 US_CPI_FILE = PROCESSED_DIR / "cpi_us.csv"
 SHOPPER_PARAMS_FILE = PROCESSED_DIR / "shopper_params.json"

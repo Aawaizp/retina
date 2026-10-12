@@ -13,3 +13,7 @@ onnx==1.23.2
 onnxruntime==1.31.0
 skl2onnx==1.20.0
 onnxmltools==1.16.0
+# local app (v2 Phase 5): retina app, Docker; httpx only for the app tests
+fastapi==0.143.0
+uvicorn==0.54.0
+httpx==0.28.1

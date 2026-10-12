@@ -20,6 +20,8 @@ data/uploads/
 # Teacher labels and the situation pool (retina collect): rebuildable, LLM output kept local for now
 data/teacher/
 retina_products/
+# Release builds (retina release) - published on GitHub Releases, not in git
+dist/
 
 # Per-shopper statistics derived from Instacart: keep local (Instacart terms: no redistribution).
 # Without it RETINA draws habits from the published distributions instead (still runs).

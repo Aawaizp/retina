@@ -21,15 +21,17 @@ Every row is SIMULATED.
 """
 
 import argparse
+import os
 import pickle
 import shutil
 import time
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from . import config, csvsafe
-from .config import ROOT, PROFILE, TRAFFIC
+from .config import ROOT, PROFILE, TRAFFIC, shown
 from . import traffic
 from . import shopping
 from .engine import Simulation
@@ -44,7 +46,8 @@ def use_run_dir(mind):
     and uploaded products too (<store>+<upload tag>), so different data never mixes in one file."""
     global LIVE_DIR, STATE
     name = config.RUN_ID
-    LIVE_DIR = ROOT / "data" / "live" / (name if mind == "fast" else f"{name}_{mind}")
+    root = Path(os.environ["RETINA_LIVE_ROOT"]) if os.environ.get("RETINA_LIVE_ROOT") else ROOT / "data" / "live"
+    LIVE_DIR = root / (name if mind == "fast" else f"{name}_{mind}")     # (RETINA_LIVE_ROOT: release builds, tests)
     STATE = LIVE_DIR / "state.pkl"
 
 
@@ -157,7 +160,7 @@ def write_view(sim, day, events, first_time=False):
     path = LIVE_DIR / "view.html"
     replay.write_page(data, path)
     if first_time:
-        print(f"  NPCs walking: open {path.relative_to(ROOT)} in your browser (it follows the days by itself)")
+        print(f"  NPCs walking: open {shown(path)} in your browser (it follows the days by itself)")
         try:
             import webbrowser
             webbrowser.open(path.resolve().as_uri())
@@ -207,7 +210,7 @@ def main(argv=None):
 
     if args.reset and LIVE_DIR.exists():
         shutil.rmtree(LIVE_DIR)
-        print(f"Closed the old store ({LIVE_DIR.relative_to(ROOT)} removed).")
+        print(f"Closed the old store ({shown(LIVE_DIR)} removed).")
     LIVE_DIR.mkdir(parents=True, exist_ok=True)
     if STATE.exists():
         if args.scale or args.per_week:
@@ -276,7 +279,7 @@ def main(argv=None):
                 print(f"  (watching day {day + 1} in the browser - next day in {args.wait:.0f}s; Ctrl+C stops safely)")
                 time.sleep(args.wait)
     print(f"\nSaved {days} day(s) ({sim.book.dates[first]:%d %b} to {sim.book.dates[sim.day - 1]:%d %b %Y}) "
-          f"in {time.time() - t:.0f}s -> {LIVE_DIR.relative_to(ROOT)}. Run again to continue.")
+          f"in {time.time() - t:.0f}s -> {shown(LIVE_DIR)}. Run again to continue.")
     if args.mind != "fast":
         mind_run.finish(sim.mind, LIVE_DIR)
 
