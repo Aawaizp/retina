@@ -5,8 +5,8 @@ PURCHASE, SUBSTITUTE, SKIP, STOCKOUT, CHECKOUT, LEAVE - with the route they walk
 and writes a web page that replays it. The page only DRAWS: every route, decision, price, minute
 and total comes from the simulation.
 
-Run:   python simulation\\replay.py                       (day 33, the normal store)
-       python simulation\\replay.py --day 70 --scenario scenarios\\example.json
+Run:   python -m retina.engine.replay                       (day 33, the normal store)
+       python -m retina.engine.replay --day 70 --scenario scenarios\\example.json
 Open:  data\\simulated\\<store>\\replay_day033.html  (double-click: opens in your browser)
 """
 
@@ -18,10 +18,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from config import *
-import shopping
-from engine import run_simulation, load_scenario
-from floor import floor_plan
+from .config import *
+from . import shopping
+from .engine import run_simulation, load_scenario
+from .floor import floor_plan
 
 DEFAULT_DAY = 33                  # a Saturday in October (store has settled in)
 GROUP_NAMES = ["low price sensitivity", "medium price sensitivity", "high price sensitivity"]

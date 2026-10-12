@@ -8,9 +8,9 @@ in the code (it would end up in screenshots, GitHub, ...).
 If one has no key, hits its free limit or cannot be reached, the next one answers - and the busy
 one rests for a minute. Change the order:  $env:RETINA_LLM_CHAIN = "gemini,groq,ollama"
 
-Test it:   python simulation\\llm.py               (auto: asks one short question)
-           python simulation\\llm.py groq          (one provider)
-           python simulation\\llm.py groq models   (lists the models you can use)
+Test it:   python -m retina.engine.llm               (auto: asks one short question)
+           python -m retina.engine.llm groq          (one provider)
+           python -m retina.engine.llm groq models   (lists the models you can use)
 """
 
 import json

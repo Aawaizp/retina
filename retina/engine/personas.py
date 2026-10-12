@@ -12,11 +12,11 @@ Personas are SAVED (data/personas/<store>/personas.json) with a fingerprint of t
 prompt version and the model - so the next run reuses them: same NPCs, same words, no new LLM
 calls. Today personas only DESCRIBE the NPCs; the focus group (next step) will let them talk.
 
-Run:  python simulation\\personas.py --n 20            20 varied NPCs (LLM: Groq, or $env:RETINA_LLM)
-      python simulation\\personas.py --n 20 --offline  templates only, no LLM, no key needed
-      python simulation\\personas.py --show 7          print NPC 7's persona
-      python simulation\\personas.py --all             every NPC (slow on a free tier)
-      python simulation\\personas.py --n 20 --provider ollama --model qwen2.5:7b   free, on your own PC
+Run:  python -m retina.engine.personas --n 20            20 varied NPCs (LLM: Groq, or $env:RETINA_LLM)
+      python -m retina.engine.personas --n 20 --offline  templates only, no LLM, no key needed
+      python -m retina.engine.personas --show 7          print NPC 7's persona
+      python -m retina.engine.personas --all             every NPC (slow on a free tier)
+      python -m retina.engine.personas --n 20 --provider ollama --model qwen2.5:7b   free, on your own PC
 Keys come from environment variables only (GROQ_API_KEY / GEMINI_API_KEY) - never in code.
 Names are invented and do not describe real people. Text is SIMULATED.
 """
@@ -30,7 +30,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from config import ROOT, PROFILE, stream
+from .config import ROOT, PROFILE, stream
 
 PROMPT_VERSION = 2                      # change it when the prompt changes: personas are rewritten
 BATCH = 8                               # NPCs per LLM request (fewer requests on free tiers)
@@ -143,7 +143,7 @@ def llm_prompt(batch):
 
 def parse_reply(text):
     """The JSON list inside the reply (models sometimes add ``` fences or a sentence)."""
-    from llm import json_from
+    from .llm import json_from
     return json_from(text)
 
 
@@ -197,7 +197,7 @@ def tidy(text):
 
 
 def ask_llm(batch, provider, model):
-    from llm import chat
+    from .llm import chat
     text = chat([{"role": "system", "content": SYSTEM}, {"role": "user", "content": llm_prompt(batch)}],
                 provider=provider, model=model, temperature=0.7, reasoning="low")
     out = {}
@@ -242,7 +242,7 @@ def varied_sample(sim, n):
 
 def build(sim, ids, provider=None, model=None, offline=False, say=print):
     """Personas for these NPCs: reuse saved ones, write new ones with the LLM (or a template)."""
-    import llm
+    from . import llm
     provider = provider or llm.DEFAULT_PROVIDER
     if offline:
         model = "template"
@@ -332,7 +332,7 @@ def main():
     ap.add_argument("--provider", help="auto (Groq -> Gemini -> Ollama, default) | groq | gemini | hf | ollama")
     ap.add_argument("--model", help="model name for that provider, e.g. qwen2.5:7b for ollama")
     args = ap.parse_args()
-    from engine import Simulation
+    from .engine import Simulation
     print("Building the store and its NPCs (same seed = same NPCs)...")
     sim = Simulation(verbose=False)
     if args.show is not None:

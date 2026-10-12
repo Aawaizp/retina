@@ -11,8 +11,8 @@ Same focus group as focus.py (same NPCs, same day, same lists and options), then
 Each provider is tested separately (no mixing), so models can be compared fairly.
 All answers are cached: a rerun costs no LLM calls.
 
-Run:  python simulation\\llm_eval.py                         Groq and Gemini, 10 NPCs, day 30
-      python simulation\\llm_eval.py --providers groq,gemini,ollama --n 5
+Run:  python -m retina.engine.llm_eval                         Groq and Gemini, 10 NPCs, day 30
+      python -m retina.engine.llm_eval --providers groq,gemini,ollama --n 5
 Output: data/focus/<store>/day<D>/eval_report.txt, eval_summary.json, eval_<provider>.csv
 """
 
@@ -24,10 +24,10 @@ import time
 import numpy as np
 import pandas as pd
 
-from config import ROOT, PRICE_ELASTICITY, REFERENCE_SHARE, LOSS_AVERSION
-import focus as F
-import personas as P
-from engine import Simulation
+from .config import ROOT, PRICE_ELASTICITY, REFERENCE_SHARE, LOSS_AVERSION
+from . import focus as F
+from . import personas as P
+from .engine import Simulation
 
 PRICE_UP = 1.20
 MIN_ITEMS = 8                 # fewer items than this in a group: "too few to judge" instead of a number

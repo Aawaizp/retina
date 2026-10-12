@@ -1,8 +1,8 @@
 """RETINA studio: choose a store format, then watch its NPCs walk and shop while the data is made.
 
-  python simulation\\studio.py                      menu: pick a store, 7 days, browser view
-  python simulation\\studio.py --store supercenter --days 3
-  python simulation\\studio.py --compare            one table: every store format side by side
+  python -m retina.engine.studio                      menu: pick a store, 7 days, browser view
+  python -m retina.engine.studio --store supercenter --days 3
+  python -m retina.engine.studio --compare            one table: every store format side by side
 
 Store formats (stores/*.json) are GENERIC formats sized with public numbers - "supercenter"
 (Walmart Supercenter-type size and traffic), "supermarket", "neighborhood market", "convenience"
@@ -23,7 +23,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]          # the project folder
 STORES = ROOT / "stores"
 
 
@@ -55,8 +55,9 @@ def menu(options):
 
 def compare(days):
     """Run every format for a few days (fresh, same seed) and print one comparison table."""
-    code = ("import json, engine, traffic\n"
-            "from config import PROFILE\n"
+    code = ("import json\n"
+            "from retina.engine import engine, traffic\n"
+            "from retina.engine.config import PROFILE\n"
             f"sim = engine.Simulation(verbose=False)\n"
             f"while sim.day < {days}: sim.run_day()\n"
             "r = sim.results(); s = r.sales; t = r.trips; f = sim.store.floor\n"
@@ -74,7 +75,7 @@ def compare(days):
     for o in stores():
         print(f"  running {o['name']} for {days} days...")
         env = dict(os.environ, RETINA_STORE=o["id"])
-        out = subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).parent, env=env,
+        out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env,
                              capture_output=True, text=True)
         line = [l for l in out.stdout.splitlines() if l.startswith("{")]
         if line:
@@ -112,8 +113,7 @@ def main():
     print(f"\nOpening {chosen['name']} - {args.days} day(s)" + ("" if args.no_view else
           f", one day every ~{wait:.0f}s so you can watch it in the browser"))
     os.environ["RETINA_STORE"] = chosen["id"]        # the store profile every module loads
-    sys.path.insert(0, str(Path(__file__).parent))
-    import live                                      # imported AFTER choosing: it reads the chosen store
+    from . import live                               # imported AFTER choosing: it reads the chosen store
     sys.argv = ["live.py", "--days", str(args.days)] + ([] if args.no_view else ["--view", "--wait", str(wait)]) \
         + (["--reset"] if args.reset else [])
     try:

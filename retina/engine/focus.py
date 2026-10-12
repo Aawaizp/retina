@@ -14,10 +14,10 @@ How it works:
 The LLM can only pick from the options given (no made-up products or prices); bad answers fall
 back to the engine's choice and are counted. Answers are cached: rerunning costs no LLM calls.
 
-Run:  python simulation\\focus.py                  10 NPCs on day 30 (LLM chain: Groq -> Gemini -> Ollama)
-      python simulation\\focus.py --n 20 --day 45
-      python simulation\\focus.py --provider ollama   one provider only
-      python simulation\\focus.py --offline           no LLM: shows the trips and options only
+Run:  python -m retina.engine.focus                  10 NPCs on day 30 (LLM chain: Groq -> Gemini -> Ollama)
+      python -m retina.engine.focus --n 20 --day 45
+      python -m retina.engine.focus --provider ollama   one provider only
+      python -m retina.engine.focus --offline           no LLM: shows the trips and options only
 Output: data/focus/<store>/day<D>/decisions.csv, npcs.csv, summary.json, report.txt  (SIMULATED)
 """
 
@@ -30,13 +30,13 @@ import time
 import numpy as np
 import pandas as pd
 
-import config
-from config import ROOT, PROFILE, SENSITIVITY_GROUPS, STREAM_TRIPS, stream
-import shopping
-import traffic
-import personas as P
-from engine import Simulation, shelf_prices, apply_store_changes
-from world import remove_spoiled, receive_deliveries, sample_from
+from . import config
+from .config import ROOT, PROFILE, SENSITIVITY_GROUPS, STREAM_TRIPS, stream
+from . import shopping
+from . import traffic
+from . import personas as P
+from .engine import Simulation, shelf_prices, apply_store_changes
+from .world import remove_spoiled, receive_deliveries, sample_from
 
 PROMPT_VERSION = 1
 STREAM_FOCUS = 9                       # dice for shuffling the order options are shown in
@@ -156,7 +156,7 @@ def prompt_for(persona, trip, items):
 
 def parse_choices(text, items):
     """Valid choices per item number; anything broken is left out (the engine's pick is used)."""
-    from llm import json_from
+    from .llm import json_from
     out = {}
     for c in json_from(text):
         if not isinstance(c, dict):
@@ -184,7 +184,7 @@ def load_cache():
 
 
 def ask(prompt, provider, model, cache):
-    import llm
+    from . import llm
     key = hashlib.sha1(f"{PROMPT_VERSION}|{provider}|{model}|{prompt}".encode()).hexdigest()[:20]
     if key in cache:
         return cache[key]["text"], cache[key]["source"], True
@@ -199,7 +199,7 @@ def ask(prompt, provider, model, cache):
 
 # ============================================================ run
 def run(n=10, day=30, provider=None, model=None, offline=False, say=print):
-    import llm
+    from . import llm
     provider = provider or llm.DEFAULT_PROVIDER
     sim0 = Simulation(verbose=False)                         # personas are built from day-0 facts
     ids = P.varied_sample(sim0, n)

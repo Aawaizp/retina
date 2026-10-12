@@ -13,7 +13,7 @@ Change types:
   inventory  safety_days for this product (the store's stock buffer)
 Every change has "product_id" and optional "start" / "end" dates (end = not included).
 
-Run:  python simulation\\engine.py scenarios\\example.json
+Run:  python -m retina.engine.engine scenarios\\example.json
 """
 
 import json
@@ -23,14 +23,14 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-import config
-from config import *
-from world import *
-from shopping import *
-from reports import summarize_prices
-from floor import build_floor, summarize_floor
-import traffic
-from households import assign_households, summarize_households
+from . import config
+from .config import *
+from .world import *
+from .shopping import *
+from .reports import summarize_prices
+from .floor import build_floor, summarize_floor
+from . import traffic
+from .households import assign_households, summarize_households
 
 CHANGE_TYPES = ("price", "promotion", "remove", "inventory")
 SEGMENTS = {"all": None, "low_sensitivity": 0, "medium_sensitivity": 1, "high_sensitivity": 2}

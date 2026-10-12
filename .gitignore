@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 .venv/
+*.egg-info/
+build/
 
 # Raw downloads: big, and some (Instacart) may not be redistributed
 data/raw/

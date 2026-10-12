@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 # ================================================================ paths
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]          # the project folder (retina/engine/config.py)
 STORES_DIR = ROOT / "stores"
 PROCESSED_DIR = ROOT / "data" / "processed"
 US_CPI_FILE = PROCESSED_DIR / "cpi_us.csv"
@@ -55,7 +55,7 @@ SEED = _sim["seed"]                        # same seed = same simulation every r
 START_DATE = _sim["start_date"]
 SIM_DAYS = _sim["days"]
 N_SHOPPERS = _sim["n_shoppers"]          # a number, or "auto" = sized from the traffic schedule
-TRAFFIC = PROFILE.get("traffic")         # real footfall -> NPCs per hour (simulation/traffic.py)
+TRAFFIC = PROFILE.get("traffic")         # real footfall -> NPCs per hour (traffic.py)
 HOUSEHOLDS = PROFILE.get("households")   # household size, children, income, food budget (households.py)
 FORMAT = PROFILE.get("format", {})       # store format: assortment size, basket size, department mix
 ASSORTMENT_SHARE = FORMAT.get("assortment_share", 1.0)   # share of each aisle's products on the shelves

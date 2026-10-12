@@ -1,12 +1,13 @@
 """RETINA live: run the store day by day, like a real store - not a whole year in one go.
 
-  python simulation\\live.py              simulate the NEXT day (opens a new store the first time)
-  python simulation\\live.py --days 7     the next 7 days
-  python simulation\\live.py --watch      show each hour's batch of NPCs walking in, slowly
-  python simulation\\live.py --status     where the store is now
-  python simulation\\live.py --reset      close this store and start a new one
-  python simulation\\live.py --days 7 --view   also show the NPCs walking in your browser (view.html)
-  Another store format:  $env:RETINA_STORE = "supercenter"   (or use simulation\\studio.py to choose)
+Run it with the `retina` command (retina/cli.py), which picks the store first:
+  retina                       simulate the NEXT day (opens a new store the first time)
+  retina --days 7              the next 7 days
+  retina --watch               show each hour's batch of NPCs walking in, slowly
+  retina --status              where the store is now
+  retina --reset               close this store and start a new one
+  retina --days 7 --view       also show the NPCs walking in your browser (view.html)
+  Another store format:  retina --store supercenter   (or python -m retina.engine.studio to choose)
   New store only:  --scale 0.1 (1 NPC = 10 real shoppers)   --per-week 13583 (real shoppers a week)
 
 Each run carries on where the last one stopped: shelves, stock, prices and every NPC's habits,
@@ -27,12 +28,12 @@ import time
 import numpy as np
 import pandas as pd
 
-import config
-from config import ROOT, PROFILE, TRAFFIC
-import traffic
-import shopping
-from engine import Simulation
-from reports import build_sales_log, build_stockout_log
+from . import config
+from .config import ROOT, PROFILE, TRAFFIC
+from . import traffic
+from . import shopping
+from .engine import Simulation
+from .reports import build_sales_log, build_stockout_log
 
 LIVE_DIR = ROOT / "data" / "live" / PROFILE["id"]
 STATE = LIVE_DIR / "state.pkl"
@@ -59,11 +60,15 @@ def open_store(scale, per_week):
 
 
 def load_store():
-    with open(STATE, "rb") as f:
-        sim = pickle.load(f)
+    reset = (f"This saved store was made by an older RETINA version. Start a new one: "
+             f"retina --store {PROFILE['id']} --reset")
+    try:
+        with open(STATE, "rb") as f:
+            sim = pickle.load(f)
+    except (ModuleNotFoundError, AttributeError):      # saved before v2 moved the code into retina/engine
+        raise SystemExit(reset)
     if getattr(sim.shoppers, "home", None) is None:
-        raise SystemExit("This saved store was made by an older RETINA version. Start a new one: "
-                         "python simulation\\live.py --reset")
+        raise SystemExit(reset)
     config.set_seed(sim.seed)                    # same dice as when the store opened
     TRAFFIC.update(sim.traffic_settings)
     return sim
@@ -128,7 +133,7 @@ def show_day(sim, day, hourly, watch, pace, trips=None):
 def write_view(sim, day, events, first_time=False):
     """view.html = the replay page for the day just simulated. It plays the day, then reloads itself
     to pick up the next day as soon as the simulator has written it."""
-    import replay
+    from . import replay
     from types import SimpleNamespace
     data = replay.page_data(SimpleNamespace(store=sim.store), day, events, None)
     data["live"] = True
@@ -159,7 +164,7 @@ def status(sim):
             print(f"  {name:<14} {path.stat().st_size / 1e6:6.1f} MB")
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description="Run the RETINA store day by day.")
     ap.add_argument("--days", type=int, default=1, help="how many days to simulate now (default 1)")
     ap.add_argument("--watch", action="store_true", help="print each hour slowly, as it happens")
@@ -170,7 +175,7 @@ def main():
     ap.add_argument("--per-week", type=int, help="new store only: real shoppers a week")
     ap.add_argument("--view", action="store_true", help="write view.html: the NPCs walking, day by day")
     ap.add_argument("--wait", type=float, default=0, help="seconds to wait between days (to watch --view)")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     if args.reset and LIVE_DIR.exists():
         shutil.rmtree(LIVE_DIR)

@@ -1,8 +1,8 @@
 """LLM guardrails work without any API key: JSON reading, the persona fact check, choice checks."""
 
-import llm
-import personas
-import focus
+from retina.engine import llm
+from retina.engine import personas
+from retina.engine import focus
 
 
 def test_json_from_ignores_extra_text():

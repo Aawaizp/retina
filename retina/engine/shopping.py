@@ -6,10 +6,10 @@ from bisect import bisect_right
 import numpy as np
 import pandas as pd
 
-from config import *
-from world import *
-from floor import STREAM_WALK
-import traffic
+from .config import *
+from .world import *
+from .floor import STREAM_WALK
+from . import traffic
 
 # ============================================================ trip needs
 # Real Instacart trips (loaders/trip_needs.py): the longer since the last trip, the bigger the

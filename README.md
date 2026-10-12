@@ -48,8 +48,10 @@ explanation layer.
 ## Choose a store and watch it run
 
 ```powershell
-python simulation\studio.py              # pick a store format, watch NPCs walk while the data is made
-python simulation\studio.py --compare    # every format side by side
+retina --store supermarket --days 10 --mind fast   # the next 10 days (continues where it stopped)
+retina --stores                                    # the store formats: supermarket, supercenter, neighborhood, convenience
+python -m retina.engine.studio              # pick a store format, watch NPCs walk while the data is made
+python -m retina.engine.studio --compare    # every format side by side
 ```
 
 | store format | sized like | real shoppers / week | range on the shelves | trip size | checkout |
@@ -81,7 +83,7 @@ flowchart LR
         L1["catalog + clean-up"]
         L2["aisle stats, shopper profiles,<br/>trip needs"]
     end
-    subgraph ENGINE["simulation/ (the engine)"]
+    subgraph ENGINE["retina/engine/ (the engine)"]
         TR["traffic schedule<br/>real footfall → NPCs per hour"]
         NPC["NPC shoppers<br/>household, habits, needs, budget"]
         ST["store<br/>prices, promos, stock, floor plan"]
@@ -123,6 +125,7 @@ flowchart LR
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+pip install -e .          # adds the `retina` command (editable: uses this folder's code and data)
 
 # 1) build the data layer once (downloads public data; Instacart files go in data\raw\instacart)
 python loaders\loader.py
@@ -132,11 +135,11 @@ python loaders\shopper_profiles.py
 python loaders\trip_needs.py
 
 # 2) simulate a year and see the scorecard
-python simulation\retina_mart.py
-python simulation\realism.py --final
+python -m retina.engine.retina_mart
+python -m retina.engine.realism --final
 
 # 3) export a ready-to-use dataset (Parquet + CSV, data dictionary, dataset card)
-python simulation\export.py --csv
+python -m retina.engine.export --csv
 
 # 4) run the automated tests (about 30 seconds)
 python -m pytest
@@ -150,15 +153,15 @@ terms); RETINA then draws habits from the published distributions instead.
 
 | command | what it does |
 |---|---|
-| `python simulation\studio.py` | choose a store format and watch NPCs walk while data is made |
-| `python simulation\live.py --watch` | run the store day by day, hour by hour (continues where it stopped) |
-| `python simulation\traffic.py` | the hourly footfall schedule |
-| `python simulation\replay.py --day 33` | 2D replay of one day: follow any shopper on the floor plan |
-| `python simulation\experiment.py scenarios\example.json` | what-if test (price, promotion, delisting, stock) with ranges over several seeds |
-| `python simulation\personas.py --n 20` | LLM-written personas from each NPC's facts (fact-checked) |
-| `python simulation\focus.py --n 10` | focus group: persona NPCs choose real products with an LLM |
-| `python simulation\llm_eval.py` | price / habit / popularity tests for LLM shoppers, per model |
-| `python simulation\analyst.py` | ask questions about the simulated store in plain English |
+| `retina --store supermarket --days 10` | run the store day by day (continues where it stopped); `--watch`, `--view`, `--status`, `--reset` |
+| `python -m retina.engine.studio` | choose a store format and watch NPCs walk while data is made |
+| `python -m retina.engine.traffic` | the hourly footfall schedule |
+| `python -m retina.engine.replay --day 33` | 2D replay of one day: follow any shopper on the floor plan |
+| `python -m retina.engine.experiment scenarios\example.json` | what-if test (price, promotion, delisting, stock) with ranges over several seeds |
+| `python -m retina.engine.personas --n 20` | LLM-written personas from each NPC's facts (fact-checked) |
+| `python -m retina.engine.focus --n 10` | focus group: persona NPCs choose real products with an LLM |
+| `python -m retina.engine.llm_eval` | price / habit / popularity tests for LLM shoppers, per model |
+| `python -m retina.engine.analyst` | ask questions about the simulated store in plain English |
 
 LLM keys come from environment variables only (`$env:GROQ_API_KEY`, `$env:GEMINI_API_KEY`);
 `auto` mode falls back Groq → Gemini → Ollama (local, free).
@@ -167,7 +170,7 @@ LLM keys come from environment variables only (`$env:GROQ_API_KEY`, `$env:GEMINI
 
 ## The exported dataset
 
-`python simulation\export.py` → `data\export\retina_generic_supermarket_seed42\`
+`python -m retina.engine.export` → `data\export\retina_generic_supermarket_seed42\`
 
 | table | rows (1 year) | one row = |
 |---|---|---|
@@ -187,7 +190,9 @@ Each export includes `DATASET_CARD.md` (how it was made, quality, limits, licenc
 
 ```
 loaders/      build the data layer from public sources (catalog, aisle stats, profiles, trip needs)
-simulation/   the engine and tools
+retina/       the Python package (`pip install -e .` gives the `retina` command, retina/cli.py)
+  mind/ memory/ app/   v2, being built: NPC mind, NPC memory cards, local app
+retina/engine/   the v1 engine and tools (run one with python -m retina.engine.<tool>)
   config.py        settings from the store profile, random streams
   world.py         store, shoppers, prices, stock          households.py  household, income, budget
   shopping.py      how a trip and a day run                floor.py       floor plan, walking, checkout
@@ -199,6 +204,7 @@ simulation/   the engine and tools
 stores/       store formats (supercenter, supermarket, neighborhood market, convenience):
               every assumption with its data label and source
 scenarios/    what-if scenario files
+web/          the website (v2, later)
 ```
 
 ---

@@ -15,7 +15,7 @@ Sources (labels in the store profile):
   hourly curve        PUBLIC_STATISTIC  Instacart order hours (online orders), cut to opening hours
   hourly_counts       REAL_OBSERVED     your own door-counter numbers, if you have them
 
-Run:  python simulation\\traffic.py      (prints the schedule for a weekday and a Saturday)
+Run:  python -m retina.engine.traffic      (prints the schedule for a weekday and a Saturday)
 """
 
 import json
@@ -23,7 +23,7 @@ import json
 import numpy as np
 import pandas as pd
 
-from config import (TRAFFIC, START_DATE, START_WEEKDAY, SHOPPER_PARAMS_FILE, SHOPPER_PROFILES_FILE,
+from .config import (TRAFFIC, START_DATE, START_WEEKDAY, SHOPPER_PARAMS_FILE, SHOPPER_PROFILES_FILE,
                     STREAM_TRAFFIC, stream)
 
 _cache = {}

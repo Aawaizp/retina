@@ -2,11 +2,11 @@
 
 import numpy as np
 
-import config
-import traffic
-from households import assign_households
-from world import create_shoppers, load_inputs
-from config import stream, STREAM_SHOPPERS
+from retina.engine import config
+from retina.engine import traffic
+from retina.engine.households import assign_households
+from retina.engine.world import create_shoppers, load_inputs
+from retina.engine.config import stream, STREAM_SHOPPERS
 
 
 def test_hourly_shape():

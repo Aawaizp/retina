@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from config import *
+from .config import *
 
 FLOOR_DEFAULTS = {                     # all ESTIMATED - chosen by us, see the store profile labels
     "corridors": 16,                   # walkways between shelf racks

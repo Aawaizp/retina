@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
-from config import *
-from world import *
-import traffic
+from .config import *
+from .world import *
+from . import traffic
 
 def summarize_prices(store, book):
     p = store.products

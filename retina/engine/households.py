@@ -15,7 +15,7 @@ before, only handed to different NPCs, so the store-wide price response does not
 import numpy as np
 import pandas as pd
 
-from config import HOUSEHOLDS, US_CPI_FILE, START_DATE, SENSITIVITY_GROUPS
+from .config import HOUSEHOLDS, US_CPI_FILE, START_DATE, SENSITIVITY_GROUPS
 
 CE_PERSONS_5PLUS = 5.7          # BLS CE 2022: average size of "five or more" households
 

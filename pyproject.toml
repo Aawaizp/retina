@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "retina"
+dynamic = ["version"]
+description = "RETINA - Retail Intelligence & Agent Simulation: a virtual store whose NPC shoppers make SIMULATED retail data"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Aawaiz Patel" }]
+requires-python = ">=3.13"
+# exact tested versions are in requirements.txt
+dependencies = [
+    "requests",
+    "beautifulsoup4",
+    "lxml",
+    "pandas",
+    "openpyxl",
+    "pyarrow",
+    "scikit-learn",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+retina = "retina.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Aawaizp/retina"
+
+[tool.setuptools.dynamic]
+version = { attr = "retina.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["retina*"]
+
+[tool.setuptools.package-data]
+"retina.engine" = ["replay_page.html"]

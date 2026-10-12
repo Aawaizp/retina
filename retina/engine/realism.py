@@ -16,9 +16,9 @@ Tests
      baskets, compared with the same models trained on real data?
 
 The held-out baskets are split in two by order number: the TUNING half may be used to adjust
-settings; the FINAL half is only for the reported score (python simulation\\realism.py --final).
+settings; the FINAL half is only for the reported score (python -m retina.engine.realism --final).
 
-Run (after simulation\\retina_mart.py):   python simulation\\realism.py [--final]
+Run (after retina.engine.retina_mart):   python -m retina.engine.realism [--final]
 Saved: data/simulated/<store>/realism_report.json (or realism_report_final.json)
 """
 
@@ -33,7 +33,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import cross_val_score, train_test_split
 
-from config import *
+from .config import *
 
 INSTACART_DIR = ROOT / "data" / "raw" / "instacart"
 SAMPLE = 20_000              # baskets from each side

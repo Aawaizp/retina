@@ -6,8 +6,8 @@ Because everything else is identical, the difference between the two runs is cau
 change (not by luck). We repeat this with several seeds (different luck) and report the
 average effect plus the range across runs.
 
-Run:   python simulation\\experiment.py scenarios\\example.json
-       python simulation\\experiment.py scenarios\\example.json --runs 10 --days 140
+Run:   python -m retina.engine.experiment scenarios\\example.json
+       python -m retina.engine.experiment scenarios\\example.json --runs 10 --days 140
 Saved: data/experiments/<date-time>-<name>/  (scenario, every run's numbers, summary, report)
 Everything here is SIMULATED data from an assumed store - not a forecast of a real store.
 """
@@ -22,10 +22,10 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-import config
-from config import *
-from engine import run_simulation, load_scenario, Interventions, SEGMENTS
-import traffic
+from . import config
+from .config import *
+from .engine import run_simulation, load_scenario, Interventions, SEGMENTS
+from . import traffic
 
 EXPERIMENTS_DIR = ROOT / "data" / "experiments"
 DEFAULT_RUNS = 5

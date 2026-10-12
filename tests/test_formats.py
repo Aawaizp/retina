@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-CODE = ("import json, engine\n"
+CODE = ("import json\n"
+        "from retina.engine import engine\n"
         "sim = engine.Simulation(verbose=False)\n"
         "sim.run_day(); sim.run_day()\n"
         "r = sim.results()\n"
@@ -16,7 +17,7 @@ CODE = ("import json, engine\n"
 
 
 def run(store):
-    out = subprocess.run([sys.executable, "-c", CODE], cwd=ROOT / "simulation", capture_output=True, text=True,
+    out = subprocess.run([sys.executable, "-c", CODE], cwd=ROOT, capture_output=True, text=True,
                          env=dict(os.environ, RETINA_STORE=store))
     assert out.returncode == 0, out.stderr[-800:]
     return json.loads(out.stdout.strip().splitlines()[-1])

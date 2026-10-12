@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from export import run_checks
+from retina.engine.export import run_checks
 
 
 def test_export_consistency_checks_pass(pipeline, tables):

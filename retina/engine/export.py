@@ -1,9 +1,9 @@
 """RETINA dataset export: one command -> a ready-to-use synthetic retail dataset.
 
-  python simulation\\export.py                       one year, seed 42 -> data/export/retina_<store>_seed42/
-  python simulation\\export.py --seed 7 --days 180   another dataset (different luck, same store)
-  python simulation\\export.py --csv                  also write CSV (gzip) next to Parquet
-  python simulation\\export.py --no-realism           skip the realism test (needs the Instacart files)
+  python -m retina.engine.export                       one year, seed 42 -> data/export/retina_<store>_seed42/
+  python -m retina.engine.export --seed 7 --days 180   another dataset (different luck, same store)
+  python -m retina.engine.export --csv                  also write CSV (gzip) next to Parquet
+  python -m retina.engine.export --no-realism           skip the realism test (needs the Instacart files)
 
 What you get (one folder):
   transactions   one row per product line on a receipt (the main table)
@@ -28,9 +28,9 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
-import config
-from config import ROOT, PROFILE, DATA_LABELS, CATALOG_LABEL_COLUMNS
-import traffic
+from . import config
+from .config import ROOT, PROFILE, DATA_LABELS, CATALOG_LABEL_COLUMNS
+from . import traffic
 
 EXPORT_DIR = ROOT / "data" / "export"
 VERSION = "1.0"
@@ -326,7 +326,7 @@ def dataset_card(name, tables, truth, run, realism, checks, args):
               "- CPI, consumer expenditure, household size: U.S. BLS / EIA - public domain.",
               "- **Use this dataset for learning, research and portfolios (non-commercial).**", "",
               f"Made with RETINA {VERSION} on {datetime.now(timezone.utc):%Y-%m-%d} "
-              f"(command: `python simulation\\export.py {' '.join(sys.argv[1:])}`)."]
+              f"(command: `python -m retina.engine.export {' '.join(sys.argv[1:])}`)."]
     return "\n".join(lines)
 
 
@@ -340,7 +340,7 @@ def main():
     args = ap.parse_args()
     if args.seed is not None:
         config.set_seed(args.seed)
-    from retina_mart import run_pipeline
+    from .retina_mart import run_pipeline
     run = run_pipeline(seed=args.seed, days=args.days, save=True)
     name = args.name or f"retina_{PROFILE['id']}_seed{config.SEED}" + (f"_{args.days}d" if args.days else "")
     out = EXPORT_DIR / name
@@ -353,7 +353,7 @@ def main():
     realism = None
     if not args.no_realism:
         try:
-            import realism as realism_mod
+            from . import realism as realism_mod
             print("\nRealism test (held-out real baskets)...")
             realism = realism_mod.main(final=True)
         except Exception as error:                            # e.g. Instacart files not on this PC

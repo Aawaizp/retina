@@ -12,12 +12,12 @@ reports.py  - logs, summaries, scorecard, saved files
 import numpy as np
 import pandas as pd
 
-from config import *
-from world import *
-from shopping import *
-from reports import *
-from engine import run_simulation
-from floor import summarize_walking, save_walking
+from .config import *
+from .world import *
+from .shopping import *
+from .reports import *
+from .engine import run_simulation
+from .floor import summarize_walking, save_walking
 
 # =================================================================== main
 def run_pipeline(seed=None, days=None, save=True):

@@ -6,8 +6,8 @@ How it works (a small "agent loop"):
   3. Repeat (max 4 lookups), then the LLM answers using ONLY those numbers.
 The LLM never sees the raw files and never runs code - it can only call these tools.
 
-Run:  python simulation\\analyst.py            (uses Groq, or $env:RETINA_LLM)
-      python simulation\\analyst.py gemini     (choose the provider)
+Run:  python -m retina.engine.analyst            (uses Groq, or $env:RETINA_LLM)
+      python -m retina.engine.analyst gemini     (choose the provider)
 """
 
 import json
@@ -15,8 +15,8 @@ import sys
 
 import pandas as pd
 
-from config import OUTPUT_DIR
-from llm import DEFAULT_PROVIDER, chat
+from .config import OUTPUT_DIR
+from .llm import DEFAULT_PROVIDER, chat
 
 MAX_LOOKUPS = 4        # tool calls per question (keeps free-tier usage low)
 MAX_RESULT_CHARS = 3000  # tool results are cut to this size before going to the LLM
