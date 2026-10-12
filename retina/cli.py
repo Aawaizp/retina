@@ -185,6 +185,9 @@ def collect_main(argv):
     ap.add_argument("--wait", action="store_true", help="when today's share is used: wait for tomorrow and go on")
     ap.add_argument("--provider", choices=("groq", "fake"), default="groq",
                     help="groq (the teacher, default) or fake (fixed rules, a dry run - never trains the real student)")
+    ap.add_argument("--compare", choices=("gemini",), help="ask a second LLM the situations Groq labelled; "
+                    "report agreement (uses only that LLM's free quota)")
+    ap.add_argument("--items", type=int, default=200, help="situations to compare (default 200)")
     args = ap.parse_args(argv)
     os.environ["RETINA_STORE"] = "generic_supermarket"           # situations come from the supermarket
     from retina.student import collect as C
@@ -192,6 +195,8 @@ def collect_main(argv):
     store = LabelStore()
     if args.status:
         C.status(store)
+    elif args.compare:
+        C.compare(args.compare, args.items, store=store)
     elif args.repeat:
         C.collect(args.repeat, repeat=1, provider=args.provider, wait=args.wait, store=store)
         rate, n = C.self_agreement(store, *(("fake", None) if args.provider == "fake" else C.TEACHER))

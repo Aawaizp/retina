@@ -138,6 +138,36 @@ def test_unreadable_reply_is_asked_again_later(trained, tmp_path, monkeypatch):
     assert store.rows(0, valid_only=False) == []                  # nothing marked as done
 
 
+class SecondTeacher:
+    """Picks the LAST in-stock option - so it agrees with the fixed-rule teacher only sometimes."""
+    name, offline = "gemini-like", False
+
+    def ask(self, batch):
+        out = {}
+        for n, b in enumerate(batch, 1):
+            for i, it in enumerate(b["items"], 1):
+                o = [x for x in it["options"] if x["in_stock"]][-1]
+                out[(n, i)] = {"choice": o["letter"], "product": o["product"], "why_type": "other", "why": "x"}
+        return out, "gemini", "gemini-test", None
+
+
+def test_second_teacher_comparison_keeps_both_labels(trained, tmp_path, monkeypatch):
+    _, pool, _, _ = trained
+    from retina.student import labels as L
+    monkeypatch.setattr(llm, "PACER", llm.Pacer(tmp_path / "usage.json"))
+    monkeypatch.setattr(C, "TEACHER", ("fake", "rules-v1"))          # the "base" teacher for this test
+    monkeypatch.setitem(llm.PROVIDERS, "gemini", dict(llm.PROVIDERS["gemini"], model="gemini-test"))
+    store = LabelStore(tmp_path / "labels.sqlite")
+    C.collect(60, provider="fake", store=store, pool=pool, say=lambda *a: None)
+    out = C.compare("gemini", 40, store=store, pool=pool, say=lambda *a: None, teacher=SecondTeacher())
+    base, other = store.rows(0, "fake", "rules-v1"), store.rows(0, "gemini", "gemini-test")
+    assert len(other) == 40 and {r["id"] for r in other} <= {r["id"] for r in base}    # same situations
+    assert {r["teacher"] for r in other} == {"gemini/gemini-test"}                     # teacher on every label
+    assert len(base) >= 60                                                             # base labels kept
+    assert out["situations"] == 40 and 0 <= out["agreement"] < 1
+    assert {"repeat_share", "deal_share"} <= set(out["fake"]) and "pending" in out["decision"]
+
+
 def test_collect_keeps_only_the_one_teacher(trained, tmp_path, monkeypatch):
     _, pool, _, _ = trained
     monkeypatch.setattr(llm, "PACER", llm.Pacer(tmp_path / "usage.json"))

@@ -32,7 +32,7 @@ from retina.mind.mind import build_options, WHY_HERE
 from retina.mind.teacher import (LLMTeacher, FakeTeacher, npc_block, request_tokens, MAX_REQUEST_TOKENS,
                                  PROMPT_VERSION)
 from retina.student.features import npc_numbers
-from retina.student.labels import LabelStore, TEACHER, TEACHER_DIR
+from retina.student.labels import LabelStore, TEACHER, TEACHER_DIR, teacher_of
 
 POOL_DAYS = (10, 24, 38)
 POOL_PANEL = 150
@@ -164,23 +164,27 @@ def label_rows(group, answers, provider, model, repeat):
 
 
 def collect(target=3000, repeat=0, provider="groq", model=None, wait=False, store=None, pool=None, say=print,
-            share=BUDGET_SHARE, teacher=None):
+            share=BUDGET_SHARE, teacher=None, only_ids=None):
     """Label pool situations until `target` valid labels (repeat=0), or ask `target` labelled items again
-    (repeat=1). Returns the number of valid labels for that repeat. teacher: a stand-in (tests)."""
-    model = model or (TEACHER[1] if provider == TEACHER[0] else None)
+    (repeat=1). Returns the number of valid labels for that repeat. teacher: a stand-in (tests).
+    only_ids: label just these situations (e.g. the ones another teacher labelled - a comparison)."""
+    model = model or ("rules-v1" if provider == "fake" else llm.PROVIDERS[provider]["model"])
     store = store or LabelStore()
     trips = pool if pool is not None else load_pool(say=say)
     teacher = teacher or (FakeTeacher(say) if provider == "fake" else LLMTeacher(provider, model, say))
+    me = teacher_of(provider, model)
     if repeat:
-        firsts = [r["id"] for r in store.rows(0, provider, model if provider != "fake" else None)][:target]
-        wanted, goal = set(firsts) - store.ids(repeat), len(firsts)
+        firsts = [r["id"] for r in store.rows(0, provider, model)][:target]
+        wanted, goal = set(firsts) - store.ids(repeat, me), len(firsts)
         if len(firsts) < target:
             say(f"Only {len(firsts)} labels to repeat (asked for {target}).")
+    elif only_ids is not None:
+        wanted, goal = set(only_ids), len(set(only_ids))
     else:
         wanted, goal = None, target
-    done = lambda: len([r for r in store.rows(repeat) if provider == "fake" or r["provider"] == provider])
-    have = done()
-    asked = store.ids(repeat)
+    mine = lambda: [r for r in store.rows(repeat, provider, model) if wanted is None or r["id"] in wanted]
+    have = len(mine())
+    asked = store.ids(repeat, me)
     todo = []
     for t in trips:
         items = [it for it in t["items"] if it["id"] not in asked and (wanted is None or it["id"] in wanted)]
@@ -238,6 +242,68 @@ def collect(target=3000, repeat=0, provider="groq", model=None, wait=False, stor
     return have
 
 
+def compare(other="gemini", n=200, store=None, pool=None, say=print, share=BUDGET_SHARE, teacher=None):
+    """Ask `other` the first n situations THE teacher (Groq) already labelled - same prompt, same
+    shuffled option order - then report how much the two agree. Uses only `other`'s quota."""
+    store = store or LabelStore()
+    ids = [r["id"] for r in store.rows(0, *TEACHER)][:n]
+    if len(ids) < n:
+        say(f"Only {len(ids)} {TEACHER[0]} labels to compare with (asked for {n}).")
+    collect(len(ids), provider=other, store=store, pool=pool, say=say, share=share, teacher=teacher, only_ids=ids)
+    return compare_report(store, other, say=say)
+
+
+def pick_shares(rows):
+    """Repeat share (picked something bought before) and deal share of a teacher's picks; skips."""
+    picks = [next((o for o in r["options"] if o["product"] == r["choice"]), None) for r in rows]
+    chosen = [o for o in picks if o is not None]
+    return {"picks": len(chosen), "skips": sum(r["choice"] is not None and r["choice"] < 0 for r in rows),
+            "repeat_share": round(float(np.mean([o["times"] > 0 for o in chosen])), 3) if chosen else None,
+            "deal_share": round(float(np.mean([o["deal"] for o in chosen])), 3) if chosen else None}
+
+
+def compare_report(store, other="gemini", other_model=None, close_gap=0.05, say=print):
+    """Groq vs `other` on the same situations, next to Groq's self-agreement (the ceiling) and chance.
+    Decision rule (owner's): agreement close to self-agreement (within close_gap) -> both may teach;
+    else Groq only trains and the other's labels stay a comparison set."""
+    other_model = other_model or llm.PROVIDERS[other]["model"]
+    base = {r["id"]: r for r in store.rows(0, *TEACHER)}
+    them = {r["id"]: r for r in store.rows(0, other, other_model) if r["id"] in base}
+    both = [i for i in them if base[i]["choice"] is not None and them[i]["choice"] is not None]
+    if not both:
+        say(f"No situations labelled by both {TEACHER[0]} and {other} yet.")
+        return None
+    agree = float(np.mean([base[i]["choice"] == them[i]["choice"] for i in both]))
+    chance = float(np.mean([1 / max(sum(o["in_stock"] for o in base[i]["options"]), 1) for i in both]))
+    self_rate, self_n = self_agreement(store, *TEACHER)
+    by_variation = {}
+    for i in both:
+        by_variation.setdefault(base[i].get("variation", "natural"), []).append(base[i]["choice"] == them[i]["choice"])
+    out = {"situations": len(both), "agreement": round(agree, 3), "chance": round(chance, 3),
+           "groq_self_agreement": None if self_rate is None else round(self_rate, 3), "groq_self_items": self_n,
+           "by_variation": {k: round(float(np.mean(v)), 3) for k, v in sorted(by_variation.items())},
+           TEACHER[0]: pick_shares([base[i] for i in both]), other: pick_shares([them[i] for i in both]),
+           "real_repeat_share": 0.60}
+    if self_rate is None:
+        out["decision"] = "pending: Groq's self-agreement is not measured yet (retina collect --repeat 100)"
+    elif agree >= self_rate - close_gap:
+        out["decision"] = f"close to Groq's self-agreement -> {other} may teach too (labels keep their teacher)"
+    else:
+        out["decision"] = f"not close -> Groq only trains the student; {other} labels kept as a comparison set"
+    pct = lambda x: "-" if x is None else f"{x:.0%}"
+    g, o = out[TEACHER[0]], out[other]
+    say(f"\n{TEACHER[0]} vs {other} on the same {len(both)} situations (same prompt, same option order):")
+    say(f"  agreement {pct(agree)} | chance {pct(chance)} | Groq self-agreement "
+        + (f"{pct(self_rate)} on {self_n} items" if self_rate is not None else "not measured yet"))
+    say("  agreement by situation type: " + ", ".join(f"{k} {pct(v)}" for k, v in out["by_variation"].items()))
+    say(f"  {'':<8}{'repeat share':>14}{'deal share':>12}{'skips':>7}   (real repeat share ~60%)")
+    for name, s in ((TEACHER[0], g), (other, o)):
+        say(f"  {name:<8}{pct(s['repeat_share']):>14}{pct(s['deal_share']):>12}{s['skips']:>7}")
+    say(f"  Decision: {out['decision']}")
+    (store.path.parent / f"compare_{other}.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
+    return out
+
+
 def self_agreement(store, provider, model):
     """Share of repeated situations where the teacher picked the same option again (None if none)."""
     first = {r["id"]: r["choice"] for r in store.rows(0, provider, model)}
@@ -268,8 +334,9 @@ def status(store, say=print):
     rate, n = self_agreement(store, *TEACHER)
     if rate is not None:
         say(f"  teacher self-agreement on {n} repeated items: {rate:.0%} (the student's ceiling)")
-    for p in ("groq",):
+    for p in ("groq", "gemini"):
         req, tok = llm.PACER.used_today(p)
         lim = llm.limits(p)
-        say(f"  {p} today: {req:,} requests, {tok:,} tokens (free day: {lim['rpd']:,} / {lim['tpd']:,}; "
-            f"collect stops at {BUDGET_SHARE:.0%})")
+        cap = lambda x: "no limit" if x is None else f"{x:,}"
+        say(f"  {p} today: {req:,} requests, {tok:,} tokens (free day: {cap(lim['rpd'])} requests / "
+            f"{cap(lim['tpd'])} tokens; collect stops at {BUDGET_SHARE:.0%})")
