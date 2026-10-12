@@ -31,3 +31,6 @@ _backup_before_*/
 
 # Private working notes (local paths, working style)
 RETINA_CONTEXT.md
+
+# Claude Code instructions (private)
+CLAUDE.md
