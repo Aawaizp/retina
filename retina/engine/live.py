@@ -200,6 +200,8 @@ def main(argv=None):
     ap.add_argument("--model", help="model name for that provider")
     ap.add_argument("--yes", action="store_true", help="run even if the estimate is above today's free LLM limits")
     ap.add_argument("--report", action="store_true", help="thinking runs: print the panel-vs-crowd report and stop")
+    ap.add_argument("--student", choices=("auto", "off", "only"), default="auto",
+                    help="mix runs: auto = a trained student decides when sure; off; only = student, no LLM")
     args = ap.parse_args(argv)
     use_run_dir(args.mind)
 
@@ -216,7 +218,7 @@ def main(argv=None):
         save_store(sim)
     if args.mind != "fast":
         from retina.mind import run as mind_run
-        sim.mind = mind_run.attach(sim, args.mind, LIVE_DIR, args.panel, args.provider, args.model)
+        sim.mind = mind_run.attach(sim, args.mind, LIVE_DIR, args.panel, args.provider, args.model, args.student)
     if args.status:
         status(sim)
         return

@@ -19,10 +19,16 @@ TEACH_SHARE_PRIOR = 0.8       # share of a thinking NPC's items sent to the teac
                               # (ESTIMATED from a 3-day supermarket run: 111 of 138; "new on the list" dominates)
 
 
-def attach(sim, mode, run_dir, panel, provider, model):
-    mind = Mind(sim, mode, run_dir, panel, provider, model)
+def attach(sim, mode, run_dir, panel, provider, model, student="auto"):
+    mind = Mind(sim, mode, run_dir, panel, provider, model, student=student)
     who = f"panel of {len(mind.panel)} thinking NPCs" if mind.mode == "mix" else "every NPC thinks"
-    print(f"Mind: {mind.mode} ({who}; teacher: {'fixed rules, NO LLM' if provider == 'fake' else provider})")
+    if mind.student is not None:
+        m = mind.student.meta
+        stu = (f"student {m['model']} decides ALL non-routine choices (no LLM)" if mind.student_only else
+               f"student {m['model']} decides when >= {m['threshold']:.0%} sure (~{m['coverage_at_threshold']:.0%})")
+    else:
+        stu = "no student model yet" if mode == "mix" and student != "off" else "student off"
+    print(f"Mind: {mind.mode} ({who}; {stu}; teacher: {'fixed rules, NO LLM' if provider == 'fake' else provider})")
     return mind
 
 
@@ -39,8 +45,13 @@ def estimate(sim, days):
     past = mind.memory.decisions()
     if mind.mode == "llm":
         share, source = 1.0, "every item"
+    elif mind.student is not None and mind.student_only:
+        share, source = 0.0, "student decides everything"
     elif len(past) >= 50:
-        share, source = float(np.mean([d["mind"] != "autopilot" for d in past])), "this run so far"
+        share, source = float(np.mean([d["mind"] in ("llm", "llm_fallback") for d in past])), "this run so far"
+    elif mind.student is not None:
+        share = TEACH_SHARE_PRIOR * (1 - mind.student.meta["coverage_at_threshold"])
+        source = "ESTIMATED, after the student's share"
     else:
         share, source = TEACH_SHARE_PRIOR, "ESTIMATED"
     teach = thinking_trips * items * share
@@ -74,7 +85,7 @@ def check_estimate(sim, days, yes):
     e = estimate(sim, days)
     print(f"\nEstimate before running (ESTIMATED): {days} day(s), ~{e['trips']:,.0f} trips, "
           f"~{e['thinking_trips']:,.0f} by thinking NPCs")
-    print(f"  ~{e['items']:,.0f} item choices by thinking NPCs: ~{e['items'] - e['teach']:,.0f} autopilot (free), "
+    print(f"  ~{e['items']:,.0f} item choices by thinking NPCs: ~{e['items'] - e['teach']:,.0f} autopilot/student (free), "
           f"~{e['teach']:,.0f} for the LLM teacher ({e['share']:.0%}, {e['share_source']})")
     print(f"  ~{e['calls']:,} LLM requests (up to {BATCH} NPCs each), ~{e['tokens']:,} tokens. "
           f"Cached answers (reruns) cost nothing.")
@@ -84,6 +95,8 @@ def check_estimate(sim, days, yes):
     if mind.teacher.name == "fake":
         print("  Teacher: fixed rules (--provider fake) - no LLM calls, data is NOT LLM-made.")
         return True
+    if e["calls"] == 0:
+        return True                                    # e.g. --student only: no LLM needed
     usable = providers_for(mind.teacher)
     if not usable:
         print("  No LLM provider is ready (no key, or resting). Set $env:GROQ_API_KEY or $env:GEMINI_API_KEY,"
@@ -121,7 +134,8 @@ def day_done(mind, day, run_dir):
     kinds = df["mind"].value_counts()
     cached = int(df.loc[df["mind"].isin(["llm", "llm_fallback"]), "cached"].sum())
     print(f"  mind: {len(df)} choices by thinking NPCs | {kinds.get('autopilot', 0)} autopilot | "
-          f"{kinds.get('llm', 0)} LLM ({cached} from cache) | {kinds.get('llm_fallback', 0)} fell back to the engine")
+          + (f"{kinds.get('student', 0)} student | " if "student" in kinds else "")
+          + f"{kinds.get('llm', 0)} LLM ({cached} from cache) | {kinds.get('llm_fallback', 0)} fell back to the engine")
 
 
 def finish(mind, run_dir):

@@ -34,12 +34,65 @@ WHY_HERE = {"need": "ran out at home", "repeat": "you buy this regularly",
             "new": "new on your list today", "partner": "goes with another item on your list"}
 
 
+def build_options(sim, s, k, day, wanted, table, prices, promo, regular, recall=None, order_key=None):
+    """2-5 real products from the item's aisle: the engine's pick, their usual ones, a deal, the best
+    sellers - with today's price, deal, stock and what this NPC remembers (recall(picks) -> {product:
+    memory}). Shared by the live mind, collect mode (retina.student) and the student's features.
+    The order is shuffled (no "A is always right" bias); order_key overrides the dice key."""
+    store, sh, inv = sim.store, sim.shoppers, sim.inv
+    aisle = store.aisle_of[wanted]
+    cum = table["cum"][aisle]
+    if cum is None:
+        return aisle, []
+    a = store.aisles[aisle]
+    share = np.diff(np.r_[0.0, cum])
+    ranked = a.product_idx[np.argsort(-share, kind="stable")]
+    weight = dict(zip(a.product_idx.tolist(), share.tolist()))         # today, with price effects
+    base = dict(zip(a.product_idx.tolist(), (a.pick_prob / a.pick_prob.sum()).tolist()))   # popularity only
+    counts = sh.counts[s]
+    usual = sorted(sh.by_aisle[s].get(aisle, []), key=lambda p: -counts.get(p, 0))[:2]
+    deal = [p for p in ranked[:30] if promo[p]][:1]
+    picks = []
+    for p in [wanted] + usual + deal + list(ranked[:8]):
+        if int(p) not in picks:
+            picks.append(int(p))
+    picks = picks[:MAX_OPTIONS]
+    top = set(ranked[:8].tolist())
+    memory = recall(picks) if recall else {}
+    order = stream(*(order_key or (STREAM_MIND_ORDER, day, s, k))).permutation(len(picks))
+    names = store.products["product_name"]
+    out = []
+    for letter, i in zip(LETTERS, order):
+        p = picks[i]
+        price, reg = round(float(prices[p]), 2), round(float(regular[p]), 2)
+        mem = memory.get(p, {})
+        out.append({"letter": letter, "product": p, "name": clean(names.iat[p]), "price": price,
+                    "regular": reg, "deal": bool(promo[p]),
+                    "off": round((1 - price / reg) * 100, 1) if reg > 0 else 0.0,
+                    "times": int(counts.get(p, 0)), "in_stock": bool(inv.stock[p] > 0),
+                    "usual": p in usual, "top": p in top, "w": round(weight.get(p, 0.0), 6),
+                    "pop": round(base.get(p, 0.0), 6),
+                    "last_price": mem.get("last_price"), "sold_out": int(mem.get("sold_out", 0))})
+    return aisle, out
+
+
 class Mind:
     def __init__(self, sim, mode, run_dir, panel_size=PANEL, provider="auto", model=None,
-                 cache_file=CACHE_FILE, say=print):
+                 cache_file=CACHE_FILE, say=print, student="auto", student_dir=None, labels_file=None):
         if mode not in ("mix", "llm"):
             raise ValueError(f"unknown mind '{mode}'")
+        if student not in ("auto", "off", "only"):
+            raise ValueError("student must be auto, off or only")
         self.sim, self.say = sim, say
+        self.student, self.student_only = None, student == "only"
+        if mode == "mix" and student != "off":
+            from retina.student.model import Student, MODEL_DIR
+            folder = student_dir or MODEL_DIR
+            if Student.available(folder):
+                self.student = Student(folder)
+            elif student == "only":
+                raise SystemExit("--student only needs a trained student: retina collect, then retina train.")
+        self.labels_file, self.labels = labels_file, None
         self.memory = MemoryStore(run_dir / "memory.sqlite")
         settings = self.memory.get("settings")
         if settings is None:                                   # a new run: these settings stay with it
@@ -76,43 +129,8 @@ class Mind:
 
     # ------------------------------------------------------------ options
     def options(self, s, k, day, wanted, table, prices, promo, regular):
-        """2-5 real products from the item's aisle: the engine's pick, their usual ones, a deal,
-        the best sellers - with today's price, deal, stock and what this NPC remembers."""
-        store, sh, inv = self.sim.store, self.sim.shoppers, self.sim.inv
-        aisle = store.aisle_of[wanted]
-        cum = table["cum"][aisle]
-        if cum is None:
-            return aisle, []
-        a = store.aisles[aisle]
-        share = np.diff(np.r_[0.0, cum])
-        ranked = a.product_idx[np.argsort(-share, kind="stable")]
-        weight = dict(zip(a.product_idx.tolist(), share.tolist()))         # today, with price effects
-        base = dict(zip(a.product_idx.tolist(), (a.pick_prob / a.pick_prob.sum()).tolist()))   # popularity only
-        counts = sh.counts[s]
-        usual = sorted(sh.by_aisle[s].get(aisle, []), key=lambda p: -counts.get(p, 0))[:2]
-        deal = [p for p in ranked[:30] if promo[p]][:1]
-        picks = []
-        for p in [wanted] + usual + deal + list(ranked[:8]):
-            if int(p) not in picks:
-                picks.append(int(p))
-        picks = picks[:MAX_OPTIONS]
-        top = set(ranked[:8].tolist())
-        recall = self.memory.recall(s, picks, day)
-        order = stream(STREAM_MIND_ORDER, day, s, k).permutation(len(picks))
-        names = store.products["product_name"]
-        out = []
-        for letter, i in zip(LETTERS, order):
-            p = picks[i]
-            price, reg = round(float(prices[p]), 2), round(float(regular[p]), 2)
-            mem = recall.get(p, {})
-            out.append({"letter": letter, "product": p, "name": clean(names.iat[p]), "price": price,
-                        "regular": reg, "deal": bool(promo[p]),
-                        "off": round((1 - price / reg) * 100, 1) if reg > 0 else 0.0,
-                        "times": int(counts.get(p, 0)), "in_stock": bool(inv.stock[p] > 0),
-                        "usual": p in usual, "top": p in top, "w": round(weight.get(p, 0.0), 6),
-                        "pop": round(base.get(p, 0.0), 6),
-                        "last_price": mem.get("last_price"), "sold_out": int(mem.get("sold_out", 0))})
-        return aisle, out
+        recall = lambda picks: self.memory.recall(s, picks, day)
+        return build_options(self.sim, s, k, day, wanted, table, prices, promo, regular, recall)
 
     # ------------------------------------------------------------- router
     def route(self, s, k, day, wanted, route, options, prices):
@@ -160,8 +178,12 @@ class Mind:
                 if trigger is None:
                     decisions[k] = {"mind": "autopilot", "product": int(wanted), "why_type": "habit", "why": "usual buy"}
                 else:
-                    items.append({"k": k, "aisle": aisle, "why_here": WHY_HERE.get(route, route),
-                                  "options": options, "row": row})
+                    pick = self._student_pick(s, route, trip["mission"], options, int(wanted))
+                    if pick is not None:
+                        decisions[k] = pick
+                    else:
+                        items.append({"k": k, "aisle": aisle, "why_here": WHY_HERE.get(route, route),
+                                      "options": options, "row": row})
                 rows.append((row, s, k))
             out[s] = (trip, decisions)
             if items:
@@ -182,6 +204,42 @@ class Mind:
         self.memory.add_decisions([r for r, _, _ in rows])
         self.today.setdefault("rows", []).extend(r for r, _, _ in rows)
         return out
+
+    def _student_pick(self, s, route, mission, options, wanted):
+        """The student's decision when it is sure enough (or always with --student only), else None."""
+        if self.student is None:
+            return None
+        from retina.student.features import npc_numbers
+        from retina.student.model import why_type
+        option, p, _ = self.student.choose(npc_numbers(self.sim.shoppers, s), route, mission, options, wanted)
+        if option is None and self.student_only:          # nothing choosable (all sold out): the engine's
+            return {"mind": "engine", "product": wanted,   # empty-shelf rules decide - never the LLM
+                    "why_type": "", "why": "nothing in stock to choose"}
+        if option is None or (p < self.student.threshold and not self.student_only):
+            return None
+        return {"mind": "student", "product": int(option["product"]), "why_type": why_type(option, wanted),
+                "why": f"student, {p:.0%} sure"}
+
+    def _save_labels(self, a, day, answers, provider, model):
+        """Active learning: a teacher answer from THE teacher becomes a training label (source 'run')."""
+        from retina.student.features import npc_numbers
+        from retina.student.labels import LabelStore, TEACHER
+        if (provider, model) != TEACHER:
+            return
+        if self.labels is None:
+            self.labels = LabelStore(self.labels_file)
+        s, rows = a["s"], []
+        for i, it in enumerate(a["items"], 1):
+            ans = answers.get(i)
+            rows.append({"id": f"r-{RUN_ID}-{self.sim.seed}-{day}-{s}-{it['k']}", "repeat": 0, "source": "run",
+                         "provider": provider, "model": model, "prompt_version": PROMPT_VERSION, "npc": int(s),
+                         "day": day, "valid": ans is not None, "store": PROFILE["id"], "aisle": it["aisle"],
+                         "route": it["row"]["route"], "mission": a["trip"]["mission"], "variation": "natural",
+                         "npc_x": npc_numbers(self.sim.shoppers, s), "options": it["options"],
+                         "engine_product": it["row"]["engine_product"],
+                         "choice": None if ans is None else ans["product"], "letter": None if ans is None else ans["choice"],
+                         "why_type": None if ans is None else ans["why_type"], "why": None if ans is None else ans["why"]})
+        self.labels.add(rows)
 
     def _requests(self, fresh):
         """Pack the NPCs that need an answer into requests that stay under MAX_REQUEST_TOKENS."""
@@ -213,6 +271,7 @@ class Mind:
                 if problem is None:                             # failures are not cached: try again next time
                     self.cache.put(a["key"], {"answers": {str(i): v for i, v in answers[a["s"]].items()},
                                               "provider": provider, "model": model})
+                    self._save_labels(a, a["items"][0]["row"]["day"], answers[a["s"]], provider, model)
         for a in asking:
             if a["cached"] is not None:
                 got = {int(i): v for i, v in a["cached"]["answers"].items()}
@@ -254,3 +313,5 @@ class Mind:
     def close(self):
         self.memory.close()
         self.cache.close()
+        if self.labels is not None:
+            self.labels.close()

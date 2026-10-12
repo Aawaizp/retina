@@ -24,6 +24,12 @@ Your own products (USD prices; values labelled USER_PROVIDED):
   retina --products my.csv --products-mode add    the US catalog plus your products
   retina export --products my.csv --days 30 --csv   a dataset (Parquet/CSV + data card) of that store
 
+The student model (copies the LLM teacher, so thinking NPCs need almost no LLM calls):
+  retina collect --decisions 3000     labels from Groq openai/gpt-oss-120b only (stops at 80% of its free day)
+  retina collect --repeat 100         teacher self-agreement (the ceiling)  |  retina collect --status
+  retina train                        compare models, export models/student (ONNX + model card)
+  retina --mind mix --student only    thinking NPCs without any LLM
+
 Other tools still run as modules, e.g.  python -m retina.engine.studio  or  python -m retina.engine.export
 """
 
@@ -87,6 +93,8 @@ def build_parser():
     ap.add_argument("--wait", type=float, default=0, help="seconds to wait between days (to watch --view)")
     ap.add_argument("--scale", type=float, help="new store only: NPCs per real shopper (0.1 = 1 in 10)")
     ap.add_argument("--per-week", type=int, help="new store only: real shoppers a week")
+    ap.add_argument("--student", choices=("auto", "off", "only"), default="auto",
+                    help="mix runs: auto = the trained student decides when sure (default); off; only = no LLM")
     ap.add_argument("--products", metavar="CSV", help="your own products (see: retina products --template)")
     ap.add_argument("--products-mode", choices=("only", "add"), default="only",
                     help="only = the store sells just your products (default); add = the US catalog plus yours")
@@ -137,7 +145,7 @@ def use_products(path, mode, skip_bad_rows):
 def live_args(args):
     """The same run, as arguments for retina.engine.live."""
     out = ["--days", str(args.days), "--pace", str(args.pace), "--wait", str(args.wait), "--mind", args.mind,
-           "--panel", str(args.panel), "--provider", args.provider]
+           "--panel", str(args.panel), "--provider", args.provider, "--student", args.student]
     if args.model:
         out += ["--model", args.model]
     for flag in ("status", "reset", "watch", "view", "yes", "report"):
@@ -167,13 +175,46 @@ def export_main(argv):
     export.main(rest)
 
 
+def collect_main(argv):
+    """retina collect [--decisions 3000] [--repeat 100] [--status] [--wait] [--provider groq|fake]"""
+    ap = argparse.ArgumentParser(prog="retina collect", description="Teacher labels for the student model "
+                                 "(Groq openai/gpt-oss-120b only; stops at 80% of the free day; resumes).")
+    ap.add_argument("--decisions", type=int, default=3000, help="valid labels to reach (default 3000)")
+    ap.add_argument("--repeat", type=int, help="ask this many labelled items again (teacher self-agreement)")
+    ap.add_argument("--status", action="store_true", help="what is collected so far, and today's Groq use")
+    ap.add_argument("--wait", action="store_true", help="when today's share is used: wait for tomorrow and go on")
+    ap.add_argument("--provider", choices=("groq", "fake"), default="groq",
+                    help="groq (the teacher, default) or fake (fixed rules, a dry run - never trains the real student)")
+    args = ap.parse_args(argv)
+    os.environ["RETINA_STORE"] = "generic_supermarket"           # situations come from the supermarket
+    from retina.student import collect as C
+    from retina.student.labels import LabelStore
+    store = LabelStore()
+    if args.status:
+        C.status(store)
+    elif args.repeat:
+        C.collect(args.repeat, repeat=1, provider=args.provider, wait=args.wait, store=store)
+        rate, n = C.self_agreement(store, *(("fake", None) if args.provider == "fake" else C.TEACHER))
+        if rate is not None:
+            print(f"Teacher self-agreement: {rate:.0%} on {n} items (the ceiling for the student)")
+    else:
+        C.collect(args.decisions, provider=args.provider, wait=args.wait, store=store)
+
+
+def train_main(argv):
+    ap = argparse.ArgumentParser(prog="retina train", description="Train, compare and export the student model.")
+    ap.add_argument("--out", help="folder for the model (default models/student)")
+    args = ap.parse_args(argv)
+    os.environ["RETINA_STORE"] = "generic_supermarket"
+    from retina.student.train import train, MODEL_DIR
+    train(out=args.out or MODEL_DIR)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
-    if argv[:1] == ["products"]:
-        products_main(argv[1:])
-        return
-    if argv[:1] == ["export"]:
-        export_main(argv[1:])
+    commands = {"products": products_main, "export": export_main, "collect": collect_main, "train": train_main}
+    if argv[:1] and argv[0] in commands:
+        commands[argv[0]](argv[1:])
         return
     args = build_parser().parse_args(argv)
     if args.stores:

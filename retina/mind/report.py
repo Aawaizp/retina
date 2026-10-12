@@ -117,6 +117,7 @@ def build_report(mind, run_dir):
         llm_d = d[d["mind"] == "llm"]
         asked = d[d["mind"].isin(["llm", "llm_fallback"])]
         mind_stats = {"choices": len(d), "autopilot": int(kinds.get("autopilot", 0)), "llm": int(kinds.get("llm", 0)),
+                      "student": int(kinds.get("student", 0)),
                       "fallback": int(kinds.get("llm_fallback", 0)),
                       "llm_agrees_with_engine": round(float((llm_d["product"] == llm_d["engine_product"]).mean()), 3)
                       if len(llm_d) else None,
@@ -127,7 +128,8 @@ def build_report(mind, run_dir):
                       "providers": asked["provider"].fillna("none").value_counts().to_dict() if len(asked) else {}}
         out["mind"] = mind_stats
         lines += ["", f"Mind: {len(d):,} choices by thinking NPCs - {mind_stats['autopilot']:,} autopilot, "
-                      f"{mind_stats['llm']:,} LLM ({mind_stats['from_cache']:,} from cache), "
+                      + (f"{mind_stats['student']:,} student, " if mind_stats["student"] else "")
+                      + f"{mind_stats['llm']:,} LLM ({mind_stats['from_cache']:,} from cache), "
                       f"{mind_stats['fallback']:,} fell back to the engine"]
         if len(llm_d):
             lines.append(f"  LLM picked the engine's product {mind_stats['llm_agrees_with_engine']:.0%} of the time; "

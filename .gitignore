@@ -17,6 +17,8 @@ data/focus/*/llm_cache.json
 data/cache/
 # Uploaded product files and their converted catalogs (retina --products): the user's own data
 data/uploads/
+# Teacher labels and the situation pool (retina collect): rebuildable, LLM output kept local for now
+data/teacher/
 retina_products/
 
 # Per-shopper statistics derived from Instacart: keep local (Instacart terms: no redistribution).
