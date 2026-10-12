@@ -99,6 +99,30 @@ def test_collect_stops_at_80_percent_of_the_free_day(trained, tmp_path, monkeypa
     assert got == 0 and "80% stop" in said[-1] and "run again tomorrow" in said[-1]
 
 
+class TooLarge:
+    """Like Groq's free tier: refuses (413) any request with more than one trip in it."""
+    name, offline, failures, sizes = "groq-like", False, 0, []
+
+    def ask(self, batch):
+        self.sizes.append(len(batch))
+        if len(batch) > 1:
+            self.failures += 1
+            return {}, None, None, "groq answered with error 413: Request too large"
+        a = {(1, i): {"choice": it["options"][0]["letter"] if it["options"][0]["in_stock"] else "SKIP",
+                      "product": it["options"][0]["product"] if it["options"][0]["in_stock"] else -1,
+                      "why_type": "habit", "why": "x"} for i, it in enumerate(batch[0]["items"], 1)}
+        return a, "groq", "openai/gpt-oss-120b", None
+
+
+def test_too_large_requests_are_split_not_fatal(trained, tmp_path, monkeypatch):
+    _, pool, _, _ = trained
+    monkeypatch.setattr(llm, "PACER", llm.Pacer(tmp_path / "usage.json"))
+    store, teacher = LabelStore(tmp_path / "labels.sqlite"), TooLarge()
+    items = sum(len(t["items"]) for t in pool[:6])
+    C.collect(10_000, provider="groq", store=store, pool=pool[:6], say=lambda *a: None, teacher=teacher)
+    assert len(store.rows(0, valid_only=False)) == items and max(teacher.sizes) > 1   # every trip labelled
+
+
 def test_collect_keeps_only_the_one_teacher(trained, tmp_path, monkeypatch):
     _, pool, _, _ = trained
     monkeypatch.setattr(llm, "PACER", llm.Pacer(tmp_path / "usage.json"))

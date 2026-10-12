@@ -20,6 +20,7 @@ Labelling packs whole NPC trips into requests of ~6,000 tokens (~25 items). Stri
 import gzip
 import json
 import time
+from collections import deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -187,7 +188,9 @@ def collect(target=3000, repeat=0, provider="groq", model=None, wait=False, stor
             todo.append({**t, "items": items})
     say(f"Collect ({'repeat' if repeat else 'labels'}): {have:,} of {goal:,} done; teacher {provider}"
         + (f" {model}" if model else "") + (" (fixed rules, NOT an LLM)" if provider == "fake" else ""))
-    for group in requests_for(todo):
+    queue = deque(requests_for(todo))
+    while queue:
+        group = queue.popleft()
         if have >= goal:
             break
         blocks = [npc_block(n, t["card"], [], t, t["items"]) for n, t in enumerate(group, 1)]
@@ -203,6 +206,16 @@ def collect(target=3000, repeat=0, provider="groq", model=None, wait=False, stor
                 ok, note = room_today(provider, request_tokens(blocks), share)
         batch = [{"block": b, "items": t["items"]} for b, t in zip(blocks, group)]
         answers, got_provider, got_model, problem = teacher.ask(batch)
+        if problem and "413" in problem:                      # request too large for the free tier:
+            if hasattr(teacher, "failures"):                   # not a dead provider - split and retry
+                teacher.failures = 0
+            if len(group) > 1:
+                half = len(group) // 2
+                queue.extendleft([group[half:], group[:half]])
+                say(f"  (request too large for {provider} - splitting it in two)")
+            else:
+                say(f"  (one trip is too large for {provider} on its own - skipped)")
+            continue
         if problem:
             if "daily limit" in problem or "429" in problem:
                 say(f"Stopped: {provider} says its limit is reached ({problem[:80]}). Run again tomorrow.")

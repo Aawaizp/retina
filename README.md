@@ -102,6 +102,26 @@ First real run (supermarket, 10 days, Groq + Gemini, 12 Oct 2026; SIMULATED):
 *Conditional logit on the same option sets; research on grocery choice ≈ −2.5. Small sample: a
 first look, not a verdict. As in v1, LLM shoppers are more deal-driven than the engine.
 
+### The student model (v2, in progress)
+
+```powershell
+retina collect --decisions 3000     # varied situations, labelled by Groq gpt-oss-120b only
+retina collect --repeat 100         # the same situations again: the teacher's self-agreement
+retina train                        # compare models, export models/student (ONNX + model card)
+retina --mind mix --student only    # thinking NPCs with no LLM call at all
+```
+
+A small model learns to copy the LLM teacher's shelf choices, so thinking NPCs need (almost) no
+LLM. **Collect mode** takes real store states and varies them on purpose (price up, deal next to
+the usual, usual sold out, remembered price) and asks ONE teacher, so the labels are one
+consistent "mind"; it stops at 80% of the free daily limit and continues the next day.
+**Training** splits by NPC (test NPCs are never seen), compares random, the v1 engine, a
+conditional logit and a LightGBM ranker, and reports agreement, calibration, elasticity, repeat
+and deal share (vs real ~60% repeat), the teacher's own self-agreement (the ceiling) and its
+position bias. The chosen model is exported to ONNX (checked against Python) for the website.
+In mix runs a confident student decides and an unsure one asks the teacher - whose answer
+becomes a new label.
+
 ---
 
 ## Your own products (v2)
@@ -305,7 +325,7 @@ never presented as any real retailer.
 
 ## Tests
 
-`python -m pytest` runs 39 checks in about a minute and a half (also on every push, via GitHub Actions):
+`python -m pytest` runs 46 checks in about a minute and a half (also on every push, via GitHub Actions):
 same seed gives the same data; stopping and continuing a run changes nothing; receipts, trips and
 daily totals agree; prices and promotions make sense; store traffic and households follow their
 inputs; every store format runs and differs as it should; the LLM guardrails (JSON reading, persona fact check, valid choices) work without any key.
@@ -316,6 +336,9 @@ Your own products: files with a BOM, Windows-1252, semicolons, quoted commas are
 the limit are refused; "did you mean" never changes a row; USD only; formula cells are neutralised;
 200 uploaded products run in all four store formats with lost demand recorded and histories only
 from products the store sells; the Instacart-mix scorecard checks say N/A.
+Student model (fixed-rule stand-in teacher): it learns the teacher far better than random or the
+engine; ONNX gives the same answers as Python; position is not a feature; `--student only` makes
+no LLM call; collect mode stops at 80% of the free day and never keeps another model's labels.
 
 ## Skills shown
 

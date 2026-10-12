@@ -14,7 +14,9 @@ from retina.engine import llm
 from retina.engine.personas import household_phrase
 
 PROMPT_VERSION = 2            # part of the cache key: change it whenever the prompt changes
-MAX_REQUEST_TOKENS = 6_000    # one request stays under Groq's free 8,000 tokens a minute (~200 per item)
+MAX_REQUEST_TOKENS = 4_500    # ESTIMATED tokens per request. Real use runs ~1.25x the estimate (gpt-oss
+                              # reasoning; first real collect, 12 Oct 2026: 38 items ~7,500 tokens) and Groq's
+                              # free tier refuses a request above 8,000 tokens a minute (error 413)
 REASON_TYPES = ("habit", "price", "deal", "quality", "need", "try_new", "out_of_stock", "budget", "other")
 LETTERS = "ABCDE"
 
