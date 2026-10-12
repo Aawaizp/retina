@@ -96,6 +96,14 @@ def test_missing_columns(tmp_path):
     assert not c.ok and "missing column(s): brand, pack_size, category (or aisle)" in c.errors[0][1]
 
 
+def test_file_problems_give_a_useful_hint(tmp_path):
+    from retina.products.check import report_text
+    text = report_text(check_file(tmp_path / "my_products.csv"))
+    assert "retina products --template" in text and "--skip-bad-rows" not in text
+    text = report_text(check_file(write(tmp_path, HEADER + "Milk,Acme,milk,abc,1 l\n")))
+    assert "--skip-bad-rows" in text                               # a bad ROW: skipping it is an option
+
+
 # ------------------------------------------------------------- safe CSVs
 def test_formula_cells_are_neutralised(tmp_path):
     df = pd.DataFrame({"name": ["=HYPERLINK(\"x\")", "+1 Cola", "-5 Gum", "@cmd", "Milk"], "price": [-1.5, 1, 2, 3, 4]})
@@ -146,10 +154,12 @@ def uploaded(tmp_path_factory):
     return folder / "catalog.csv", {p["aisle"] for p in check.products}
 
 
-def run_store(catalog, store, kind="only", days=2):
+def run_store(catalog, store, kind="only", days=2, strict=False):
+    """strict: any RuntimeWarning (e.g. an average of nothing) fails the run."""
     env = dict(os.environ, RETINA_STORE=store, RETINA_CATALOG=str(catalog), RETINA_CATALOG_KIND=kind,
                RETINA_CATALOG_TAG="test")
-    out = subprocess.run([sys.executable, "-c", RUN.replace("DAYS", str(days))], cwd=ROOT, env=env,
+    flags = ["-W", "error::RuntimeWarning"] if strict else []
+    out = subprocess.run([sys.executable, *flags, "-c", RUN.replace("DAYS", str(days))], cwd=ROOT, env=env,
                          capture_output=True, text=True)
     assert out.returncode == 0, out.stderr[-1500:]
     return json.loads(out.stdout.strip().splitlines()[-1])
@@ -165,6 +175,16 @@ def test_200_uploaded_products_run_end_to_end(uploaded, store):
     assert set(r["aisles_sold"]) <= aisles                           # nothing from an aisle it does not sell
     assert r["not_sold"] > 0                                         # wants elsewhere: lost demand, recorded
     assert r["history_ok"]                                           # NPC history only from what it sells
+
+
+def test_tiny_store_runs_without_warnings(tmp_path):
+    """The 6-product template: days without any deal used to print 'Mean of empty slice'."""
+    from retina.products.convert import write_template
+    example, _ = write_template(tmp_path)
+    check = check_file(example)
+    csvsafe.to_csv(to_frame(check.products, example.name), tmp_path / "catalog.csv", index=False)
+    r = run_store(tmp_path / "catalog.csv", "generic_supermarket", days=3, strict=True)
+    assert r["products"] == 6 and r["lines"] > 0 and r["uploaded_only"]
 
 
 def test_add_mode_keeps_the_us_catalog(uploaded, tmp_path):

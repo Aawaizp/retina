@@ -47,7 +47,8 @@ def read_products(path):
     """(header, rows, info) - rows = [(row number, {column: text})], empty lines skipped."""
     path = Path(path)
     if not path.exists():
-        raise UploadError(f"No file '{path}'.")
+        raise UploadError(f"No file '{path}'. Check the name and folder - or make a start file with: "
+                          f"retina products --template")
     if path.stat().st_size > MAX_BYTES:
         raise UploadError(f"The file is {path.stat().st_size / 1e6:.0f} MB; the limit is {MAX_BYTES / 1e6:.0f} MB.")
     if path.suffix.lower() in (".xlsx", ".xls", ".ods"):

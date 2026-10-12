@@ -223,6 +223,10 @@ def report_text(check, max_lines=40):
                 out.append(f"  {'file' if row == 0 else f'row {row}'}: {message}")
             if len(items) > max_lines:
                 out.append(f"  ... and {len(items) - max_lines} more (see check_report.txt)")
-    out.append("\nResult: " + ("OK - ready to run" if check.ok else "NOT OK - fix the errors above "
-                                "(or use --skip-bad-rows to leave those rows out)"))
+    if check.ok:
+        out.append("\nResult: OK - ready to run")
+    elif any(row > 0 for row, _ in check.errors):           # bad rows: they can be left out
+        out.append("\nResult: NOT OK - fix the errors above (or use --skip-bad-rows to leave those rows out)")
+    else:                                                    # the file itself: skipping rows cannot help
+        out.append("\nResult: NOT OK - fix the file problem above")
     return "\n".join(out)

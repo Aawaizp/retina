@@ -120,6 +120,11 @@ def pick_product(dept, cum_prob, u):
     return dept.product_idx[min(i, len(dept.product_idx) - 1)]
 
 
+def true_share(flags):
+    """Share of True in an array; NaN (no warning) when the array is empty."""
+    return flags.mean() if len(flags) else np.nan
+
+
 def poisson_from_u(mean, u):
     """Poisson random number from ONE uniform u (inverse method) - keeps the dice in fixed slots."""
     k, p = 0, np.exp(-mean)
@@ -520,9 +525,9 @@ def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, table
     promo = np.logical_or.reduce(promo_g)                     # on promotion for anyone
     eligible = inv.sellable & store.products["promo_eligible"].to_numpy()
     stock_today = {"day": day,
-                   "empty_share": empty[inv.sellable].mean(),
-                   "empty_share_promo": empty[eligible & promo].mean(),
-                   "empty_share_no_promo": empty[eligible & ~promo].mean()}
+                   "empty_share": true_share(empty[inv.sellable]),
+                   "empty_share_promo": true_share(empty[eligible & promo]),       # empty (NaN) on a day with
+                   "empty_share_no_promo": true_share(empty[eligible & ~promo])}   # no deals - small ranges
     place_orders(day, inv, stream(STREAM_DELIVERIES, day))
     columns = ["day", "hour", "trip_id", "shopper_id", "product_idx", "quantity",
                "unit_price", "regular_price", "on_promo", "is_repeat", "mission", "reason"]
