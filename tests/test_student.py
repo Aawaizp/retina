@@ -123,6 +123,21 @@ def test_too_large_requests_are_split_not_fatal(trained, tmp_path, monkeypatch):
     assert len(store.rows(0, valid_only=False)) == items and max(teacher.sizes) > 1   # every trip labelled
 
 
+class Unreadable:
+    name, offline = "groq-like", False
+
+    def ask(self, batch):
+        return {}, "groq", "openai/gpt-oss-120b", None      # answered, but nothing could be read
+
+
+def test_unreadable_reply_is_asked_again_later(trained, tmp_path, monkeypatch):
+    _, pool, _, _ = trained
+    monkeypatch.setattr(llm, "PACER", llm.Pacer(tmp_path / "usage.json"))
+    store = LabelStore(tmp_path / "labels.sqlite")
+    C.collect(100, provider="groq", store=store, pool=pool[:3], say=lambda *a: None, teacher=Unreadable())
+    assert store.rows(0, valid_only=False) == []                  # nothing marked as done
+
+
 def test_collect_keeps_only_the_one_teacher(trained, tmp_path, monkeypatch):
     _, pool, _, _ = trained
     monkeypatch.setattr(llm, "PACER", llm.Pacer(tmp_path / "usage.json"))

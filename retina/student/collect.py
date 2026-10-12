@@ -228,6 +228,9 @@ def collect(target=3000, repeat=0, provider="groq", model=None, wait=False, stor
             say(f"Stopped: answered by {got_provider}/{got_model}, not {provider}/{model} - labels not saved.")
             return have
         rows = label_rows(group, answers, got_provider, got_model, repeat)
+        if not any(r["valid"] for r in rows):                 # the whole reply was unreadable: a failed
+            say(f"  (reply could not be read - these {len(rows)} items are asked again next run)")   # request,
+            continue                                          # not {len(rows)} wrong answers
         store.add(rows)
         have += sum(r["valid"] for r in rows)
         note = room_today(provider, 0, share)[1] if provider != "fake" else "no LLM"
