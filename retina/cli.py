@@ -194,6 +194,7 @@ def collect_main(argv):
     ap.add_argument("--out", help="--export: file (default data/teacher/export_<which>_<N>.jsonl)")
     ap.add_argument("--import", dest="import_file", metavar="JSONL", help="read another teacher's answers (checked like Groq's)")
     ap.add_argument("--compare-with", metavar="NAME/MODEL", help="report Groq vs this teacher (no new questions)")
+    ap.add_argument("--tokens", action="store_true", help="tokens per label: old prompt vs compact prompt (no LLM)")
     args = ap.parse_args(argv)
     os.environ["RETINA_STORE"] = "generic_supermarket"           # situations come from the supermarket
     from retina.student import collect as C
@@ -201,6 +202,8 @@ def collect_main(argv):
     store = LabelStore()
     if args.status:
         C.status(store)
+    elif args.tokens:
+        C.token_report(C.load_pool(), store, real_per_label=240)
     elif args.export:
         out = args.out or C.TEACHER_DIR / f"export_{args.which}_{args.export}.jsonl"
         C.export_situations(out, args.export, args.which, store=store)

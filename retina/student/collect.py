@@ -117,13 +117,16 @@ def load_pool(path=None, say=print):
 
 
 # ================================================================ labelling
-def requests_for(trips):
+def blocks_of(group, version):
+    return [npc_block(n, t["card"], [], t, t["items"], version) for n, t in enumerate(group, 1)]
+
+
+def requests_for(trips, version=PROMPT_VERSION):
     """Pack trips (with only their items still to label) into requests under MAX_REQUEST_TOKENS."""
     groups, current = [], []
     for t in trips:
         trial = current + [t]
-        blocks = [npc_block(n, x["card"], [], x, x["items"]) for n, x in enumerate(trial, 1)]
-        if current and request_tokens(blocks) > MAX_REQUEST_TOKENS:
+        if current and request_tokens(blocks_of(trial, version), version) > MAX_REQUEST_TOKENS:
             groups.append(current)
             current = [t]
         else:
@@ -147,13 +150,13 @@ def until_tomorrow():
     return ((now + timedelta(days=1)).replace(hour=0, minute=1, second=0, microsecond=0) - now).total_seconds()
 
 
-def label_rows(group, answers, provider, model, repeat):
+def label_rows(group, answers, provider, model, repeat, version=PROMPT_VERSION):
     rows = []
     for n, t in enumerate(group, 1):
         for i, it in enumerate(t["items"], 1):
             ans = answers.get((n, i))
             rows.append({"id": it["id"], "repeat": repeat, "source": "collect", "provider": provider, "model": model,
-                         "prompt_version": PROMPT_VERSION, "npc": t["npc"], "day": t["day"], "valid": ans is not None,
+                         "prompt_version": version, "npc": t["npc"], "day": t["day"], "valid": ans is not None,
                          "store": PROFILE["id"], "aisle": it["aisle"], "route": it["route"], "mission": t["mission"],
                          "variation": it["variation"], "npc_x": t["npc_x"], "options": it["options"],
                          "engine_product": it["engine_product"],
@@ -173,33 +176,40 @@ def collect(target=3000, repeat=0, provider="groq", model=None, wait=False, stor
     trips = pool if pool is not None else load_pool(say=say)
     teacher = teacher or (FakeTeacher(say) if provider == "fake" else LLMTeacher(provider, model, say))
     me = teacher_of(provider, model)
+    version_of = {}                       # a repeat / comparison asks in the prompt version of the ORIGINAL label
     if repeat:
-        firsts = [r["id"] for r in store.rows(0, provider, model)][:target]
+        originals = store.rows(0, provider, model)[:target]
+        firsts = [r["id"] for r in originals]
+        version_of = {r["id"]: r.get("prompt_version", 2) for r in originals}
         wanted, goal = set(firsts) - store.ids(repeat, me), len(firsts)
         if len(firsts) < target:
             say(f"Only {len(firsts)} labels to repeat (asked for {target}).")
     elif only_ids is not None:
+        version_of = {r["id"]: r.get("prompt_version", 2) for r in store.rows(0, *TEACHER)}
         wanted, goal = set(only_ids), len(set(only_ids))
     else:
         wanted, goal = None, target
     mine = lambda: [r for r in store.rows(repeat, provider, model) if wanted is None or r["id"] in wanted]
     have = len(mine())
     asked = store.ids(repeat, me)
-    todo = []
+    todo = {}                                                  # prompt version -> trips (items to ask)
     for t in trips:
-        items = [it for it in t["items"] if it["id"] not in asked and (wanted is None or it["id"] in wanted)]
-        if items:
-            todo.append({**t, "items": items})
+        for v in sorted({version_of.get(it["id"], PROMPT_VERSION) for it in t["items"]}):
+            items = [it for it in t["items"] if it["id"] not in asked and (wanted is None or it["id"] in wanted)
+                     and version_of.get(it["id"], PROMPT_VERSION) == v]
+            if items:
+                todo.setdefault(v, []).append({**t, "items": items})
     say(f"Collect ({'repeat' if repeat else 'labels'}): {have:,} of {goal:,} done; teacher {provider}"
-        + (f" {model}" if model else "") + (" (fixed rules, NOT an LLM)" if provider == "fake" else ""))
-    queue = deque(requests_for(todo))
+        + (f" {model}" if model else "") + (" (fixed rules, NOT an LLM)" if provider == "fake" else "")
+        + f"; prompt version {', '.join(map(str, sorted(todo))) or PROMPT_VERSION}")
+    queue = deque((v, g) for v in sorted(todo) for g in requests_for(todo[v], v))
     while queue:
-        group = queue.popleft()
+        version, group = queue.popleft()
         if have >= goal:
             break
-        blocks = [npc_block(n, t["card"], [], t, t["items"]) for n, t in enumerate(group, 1)]
+        blocks = blocks_of(group, version)
         if provider != "fake":
-            ok, note = room_today(provider, request_tokens(blocks), share)
+            ok, note = room_today(provider, request_tokens(blocks, version), share)
             while not ok:
                 if not wait:
                     say(f"Stopped: {note}. {have:,}/{goal:,} labels saved - run again tomorrow to continue.")
@@ -207,15 +217,15 @@ def collect(target=3000, repeat=0, provider="groq", model=None, wait=False, stor
                 pause = until_tomorrow()
                 say(f"Waiting {pause / 3600:.1f} h for {provider}'s next free day ({note}) - Ctrl+C stops safely.")
                 time.sleep(pause)
-                ok, note = room_today(provider, request_tokens(blocks), share)
-        batch = [{"block": b, "items": t["items"]} for b, t in zip(blocks, group)]
+                ok, note = room_today(provider, request_tokens(blocks, version), share)
+        batch = [{"block": b, "items": t["items"], "version": version} for b, t in zip(blocks, group)]
         answers, got_provider, got_model, problem = teacher.ask(batch)
         if problem and "413" in problem:                      # request too large for the free tier:
             if hasattr(teacher, "failures"):                   # not a dead provider - split and retry
                 teacher.failures = 0
             if len(group) > 1:
                 half = len(group) // 2
-                queue.extendleft([group[half:], group[:half]])
+                queue.extendleft([(version, group[half:]), (version, group[:half])])
                 say(f"  (request too large for {provider} - splitting it in two)")
             else:
                 say(f"  (one trip is too large for {provider} on its own - skipped)")
@@ -231,7 +241,7 @@ def collect(target=3000, repeat=0, provider="groq", model=None, wait=False, stor
         if provider != "fake" and (got_provider, got_model) != (provider, model):
             say(f"Stopped: answered by {got_provider}/{got_model}, not {provider}/{model} - labels not saved.")
             return have
-        rows = label_rows(group, answers, got_provider, got_model, repeat)
+        rows = label_rows(group, answers, got_provider, got_model, repeat, version)
         if not any(r["valid"] for r in rows):                 # the whole reply was unreadable: a failed
             say(f"  (reply could not be read - these {len(rows)} items are asked again next run)")   # request,
             continue                                          # not {len(rows)} wrong answers
@@ -345,20 +355,22 @@ def choose_situations(which, n, store, pool):
 def export_situations(path, n=200, which="new", store=None, pool=None, say=print):
     """One JSON line per trip: the exact prompt THE teacher gets (system + situation + reply format),
     options in the same shuffled order, and every item's situation id. No answers in the file."""
-    from retina.mind.teacher import SYSTEM, batch_prompt
+    from retina.mind.teacher import batch_prompt, system_for
     store = store or LabelStore()
     pool = pool if pool is not None else load_pool(say=say)
     trips, count = choose_situations(which, n, store, pool)
+    base = {r["id"]: r.get("prompt_version", 2) for r in store.rows(0, *TEACHER)}
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         for t in trips:
+            version = base.get(t["items"][0]["id"], PROMPT_VERSION) if which == "labelled" else PROMPT_VERSION
             items = [{"id": it["id"], "item": i, "aisle": it["aisle"],
                       "options": [{k: o[k] for k in ("letter", "name", "price", "regular", "deal", "in_stock", "times")}
                                   for o in it["options"]]}
                      for i, it in enumerate(t["items"], 1)]
-            f.write(json.dumps({"trip": trip_key(t), "system": SYSTEM,
-                                "prompt": batch_prompt([npc_block(1, t["card"], [], t, t["items"])]),
+            f.write(json.dumps({"trip": trip_key(t), "prompt_version": version, "system": system_for(version),
+                                "prompt": batch_prompt([npc_block(1, t["card"], [], t, t["items"], version)], version),
                                 "items": items, "data_label": "SIMULATED"}, ensure_ascii=False) + "\n")
     say(f"Exported {count} situations in {len(trips)} trips ({which}) -> {path}\n"
         f"  Import answers with: retina collect --import <answers.jsonl>  - one line per answer:\n"
@@ -377,7 +389,9 @@ def import_labels(path, store=None, pool=None, say=print):
     pool = pool if pool is not None else load_pool(say=say)
     by_id = {it["id"]: (t, it) for t in pool for it in t["items"]}
     by_trip = {trip_key(t): t for t in pool}
+    base = {r["id"]: r.get("prompt_version", 2) for r in store.rows(0, *TEACHER)}
     rows, problems, seen = [], [], set()
+    record_version = {}
 
     def keep(t, it, teacher, ans, line):
         provider, _, model = teacher.partition("/")
@@ -391,7 +405,8 @@ def import_labels(path, store=None, pool=None, say=print):
             problems.append((line, f"{it['id']}: answered twice by {teacher} (first kept)"))
             return
         seen.add((it["id"], teacher))
-        rows.extend(label_rows([{**t, "items": [it]}], {(1, 1): ans}, provider, model, 0))
+        version = record_version.get(line) or base.get(it["id"], PROMPT_VERSION)   # the prompt it answered
+        rows.extend(label_rows([{**t, "items": [it]}], {(1, 1): ans}, provider, model, 0, version))
         rows[-1]["source"] = "import"
 
     with open(path, encoding="utf-8-sig") as f:
@@ -407,6 +422,8 @@ def import_labels(path, store=None, pool=None, say=print):
             if not teacher:
                 problems.append((line, "no teacher field"))
                 continue
+            if isinstance(rec.get("prompt_version"), int):
+                record_version[line] = rec["prompt_version"]
             if "reply" in rec:                                    # a whole raw reply for one trip
                 t = by_trip.get(str(rec.get("trip")))
                 if t is None:
@@ -445,6 +462,27 @@ def import_labels(path, store=None, pool=None, say=print):
     if len(problems) > 30:
         say(f"  ... and {len(problems) - 30} more")
     return len(rows), problems
+
+
+def token_report(pool, store=None, say=print, real_per_label=None):
+    """Estimated tokens per label: old prompt (v2) vs the compact one (v3), on the same trips, packed into
+    requests the same way (prompt + reply text only - real use adds the model's hidden reasoning)."""
+    out = {}
+    for version in (2, PROMPT_VERSION):
+        groups = requests_for(pool, version)
+        tokens = sum(request_tokens(blocks_of(g, version), version) for g in groups)
+        items = sum(len(t["items"]) for g in groups for t in g)
+        out[version] = {"requests": len(groups), "items": items, "per_label": tokens / items}
+    old, new = out[2]["per_label"], out[PROMPT_VERSION]["per_label"]
+    say(f"Estimated tokens per label on {out[2]['items']:,} situations (prompt + reply, packed in requests):")
+    say(f"  old prompt v2: {old:6.0f} tokens/label in {out[2]['requests']:,} requests")
+    say(f"  new prompt v{PROMPT_VERSION}: {new:6.0f} tokens/label in {out[PROMPT_VERSION]['requests']:,} requests "
+        f"({1 - new / old:.0%} fewer)")
+    if real_per_label:
+        say(f"  real (Groq, v2, measured 12 Oct): ~{real_per_label:.0f} tokens/label = ~{real_per_label / old:.1f}x the "
+            f"estimate - the rest is the model's hidden reasoning, which a shorter prompt does not shrink,\n"
+            f"  so the real saving will be SMALLER than {1 - new / old:.0%}; the next real collect measures it.")
+    return out
 
 
 def self_agreement(store, provider, model):

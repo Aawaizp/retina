@@ -179,7 +179,8 @@ def test_export_then_import_another_teacher(trained, tmp_path, monkeypatch):
     items = [it for line in lines for it in line["items"]]
     labelled = [r["id"] for r in store.rows(0, "fake", "rules-v1")][:30]
     assert sorted(it["id"] for it in items) == sorted(labelled)                       # the same 30 situations
-    assert all("Reply as ONE JSON list" in line["prompt"] and "choice" not in json.dumps(line["items"]) for line in lines)
+    assert all("ONE JSON list" in line["prompt"] and line["prompt_version"] == 3
+               and "choice" not in json.dumps(line["items"]) for line in lines)
     # answers: good, wrong letter, sold out, unknown id, no teacher, claims the training teacher, twice, raw reply
     first, second = items[0], items[1]
     ok = next(o["letter"] for o in first["options"] if o["in_stock"])
@@ -216,6 +217,36 @@ def test_consensus_weighting(trained, tmp_path, monkeypatch):
     assert w["agree"] + w["disagree"] > 0 and w["agree"] + w["disagree"] + w["not_seen"] == meta["sets"]["train"]
     assert "Consensus weighting" in (tmp_path / "m" / "MODEL_CARD.md").read_text(encoding="utf-8")
     assert meta["onnx_max_diff"] < 1e-3
+
+
+def test_compact_prompt_is_shorter_and_old_labels_keep_their_version(trained, tmp_path, monkeypatch):
+    from retina.mind.teacher import PROMPT_VERSION, batch_prompt, parse_answers, request_tokens
+    _, pool, _, _ = trained
+    t = pool[0]
+    old = request_tokens([npc_block := C.blocks_of([t], 2)[0]], 2)
+    new = request_tokens(C.blocks_of([t], PROMPT_VERSION), PROMPT_VERSION)
+    assert PROMPT_VERSION == 3 and new < 0.8 * old
+    short = '[{"s":1,"i":1,"c":"%s","r":"price","w":"cheaper"}]' % t["items"][0]["options"][0]["letter"]
+    if t["items"][0]["options"][0]["in_stock"]:
+        assert parse_answers(short, [{"items": t["items"]}])[(1, 1)]["why_type"] == "price"   # short keys read
+    # labels made with prompt v2 are repeated in v2 (the self-agreement must not mix two prompts)
+    store = LabelStore(tmp_path / "labels.sqlite")
+    C.collect(30, provider="fake", store=store, pool=pool, say=lambda *a: None)
+    old_rows = store.rows(0, "fake", "rules-v1")
+    for r in old_rows:
+        r["prompt_version"] = 2
+    store.add(old_rows)
+
+    class Spy(C.FakeTeacher):
+        versions = []
+
+        def ask(self, batch):
+            self.versions.append(batch[0]["version"])
+            return super().ask(batch)
+    spy = Spy()
+    C.collect(10, repeat=1, provider="fake", store=store, pool=pool, say=lambda *a: None, teacher=spy)
+    assert spy.versions and set(spy.versions) == {2}
+    assert {r["prompt_version"] for r in store.rows(1, "fake", "rules-v1")} == {2}
 
 
 def test_collect_keeps_only_the_one_teacher(trained, tmp_path, monkeypatch):
