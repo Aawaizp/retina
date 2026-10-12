@@ -332,11 +332,33 @@ for (const v of ["people", "traffic"]) document.getElementById("v-" + v).onclick
 window.addEventListener("resize", () => { resize(); draw(); });
 function tick(t) {
   const dt = Math.min((t - last) / 1000, 0.25); last = t;
-  if (playing) { now += dt * +document.getElementById("speed").value; if (now > tMax) now = tMin; draw(); }
+  if (playing) {
+    now += dt * +document.getElementById("speed").value;
+    if (now > tMax) { if (LIVE) { now = tMax; playing = false; liveNext(); } else now = tMin; }
+    draw();
+  }
   requestAnimationFrame(tick);
 }
-// start at the first busy moment
+// live mode (live.py --view / studio.py): play the whole day, then load the next one
+const LIVE = !!D.live;
+function liveNext() {
+  try { localStorage.setItem("retina_live_done", D.store + "|" + D.day); } catch (e) {}
+  document.getElementById("title").textContent = `${D.store} · ${D.date} · LIVE · day finished, loading the next day…`;
+  setTimeout(() => location.reload(), 2000);
+}
+// start at the first busy moment (live: at opening time, so you see the whole day)
 const busy = all.find(e => e.event === "SHOPPER_ENTER" && e.t >= 8 * 60);
-now = busy ? Math.floor(busy.t / 60) * 60 : tMin;
+now = LIVE ? tMin : (busy ? Math.floor(busy.t / 60) * 60 : tMin);
+if (LIVE) {
+  document.getElementById("speed").value = "15";
+  let done = null; try { done = localStorage.getItem("retina_live_done"); } catch (e) {}
+  if (done === D.store + "|" + D.day) {          // this day was already watched: wait for the simulator
+    now = tMax; playing = false; document.getElementById("play").textContent = "Play";
+    document.getElementById("title").textContent = `${D.store} · ${D.date} · LIVE · waiting for the simulator's next day…`;
+    setTimeout(() => location.reload(), 4000);
+  } else {
+    document.getElementById("title").textContent = `${D.store} · ${D.date} · LIVE (day ${D.day + 1})`;
+  }
+}
 resize(); legend(); draw(); requestAnimationFrame(tick);
 </script></body></html>

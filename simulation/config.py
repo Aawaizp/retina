@@ -57,6 +57,10 @@ SIM_DAYS = _sim["days"]
 N_SHOPPERS = _sim["n_shoppers"]          # a number, or "auto" = sized from the traffic schedule
 TRAFFIC = PROFILE.get("traffic")         # real footfall -> NPCs per hour (simulation/traffic.py)
 HOUSEHOLDS = PROFILE.get("households")   # household size, children, income, food budget (households.py)
+FORMAT = PROFILE.get("format", {})       # store format: assortment size, basket size, department mix
+ASSORTMENT_SHARE = FORMAT.get("assortment_share", 1.0)   # share of each aisle's products on the shelves
+BASKET_SCALE = FORMAT.get("basket_scale", 1.0)           # trip size vs the Instacart habits (small stores: < 1)
+DEPARTMENT_WEIGHTS = FORMAT.get("department_weights", {}) # x department share (convenience: more drinks)
 SENSITIVITY_GROUPS = _sim["sensitivity_groups"]
 
 PRICE_SENSITIVITY_SPREAD = _shop["price_sensitivity_spread"]

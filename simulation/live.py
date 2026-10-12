@@ -5,6 +5,8 @@
   python simulation\\live.py --watch      show each hour's batch of NPCs walking in, slowly
   python simulation\\live.py --status     where the store is now
   python simulation\\live.py --reset      close this store and start a new one
+  python simulation\\live.py --days 7 --view   also show the NPCs walking in your browser (view.html)
+  Another store format:  $env:RETINA_STORE = "supercenter"   (or use simulation\\studio.py to choose)
   New store only:  --scale 0.1 (1 NPC = 10 real shoppers)   --per-week 13583 (real shoppers a week)
 
 Each run carries on where the last one stopped: shelves, stock, prices and every NPC's habits,
@@ -28,6 +30,7 @@ import pandas as pd
 import config
 from config import ROOT, PROFILE, TRAFFIC
 import traffic
+import shopping
 from engine import Simulation
 from reports import build_sales_log, build_stockout_log
 
@@ -122,6 +125,24 @@ def show_day(sim, day, hourly, watch, pace, trips=None):
               f"{kinds.get('stock_up', 0)} stock-up | {int((trips['spent'] > trips['trip_budget']).sum())} over budget")
 
 
+def write_view(sim, day, events, first_time=False):
+    """view.html = the replay page for the day just simulated. It plays the day, then reloads itself
+    to pick up the next day as soon as the simulator has written it."""
+    import replay
+    from types import SimpleNamespace
+    data = replay.page_data(SimpleNamespace(store=sim.store), day, events, None)
+    data["live"] = True
+    path = LIVE_DIR / "view.html"
+    replay.write_page(data, path)
+    if first_time:
+        print(f"  NPCs walking: open {path.relative_to(ROOT)} in your browser (it follows the days by itself)")
+        try:
+            import webbrowser
+            webbrowser.open(path.resolve().as_uri())
+        except Exception:
+            pass
+
+
 def status(sim):
     done = sim.day
     print(f"Store: {PROFILE['name']} | NPC pool {len(sim.shoppers.shopper_id):,} | "
@@ -147,6 +168,8 @@ def main():
     ap.add_argument("--reset", action="store_true", help="close the saved store and open a new one")
     ap.add_argument("--scale", type=float, help="new store only: NPCs per real shopper (0.1 = 1 in 10)")
     ap.add_argument("--per-week", type=int, help="new store only: real shoppers a week")
+    ap.add_argument("--view", action="store_true", help="write view.html: the NPCs walking, day by day")
+    ap.add_argument("--wait", type=float, default=0, help="seconds to wait between days (to watch --view)")
     args = ap.parse_args()
 
     if args.reset and LIVE_DIR.exists():
@@ -171,9 +194,15 @@ def main():
         return
     t = time.time()
     first = sim.day
-    for _ in range(days):
+    for k in range(days):
         day = sim.day
-        sales, trips = sim.run_day()
+        if args.view:
+            shopping.RECORDER.update(day=day, events=[])     # write down every step of today's shoppers
+        try:
+            sales, trips = sim.run_day()
+            events = list(shopping.RECORDER["events"])
+        finally:
+            shopping.RECORDER.update(day=None, events=[])
         misses = sim.daily_misses[-1]
         hourly = hourly_table(sim, day, sales, trips)
         show_day(sim, day, hourly, args.watch, args.pace, trips)
@@ -187,7 +216,12 @@ def main():
         if len(misses):
             append(build_stockout_log(misses, sim.store, sim.book).assign(data_label="SIMULATED"), "stockouts.csv")
         append(hourly, "hourly.csv")
-    save_store(sim)
+        save_store(sim)                                   # after every day: safe to stop at any time
+        if args.view:
+            write_view(sim, day, events, first_time=(k == 0))
+            if args.wait and k < days - 1:
+                print(f"  (watching day {day + 1} in the browser - next day in {args.wait:.0f}s; Ctrl+C stops safely)")
+                time.sleep(args.wait)
     print(f"\nSaved {days} day(s) ({sim.book.dates[first]:%d %b} to {sim.book.dates[sim.day - 1]:%d %b %Y}) "
           f"in {time.time() - t:.0f}s -> {LIVE_DIR.relative_to(ROOT)}. Run again to continue.")
 

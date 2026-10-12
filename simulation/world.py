@@ -48,6 +48,11 @@ def build_store(catalog, departments):
     """Turn the catalog into shelves: which products each department sells, and how likely
     a shopper is to pick each one."""
     products = catalog.reset_index(drop=True).copy()
+    if ASSORTMENT_SHARE < 1.0:            # smaller store format: each aisle keeps its best sellers
+        rank = products.groupby(["department", "aisle"])["popularity"].rank(ascending=False, method="first")
+        size = products.groupby(["department", "aisle"])["popularity"].transform("size")
+        keep = rank <= np.maximum(2, np.ceil(size * ASSORTMENT_SHARE))
+        products = products[keep].reset_index(drop=True)
     missing = [c for c in CATALOG_LABEL_COLUMNS if c not in products.columns]
     if missing:   # never guess labels: unlabelled data could be mistaken for real data
         raise ValueError(f"Catalog has no data labels ({', '.join(missing)}). Run add_data_labels in loader.py.")
@@ -68,7 +73,7 @@ def build_store(catalog, departments):
         weights = products["popularity"].to_numpy()[idx]
         depts[name] = Department(
             name=name,
-            share=info["share"],
+            share=info["share"] * DEPARTMENT_WEIGHTS.get(name, 1.0),   # store format's department mix
             product_idx=idx,
             pick_prob=weights / weights.sum(),
             cum_prob=np.cumsum(weights / weights.sum()),
@@ -156,6 +161,7 @@ def create_shoppers(params, n, rng):
         basket_mean = np.maximum(1, sample_from(prof["avg_basket_size"], n, rng))
         gap_mean = np.maximum(1, sample_from(prof["avg_days_between_orders"], n, rng))
         reorder_prob = sample_from(prof["reorder_pct"], n, rng) / 100
+    basket_mean = np.maximum(1.0, basket_mean * BASKET_SCALE)    # store format: smaller trips in small stores
     price_sensitivity = rng.lognormal(mean=0.0, sigma=PRICE_SENSITIVITY_SPREAD, size=n)
     # Favourite shopping weekday, drawn from the real share of orders per weekday
     instacart_day = sample_from(params["orders_by_day_of_week"], n, rng).astype(int)
@@ -451,6 +457,8 @@ def seed_history(store, shoppers, rng):
     stats = pd.read_csv(AISLE_STATS_FILE).set_index("aisle")
     names = [a for a in store.aisles if a in stats.index]
     w = stats.loc[names, "rebought"].to_numpy(float)
+    dept_of = {a: d.name for d in store.departments.values() for a in (d.aisle_names or [])}
+    w = w * np.array([DEPARTMENT_WEIGHTS.get(dept_of.get(a), 1.0) for a in names])   # store format's mix
     cum = np.cumsum(w / w.sum())
     for s in range(len(shoppers.shopper_id)):
         k = max(1, int(round(shoppers.basket_mean[s])))

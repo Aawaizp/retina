@@ -45,6 +45,28 @@ explanation layer.
 
 ---
 
+## Choose a store and watch it run
+
+```powershell
+python simulation\studio.py              # pick a store format, watch NPCs walk while the data is made
+python simulation\studio.py --compare    # every format side by side
+```
+
+| store format | sized like | real shoppers / week | range on the shelves | trip size | checkout |
+|---|---|---|---|---|---|
+| Supercenter | Walmart Supercenter-type big box | ~25,700 (Walmart 10-K) | full grocery range | ~10 items | 20 lanes |
+| Supermarket | typical US supermarket | 13,583 (FMI) | full grocery range | ~10 items | 8 lanes |
+| Neighborhood market | small-format grocer | ~8,000 (estimated) | best-selling 35% | ~8 items | 5 lanes |
+| Convenience | 7-Eleven-type, open 24 h | ~7,400 (NACS) | best-selling 8%, drinks & snacks heavy | 1-2 items | 2 counters |
+
+Store formats are **generic**, sized with public numbers - not copies of any real retailer, and
+they do not predict any real store. The studio opens the chosen store (or carries on where it
+stopped), prints each hour's shoppers and sales, appends the receipts to `data\live\<store>\`, and
+writes `view.html`: the floor plan with every NPC walking, picking products and queuing, which
+plays each day and then loads the next one by itself.
+
+---
+
 ## How it works
 
 ```mermaid
@@ -128,6 +150,7 @@ terms); RETINA then draws habits from the published distributions instead.
 
 | command | what it does |
 |---|---|
+| `python simulation\studio.py` | choose a store format and watch NPCs walk while data is made |
 | `python simulation\live.py --watch` | run the store day by day, hour by hour (continues where it stopped) |
 | `python simulation\traffic.py` | the hourly footfall schedule |
 | `python simulation\replay.py --day 33` | 2D replay of one day: follow any shopper on the floor plan |
@@ -173,7 +196,8 @@ simulation/   the engine and tools
   live.py          run day by day from saved state         export.py      dataset export
   experiment.py    what-if experiments                     replay.py      2D replay page
   llm.py / personas.py / focus.py / llm_eval.py / analyst.py   the LLM layer
-stores/       store profiles: every assumption with its data label and source
+stores/       store formats (supercenter, supermarket, neighborhood market, convenience):
+              every assumption with its data label and source
 scenarios/    what-if scenario files
 ```
 
@@ -203,10 +227,10 @@ never presented as any real retailer.
 
 ## Tests
 
-`python -m pytest` runs 17 checks in about 30 seconds (also on every push, via GitHub Actions):
+`python -m pytest` runs 18 checks in under a minute (also on every push, via GitHub Actions):
 same seed gives the same data; stopping and continuing a run changes nothing; receipts, trips and
 daily totals agree; prices and promotions make sense; store traffic and households follow their
-inputs; the LLM guardrails (JSON reading, persona fact check, valid choices) work without any key.
+inputs; every store format runs and differs as it should; the LLM guardrails (JSON reading, persona fact check, valid choices) work without any key.
 
 ## Skills shown
 
