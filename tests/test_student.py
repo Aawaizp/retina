@@ -112,9 +112,9 @@ def student_run(folder, run_dir, days):
 def test_mind_student_every_npc_decides_without_llm(trained, tmp_path):
     folder, _, _, _ = trained
     sales, d = student_run(folder, tmp_path / "a", 3)
-    assert set(sales["mind"]) <= {"autopilot", "student", "engine"} and (sales["mind"] == "student").any()
-    assert (sales["mind"] != "engine").mean() > 0.9                   # nearly every line: a thinking NPC decided
-    assert set(d["mind"]) <= {"autopilot", "student", "engine"}       # never an LLM
+    assert set(sales["mind"]) <= {"student", "engine"} and (sales["mind"] == "student").mean() > 0.85
+    assert set(d["mind"]) <= {"student", "engine"}                    # never an LLM, never the autopilot:
+    assert (d["mind"] == "student").mean() > 0.9                      # the student makes every shelf choice
     again, _ = student_run(folder, tmp_path / "b", 3)
     assert sales.reset_index(drop=True).equals(again.reset_index(drop=True))   # same seed, same data
 

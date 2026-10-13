@@ -145,6 +145,8 @@ class Mind:
         """None = autopilot (routine buy), else the reason the teacher is asked."""
         if self.mode == "llm":
             return "llm_mode"
+        if self.mode == "student":                             # the student decides EVERY shelf choice
+            return "student_mode"
         if route in ("new", "partner"):
             return "new_choice"
         own = next(o for o in options if o["product"] == wanted)

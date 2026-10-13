@@ -82,6 +82,22 @@ def due_today(inv, day):
     return delivered
 
 
+REASONS = {"need": "ran out at home", "repeat": "regular buy", "new": "new item on the list",
+           "partner": "goes with another item", "impulse": "impulse (saw a deal on the shelf)"}
+
+
+def decided_by(r):
+    """Who chose this product: the student model (thinking NPC), an LLM, an autopilot routine buy, or a
+    store rule (impulse buy of a deal, nothing choosable on the shelf, or a fast engine run)."""
+    if "mind" not in r:                                     # a fast run: no thinking NPCs at all
+        return pd.Series("statistical engine", index=r.index)
+    mind = r["mind"]
+    out = mind.map({"student": "student model", "llm": "LLM", "autopilot": "autopilot (routine buy)",
+                    "llm_fallback": "store rule (LLM unavailable)"}).fillna("store rule (nothing to choose)")
+    out[(mind == "engine") & (r["reason"] == "impulse")] = "store rule (impulse buy)"
+    return out
+
+
 # ------------------------------------------------------------- after the run
 def build(run_dir, sim, say=print):
     run_dir = Path(run_dir)
@@ -121,6 +137,8 @@ def build(run_dir, sim, say=print):
     lines["on_promotion"] = r["on_promo"].astype(bool)
     lines["promotion_type"] = r["discount_type"].fillna("")
     lines["repeat_purchase"] = r["is_repeat"].astype(bool)
+    lines["purchase_reason"] = r["reason"].map(REASONS).fillna(r["reason"])
+    lines["decided_by"] = decided_by(r)
     lines["data_label"] = "SIMULATED"
 
     # 2. baskets: one row per receipt
@@ -286,6 +304,8 @@ COLUMNS = {
     "unit_cost": "store's cost per unit (ESTIMATED)", "cost_of_goods": "unit_cost x quantity",
     "gross_profit": "net_sales - cost_of_goods", "on_promotion": "sold on a promotion",
     "promotion_type": "kind of promotion", "repeat_purchase": "customer had bought this product before",
+    "purchase_reason": "why the item was bought: ran out at home, regular buy, new item, goes with another item, impulse",
+    "decided_by": "who chose the product: student model (the thinking NPC), autopilot, LLM, or a store rule",
     "minutes_in_store": "time in the store", "checkout_wait_min": "waiting time at the till",
     "trip_type": "top_up / routine / stock_up", "lines": "different products on the receipt",
     "units": "units on the receipt", "lines_on_promotion": "receipt lines on promotion",

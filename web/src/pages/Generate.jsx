@@ -6,10 +6,8 @@ import { url } from "../lib/json.js";
 const AMOUNTS = [
   ["1 week", 7], ["2 weeks", 14], ["1 month", 30], ["3 months", 91], ["6 months", 182], ["1 year", 365],
 ];
-const MINDS = {
-  student: "Thinking shoppers - every NPC decides with the student model",
-  fast: "Engine only - fastest, statistical shoppers",
-};
+// Strict: the student model handles the NPCs - every shelf choice of every shopper.
+const MIND = "student";
 // ESTIMATED seconds per day for the supermarket (7-day runs on the owner's PC, 14 Oct 2026)
 const SECONDS_PER_DAY = { student: 2.3, fast: 0.7 };
 const BUSINESS = {
@@ -48,7 +46,6 @@ export default function Generate() {
   const [stores, setStores] = useState([]);
   const [store, setStore] = useState("supermarket");
   const [days, setDays] = useState(30);
-  const [mind, setMind] = useState("student");
   const [job, setJob] = useState(null);
   const [runs, setRuns] = useState([]);
   const [error, setError] = useState(null);
@@ -88,7 +85,7 @@ export default function Generate() {
       await api("runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ store, days, mind, reset: true }),
+        body: JSON.stringify({ store, days, mind: MIND, reset: true }),
       });
       follow();
     } catch (e) {
@@ -97,7 +94,7 @@ export default function Generate() {
   }
 
   const traffic = (stores.find((s) => s.name === store)?.shoppers_per_week || 13583) / 13583;
-  const estimate = days * SECONDS_PER_DAY[mind] * traffic;
+  const estimate = days * SECONDS_PER_DAY[MIND] * traffic;
   const running = job?.running;
   const done = job && !job.running;
   const result = done ? runs.find((r) => r.name === job.run) : null;
@@ -137,12 +134,12 @@ export default function Generate() {
                 {stores.map((s) => <option key={s.name} value={s.name}>{s.title}</option>)}
               </select>
             </label>
-            <label className="block space-y-1 text-sm">
+            <div className="space-y-1 text-sm">
               <span className="muted">Shoppers</span>
-              <select className="input" value={mind} onChange={(e) => setMind(e.target.value)} disabled={running}>
-                {Object.entries(MINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </label>
+              <p className="rounded-xl border border-slate-300 px-3 py-2 dark:border-slate-700">
+                Every NPC is handled by the <b>student model</b>: it chooses each product they buy
+              </p>
+            </div>
           </div>
 
           <div className="space-y-2 text-sm">

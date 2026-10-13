@@ -36,6 +36,10 @@ def test_every_table_is_there_and_labelled(run):
         assert (df["data_label"] == "SIMULATED").all(), name
     assert (folder / "DATA_DICTIONARY.md").exists() and "SIMULATED" in (folder / "DATASET_CARD.md").read_text(encoding="utf-8")
     assert len(t["daily_store_kpis"]) == 3
+    s = t["sales_transactions"]
+    assert set(s["decided_by"]) == {"statistical engine"}             # a fast run: no thinking NPCs
+    assert set(s["purchase_reason"]) <= {"ran out at home", "regular buy", "new item on the list",
+                                         "goes with another item", "impulse (saw a deal on the shelf)"}
 
 
 def test_tables_agree_to_the_cent(run):
