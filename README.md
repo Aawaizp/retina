@@ -69,7 +69,7 @@ plays each day and then loads the next one by itself.
 
 ---
 
-## Thinking NPCs (v2, in progress)
+## Thinking NPCs (v2)
 
 ```powershell
 retina --store supermarket --mind mix --days 10    # a panel of 50 NPCs think; the rest is the engine
@@ -102,25 +102,53 @@ First real run (supermarket, 10 days, Groq + Gemini, 12 Oct 2026; SIMULATED):
 *Conditional logit on the same option sets; research on grocery choice ≈ −2.5. Small sample: a
 first look, not a verdict. As in v1, LLM shoppers are more deal-driven than the engine.
 
-### The student model (v2, in progress)
+### The student model (v2)
 
 ```powershell
-retina collect --decisions 3000     # varied situations, labelled by Groq gpt-oss-120b only
-retina collect --repeat 100         # the same situations again: the teacher's self-agreement
-retina train                        # compare models, export models/student (ONNX + model card)
-retina --mind mix --student only    # thinking NPCs with no LLM call at all
+retina collect --decisions 3000            # varied situations labelled by Groq (free tier, stops at 80%)
+retina collect --compare gemini --items 800   # a second LLM on the same situations (its own free quota)
+retina collect --paste-pack 1000 --which unlabelled   # ready-to-paste messages for a chat AI (ChatGPT, Codex)
+retina collect --paste-read data\teacher\paste --teacher chatgpt/<model>   # read its replies back
+retina collect --compare-with chatgpt/<model>          # agreement and repeat/deal share by situation type
+retina train --teacher all --balance family --choose realism --price-target -2.5
+retina --mind mix --student only --days 56   # thinking NPCs with no LLM call at all
 ```
 
-A small model learns to copy the LLM teacher's shelf choices, so thinking NPCs need (almost) no
-LLM. **Collect mode** takes real store states and varies them on purpose (price up, deal next to
-the usual, usual sold out, remembered price) and asks ONE teacher, so the labels are one
-consistent "mind"; it stops at 80% of the free daily limit and continues the next day.
-**Training** splits by NPC (test NPCs are never seen), compares random, the v1 engine, a
-conditional logit and a LightGBM ranker, and reports agreement, calibration, elasticity, repeat
-and deal share (vs real ~60% repeat), the teacher's own self-agreement (the ceiling) and its
-position bias. The chosen model is exported to ONNX (checked against Python) for the website.
-In mix runs a confident student decides and an unsure one asks the teacher - whose answer
-becomes a new label.
+A small model learns the shelf choices of LLM "teachers", so thinking NPCs need (almost) no LLM.
+**Collect mode** takes real store states and varies them on purpose (price up, deal next to the
+usual, usual sold out, remembered price); options are shuffled so position cannot matter.
+
+**Several teachers, balanced by family.** No single LLM shops like people: on the same situations
+the teachers agree only 43-60% with each other (Groq agrees 65% with itself). In normal
+situations real shoppers re-buy a product ~60% of the time (Instacart); Groq (gpt-oss) and GPT-5
+re-buy ~30-37%, Claude ~44-71%, Gemini 60% - without being told the target. So the student learns
+from all of them, and each model family (OpenAI, Anthropic, Google) counts the same in training, so
+the biggest family cannot decide alone. Leaving any one family out made the student less realistic.
+
+**Chosen by realism, not by copying.** Training splits by NPC (test NPCs are never seen) and
+compares random, the v1 engine, a conditional logit and a LightGBM ranker. With `--choose realism`
+the model closest to real shoppers on validation NPCs is kept. The student **draws** its choice from
+its probabilities (seeded dice), like a person who does not always buy the same thing - always
+taking the top option over-states habits (71% vs 55% re-buys).
+
+**One ESTIMATED correction.** Every LLM teacher reacts to price about half as much as real shoppers
+(own-price elasticity ~-1.2 vs research ~-2.5). `--price-target -2.5` adds one price term, tuned
+without labels on training NPCs and checked on test NPCs; it is inside the ONNX file and marked
+ESTIMATED in the model card.
+
+Current student (4,608 labels from 6 teachers; test NPCs; SIMULATED):
+
+| | agreement with teachers | re-buys (natural, drawn) | own-price elasticity |
+|---|---|---|---|
+| Groq-only student | 61-64% | 37-38% | -0.7 to -0.9 |
+| all teachers, balanced, chosen by realism | 55% | 58% | -1.03 |
+| same + price correction (**used**) | 54% | 55% | -2.36 |
+| real shoppers | - | ~60% | ~-2.5 |
+
+56 simulated days with `--student only`: 1,857 student choices, 0 LLM calls, about a minute.
+Student shoppers buy ~39% of units on deal against a real ~24-31% (Nielsen 2019-2020, Bernstein
+2022); the engine crowd buys ~15% - the truth lies between them. In mix runs a confident student
+decides and an unsure one asks the teacher, whose answer becomes a new label.
 
 ---
 
@@ -350,11 +378,14 @@ never presented as any real retailer.
 - 59% of products have estimated popularity; the assortment mixes retailers and years.
 - No seasonality or holidays yet; walking and checkout times are estimated.
 - Re-buying the same product on the very next trip is too weak (13% vs real 28%).
-- LLM shoppers are evaluated but not used to make the dataset (see results above).
+- LLM shoppers are evaluated but not used to make the engine dataset (see results above).
+- The student copies LLM teachers, not real people: it is checked against public statistics
+  (re-buy rate, price elasticity), and one price correction is ESTIMATED.
+- Share of units bought on deal: engine crowd ~15%, student shoppers ~39%, real US ~24-31%.
 
 ## Tests
 
-`python -m pytest` runs 55 checks in about two minutes (also on every push, via GitHub Actions):
+`python -m pytest` runs 62 checks in about two minutes (also on every push, via GitHub Actions):
 same seed gives the same data; stopping and continuing a run changes nothing; receipts, trips and
 daily totals agree; prices and promotions make sense; store traffic and households follow their
 inputs; every store format runs and differs as it should; the LLM guardrails (JSON reading, persona fact check, valid choices) work without any key.
@@ -365,9 +396,12 @@ Your own products: files with a BOM, Windows-1252, semicolons, quoted commas are
 the limit are refused; "did you mean" never changes a row; USD only; formula cells are neutralised;
 200 uploaded products run in all four store formats with lost demand recorded and histories only
 from products the store sells; the Instacart-mix scorecard checks say N/A.
-Student model (fixed-rule stand-in teacher): it learns the teacher far better than random or the
-engine; ONNX gives the same answers as Python; position is not a feature; `--student only` makes
-no LLM call; collect mode stops at 80% of the free day and never keeps another model's labels.
+Student model (fixed-rule stand-in teachers): it learns the teacher far better than random or the
+engine; ONNX gives the same answers as Python (also with the price correction inside); position is
+not a feature; `--student only` makes no LLM call AND the student's pick is what the shopper buys;
+the draw varies but repeats with the same dice; family balance gives each family the same weight;
+the realism choice keeps the closer model; paste packs round-trip (missing and wrong answers are
+listed, nothing is imported twice); collect mode stops at 80% of the free day.
 
 ## Skills shown
 
