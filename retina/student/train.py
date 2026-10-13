@@ -296,7 +296,10 @@ def export_onnx(model, path):
         g.node.extend([helper.make_node("MatMul", [g.input[0].name, "price_w"], ["price_add"]),
                        helper.make_node("Reshape", [f"{out}_raw", "shape_n1"], [f"{out}_col"]),
                        helper.make_node("Add", [f"{out}_col", "price_add"], [out])])
-        del g.output[0].type.tensor_type.shape.dim[:]
+        dims = g.output[0].type.tensor_type.shape.dim          # declare the real shape: [N, 1]
+        del dims[:]
+        dims.add().dim_param = "N"
+        dims.add().dim_value = 1
         onnx.save(onx, path)
         return
     n = len(FEATURES)
