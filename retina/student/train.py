@@ -29,6 +29,7 @@ from retina.student.labels import LabelStore, TEACHER
 ROOT = Path(__file__).resolve().parents[2]
 MODEL_DIR = ROOT / "models" / "student"
 REAL_REPEAT = 0.60                    # Instacart reorder rate (PUBLIC_STATISTIC)
+REAL_ELASTICITY = -2.5                # grocery own-price elasticity in research (PUBLIC_STATISTIC)
 THRESHOLDS = [round(t, 2) for t in np.arange(0.30, 0.96, 0.05)]
 
 
@@ -41,6 +42,37 @@ def split_of(npc):
 def teacher_name(r):
     """'name/model' of a label (old labels have no teacher field: built from provider + model)."""
     return r.get("teacher") or f"{r.get('provider')}/{r.get('model')}"
+
+
+def family_of(teacher):
+    """The model family behind a teacher: openai (Groq gpt-oss, ChatGPT, Codex), anthropic, google, or
+    the provider name. Families matter: models of one family share habits (Groq and GPT both under-repeat)."""
+    t = str(teacher).lower()
+    if "claude" in t or "anthropic" in t:
+        return "anthropic"
+    if "gemini" in t or "google" in t:
+        return "google"
+    if "gpt" in t or "openai" in t or t.startswith("groq/"):
+        return "openai"
+    return t.split("/")[0]
+
+
+def balance_by_family(sets):
+    """Training weights so every family counts the same in total, however many labels it has."""
+    count = {}
+    for d in sets:
+        count[family_of(d["teacher"])] = count.get(family_of(d["teacher"]), 0) + 1
+    for d in sets:
+        d["weight"] *= len(sets) / (len(count) * count[family_of(d["teacher"])])
+    return {k: {"sets": v, "weight": round(len(sets) / (len(count) * v), 3)} for k, v in sorted(count.items())}
+
+
+def realism_gap(metrics):
+    """How far a student is from real shoppers: natural repeat share when drawing vs ~60%, plus a
+    smaller term for own-price elasticity vs research ~-2.5 (when it could be measured)."""
+    rep, el = metrics.get("repeat_share_natural_drawn"), metrics.get("elasticity")
+    gap = abs(rep - REAL_REPEAT) if rep is not None else 1.0
+    return round(gap + (0.05 * abs(el - REAL_ELASTICITY) if el is not None else 0.0), 4)
 
 
 def examples(rows):
@@ -249,17 +281,25 @@ def onnx_matches(path, model, sets):
 
 # ================================================================== main
 def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=print, min_sets=100,
-          consensus=None, consensus_weight=2.0, teachers=(), pick="draw"):
+          consensus=None, consensus_weight=2.0, teachers=(), pick="draw", balance="none", choose="fit",
+          exclude=()):
     """consensus = 'name/model' of a second teacher: training decisions where it picked the same option
     count consensus_weight times (validation and test are never weighted).
     teachers = extra 'name/model' teachers whose labels are ADDED to the training split only;
-    validation and test stay the main teacher's, so results compare with a main-teacher-only student."""
+    validation and test stay the main teacher's, so results compare with a main-teacher-only student.
+    balance = 'family': training weights so each model family counts the same (val/test unweighted).
+    choose = 'fit' (lowest validation log loss) or 'realism' (closest to real shoppers on validation:
+    natural repeat share when drawing vs ~60%, and price elasticity vs ~-2.5).
+    exclude = teachers ('name/model') or families ('openai', 'anthropic', 'google') to leave out."""
     store = store or LabelStore()
     if provider == "all":                    # every teacher's labels; train, validation AND test mix them
         rows = store.rows(0)
         model = "all teachers"
     else:
         rows = store.rows(0, provider, model)
+    if exclude:
+        drop = set(exclude)
+        rows = [r for r in rows if teacher_name(r) not in drop and family_of(teacher_name(r)) not in drop]
     by_teacher = {}
     for r in rows:
         by_teacher[teacher_name(r)] = by_teacher.get(teacher_name(r), 0) + 1
@@ -273,6 +313,10 @@ def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=
         parts["train"] += added
         extra[other] = len(added)
         say(f"Extra teacher {other}: +{len(added):,} training sets (its held-out NPCs are not used)")
+    families = balance_by_family(parts["train"]) if balance == "family" else None
+    if families:
+        say("Family balance (training weights): " + ", ".join(f"{k} {v['sets']:,} sets x{v['weight']:g}"
+                                                             for k, v in families.items()))
     weighting = None
     if consensus:
         counts = consensus_weights(parts["train"], store, consensus, consensus_weight)
@@ -290,12 +334,15 @@ def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=
     for cls in (Logit, Ranker):
         m = cls().fit(parts["train"], parts["val"])
         t = fit_temperature(m, parts["val"])
-        val_loss = evaluate(parts["val"], lambda d: probs_of("model", d, m, t))["log_loss"]
-        fitted[m.name] = (m, t, val_loss)
-        results[m.name] = evaluate(parts["test"], lambda d: probs_of("model", d, m, t)) | {"temperature": round(t, 3),
-                                                                                           "val_log_loss": val_loss}
-    best_name = min(fitted, key=lambda k: fitted[k][2])
-    best, t, _ = fitted[best_name]
+        on_val = evaluate(parts["val"], lambda d: probs_of("model", d, m, t))
+        val_loss, val_gap = on_val["log_loss"], realism_gap(on_val)
+        fitted[m.name] = (m, t, val_loss, val_gap)
+        results[m.name] = evaluate(parts["test"], lambda d: probs_of("model", d, m, t)) | {
+            "temperature": round(t, 3), "val_log_loss": val_loss, "val_realism_gap": val_gap}
+    for v in results.values():
+        v["realism_gap"] = realism_gap(v)
+    best_name = min(fitted, key=lambda k: fitted[k][3] if choose == "realism" else fitted[k][2])
+    best, t = fitted[best_name][:2]
     per_teacher = {}
     for name in sorted({d["teacher"] for d in parts["test"]}, key=str):
         mine = [d for d in parts["test"] if d["teacher"] == name]
@@ -322,6 +369,7 @@ def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=
             "routing_curve_test": test_curve, "pick": pick, "onnx_max_diff": diff, "real_repeat_share": REAL_REPEAT,
             "output": "scores per choosable option; probabilities = softmax(scores / temperature) within a decision",
             "consensus_weighting": weighting, "extra_teachers": extra, "labels_by_teacher": by_teacher,
+            "balance": families, "choose": choose, "excluded": list(exclude),
             "test_by_teacher": per_teacher}
     (out / "student.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     card = model_card(meta)
@@ -371,6 +419,11 @@ def model_card(m):
          f"count x{m['consensus_weighting']['weight']:g} ({m['consensus_weighting']['agree']} agree, "
          f"{m['consensus_weighting']['disagree']} disagree, {m['consensus_weighting']['not_seen']} not seen); "
          "validation and test are not weighted." if m.get("consensus_weighting") else "- No consensus weighting."),
+        ("- Family balance: every model family counts the same in training ("
+         + ", ".join(f"{k} {v['sets']:,} sets x{v['weight']:g}" for k, v in m["balance"].items()) + ")."
+         if m.get("balance") else "- No family balance (each label counts once)."),
+        (f"- Left out: {', '.join(m['excluded'])}." if m.get("excluded") else "- Nothing left out."),
+        (f"- Model chosen by **{'realism on validation (repeat share drawn vs ~60%, elasticity vs ~-2.5)' if m.get('choose') == 'realism' else 'fit (validation log loss)'}**."),
         ("- Extra teachers in training only: " + ", ".join(f"{k} (+{v:,} sets)" for k, v in m["extra_teachers"].items())
          + "; validation and test are the main teacher's." if m.get("extra_teachers") else "- No extra teachers."),
         f"- Features ({len(m['features'])}): NPC traits, why the item is on the list, trip type, price change, price level, "

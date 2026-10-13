@@ -244,13 +244,19 @@ def train_main(argv):
                     help="whose labels train AND test the student (default Groq); 'all' = every teacher together")
     ap.add_argument("--pick", choices=("draw", "top"), default="draw",
                     help="draw = choose by the student's probabilities like a real shopper (default); top = always the most likely")
+    ap.add_argument("--balance", choices=("none", "family"), default="none",
+                    help="family = every model family (openai, anthropic, google) counts the same in training")
+    ap.add_argument("--choose", choices=("fit", "realism"), default="fit",
+                    help="fit = best validation log loss (default); realism = closest to real shoppers on validation")
+    ap.add_argument("--exclude", nargs="+", default=[], metavar="TEACHER|FAMILY",
+                    help="leave out teachers (name/model) or families (openai, anthropic, google)")
     args = ap.parse_args(argv)
     os.environ["RETINA_STORE"] = "generic_supermarket"
     from retina.student.train import train, MODEL_DIR
     provider, _, model = args.teacher.partition("/")
     train(provider=provider, model=None if provider == "all" else (model or None), out=args.out or MODEL_DIR,
           consensus=args.consensus, consensus_weight=args.consensus_weight, teachers=args.teachers,
-          pick=args.pick)
+          pick=args.pick, balance=args.balance, choose=args.choose, exclude=args.exclude)
 
 
 def release_main(argv):

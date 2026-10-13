@@ -294,6 +294,30 @@ def test_train_on_all_teachers(trained, tmp_path, monkeypatch):
     assert "Teachers: **all**" in card and meta["onnx_max_diff"] < 1e-3
 
 
+def test_family_balance_exclude_and_realism_choice(trained, tmp_path, monkeypatch):
+    folder, pool, store, _ = trained
+    from retina.student.train import balance_by_family, family_of, realism_gap
+    assert [family_of(t) for t in ("groq/openai/gpt-oss-120b", "chatgpt/GPT-5", "claude-code/opus-5-5",
+                                   "gemini/gemini-3.5-flash-lite", "fake/rules-v1")] == \
+        ["openai", "openai", "anthropic", "google", "fake"]
+    sets = [{"teacher": t, "weight": 1.0}
+            for t in ["groq/x"] * 6 + ["claude/y"] * 2]
+    balance_by_family(sets)
+    assert abs(sum(d["weight"] for d in sets if d["teacher"] == "groq/x")
+               - sum(d["weight"] for d in sets if d["teacher"] == "claude/y")) < 1e-9
+    assert realism_gap({"repeat_share_natural_drawn": 0.6, "elasticity": -2.5}) == 0
+    monkeypatch.setitem(llm.PROVIDERS, "gemini", dict(llm.PROVIDERS["gemini"], model="gemini-test"))
+    monkeypatch.setattr(C, "TEACHER", ("fake", "rules-v1"))
+    C.compare("gemini", 200, store=store, pool=pool, say=lambda *a: None, teacher=SecondTeacher())
+    meta = train(store, "all", None, out=tmp_path / "m", say=lambda *a: None, min_sets=50,
+                 balance="family", choose="realism")
+    assert set(meta["balance"]) == {"fake", "google"} and meta["choose"] == "realism"
+    gaps = {k: meta["test"][k]["val_realism_gap"] for k in ("conditional logit", "LightGBM ranker")}
+    assert gaps[meta["model"]] == min(gaps.values())                  # chosen by realism on validation
+    left = train(store, "all", None, out=tmp_path / "m2", say=lambda *a: None, min_sets=50, exclude=("google",))
+    assert "gemini/gemini-test" not in left["labels_by_teacher"] and left["excluded"] == ["google"]
+
+
 def test_compact_prompt_is_shorter_and_old_labels_keep_their_version(trained, tmp_path, monkeypatch):
     from retina.mind.teacher import PROMPT_VERSION, batch_prompt, parse_answers, request_tokens
     _, pool, _, _ = trained
