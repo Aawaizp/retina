@@ -276,8 +276,9 @@ def pick_shares(rows):
 
 def compare_report(store, other="gemini", other_model=None, close_gap=0.05, say=print):
     """Groq vs `other` on the same situations, next to Groq's self-agreement (the ceiling) and chance.
-    Decision rule (owner's): agreement close to self-agreement (within close_gap) -> both may teach;
-    else Groq only trains and the other's labels stay a comparison set."""
+    Reading (owner's rule, updated 14 Oct 2026): close to self-agreement (within close_gap) -> it thinks
+    like Groq; not close -> a different view. Either way all teachers train together with
+    `retina train --teacher all --balance family --choose realism` (judged by realism, not by Groq)."""
     other_model = other_model or (llm.PROVIDERS[other]["model"] if other in llm.PROVIDERS else None)
     base = {r["id"]: r for r in store.rows(0, *TEACHER)}
     them = {r["id"]: r for r in store.rows(0, other, other_model) if r["id"] in base}
@@ -303,9 +304,9 @@ def compare_report(store, other="gemini", other_model=None, close_gap=0.05, say=
     if self_rate is None:
         out["decision"] = "pending: Groq's self-agreement is not measured yet (retina collect --repeat 100)"
     elif agree >= self_rate - close_gap:
-        out["decision"] = f"close to Groq's self-agreement -> {other} may teach too (labels keep their teacher)"
+        out["decision"] = f"close to Groq's self-agreement -> {other} thinks like Groq (labels keep their teacher)"
     else:
-        out["decision"] = f"not close -> Groq only trains the student; {other} labels kept as a comparison set"
+        out["decision"] = f"not close -> {other} gives a different view; train all teachers with --teacher all --balance family --choose realism"
     pct = lambda x: "-" if x is None else f"{x:.0%}"
     g, o = out[TEACHER[0]], out[other]
     say(f"\n{TEACHER[0]} vs {other} on the same {len(both)} situations (same prompt, same option order):")
