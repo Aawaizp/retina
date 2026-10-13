@@ -219,6 +219,35 @@ def test_consensus_weighting(trained, tmp_path, monkeypatch):
     assert meta["onnx_max_diff"] < 1e-3
 
 
+def test_paste_pack_round_trip(trained, tmp_path, monkeypatch):
+    _, pool, _, _ = trained
+    monkeypatch.setattr(C, "TEACHER", ("fake", "rules-v1"))
+    store = LabelStore(tmp_path / "labels.sqlite")
+    C.collect(30, provider="fake", store=store, pool=pool, say=lambda *a: None)
+    folder = tmp_path / "paste"
+    msgs, items = C.paste_pack(folder, same_as="fake/rules-v1", per_message=2, store=store, pool=pool, say=lambda *a: None)
+    assert msgs >= 2 and items == len(store.rows(0, "fake", "rules-v1"))
+    meta = json.loads((folder / "pack.json").read_text(encoding="utf-8"))
+    by_id = {it["id"]: it for t in pool for it in t["items"]}
+    assert "Role-play" in (folder / "message_01.txt").read_text(encoding="utf-8")
+    for m in meta["messages"][:-1]:                                   # last reply left empty
+        reply = []
+        for s, t in enumerate(m["trips"], 1):
+            for i, sid in enumerate(t["ids"], 1):
+                o = [x for x in by_id[sid]["options"] if x["in_stock"]]
+                reply.append({"s": s, "i": i, "c": o[0]["letter"] if o else "SKIP", "r": "habit", "w": "usual"})
+        reply[0]["c"] = "Q"                                           # one bad letter
+        (folder / f"reply_{m['message']:02d}.txt").write_text("Here you go:\n" + json.dumps(reply), encoding="utf-8")
+    said = []
+    n, missing, unread = C.paste_read(folder, "chatgpt/test", store=store, pool=pool, say=said.append)
+    last = meta["messages"][-1]["message"]
+    expected = sum(len(t["ids"]) for m in meta["messages"][:-1] for t in m["trips"]) - (len(meta["messages"]) - 1)
+    assert n == expected and missing == [last] and len(unread) == len(meta["messages"]) - 1
+    assert {r["teacher"] for r in store.rows(0, "chatgpt", "test")} == {"chatgpt/test"}
+    n2, _, _ = C.paste_read(folder, "chatgpt/test", store=store, pool=pool, say=lambda *a: None)
+    assert n2 == 0                                                    # nothing imported twice
+
+
 def test_extra_teachers_add_training_sets_only(trained, tmp_path, monkeypatch):
     folder, pool, store, base_meta = trained
     monkeypatch.setitem(llm.PROVIDERS, "gemini", dict(llm.PROVIDERS["gemini"], model="gemini-test"))

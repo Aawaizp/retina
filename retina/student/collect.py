@@ -464,6 +464,110 @@ def import_labels(path, store=None, pool=None, say=print):
     return len(rows), problems
 
 
+PASTE_DIR = TEACHER_DIR / "paste"
+PASTE_HOWTO = """How to use a chat AI (ChatGPT, ...) as a teacher - by copy and paste
+1. Open a NEW chat. Do not explain anything, do not mention real shoppers or numbers.
+2. Paste the whole of message_01.txt and send it.
+3. Copy the AI's whole answer (the JSON list) into reply_01.txt and save it.
+4. Same for message_02.txt -> reply_02.txt, and so on (a new chat every few messages is fine).
+5. Then run:  retina collect --paste-read {folder} --teacher chatgpt/<model you used>
+   Missing or unreadable replies are listed; fix them and run the same command again
+   (labels already imported are kept, not counted twice).
+"""
+
+
+def paste_pack(folder=PASTE_DIR, n=300, which="new", per_message=4, same_as=None, store=None, pool=None, say=print):
+    """Ready-to-paste messages for a chat AI without a free API: message_KK.txt (instructions +
+    up to `per_message` shoppers, the same prompt THE teacher gets) and an empty reply_KK.txt for
+    each, plus pack.json (which situation is shopper S item I). same_as = 'name/model': the
+    situations that teacher answered (to compare teachers on the same ones)."""
+    from retina.mind.teacher import batch_prompt, system_for
+    store = store or LabelStore()
+    pool = pool if pool is not None else load_pool(say=say)
+    if same_as:
+        p, _, m = same_as.partition("/")
+        keep = {r["id"] for r in store.rows(0, p, m or None)}
+        trips = [{**t, "items": [it for it in t["items"] if it["id"] in keep]} for t in pool]
+        trips = [t for t in trips if t["items"]]
+        if not trips:
+            raise SystemExit(f"No labels from {same_as} to copy the situations from.")
+    else:
+        trips, _ = choose_situations(which, n, store, pool)
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    for old in list(folder.glob("message_*.txt")) + list(folder.glob("reply_*.txt")):
+        old.unlink()                                          # a new pack replaces the old one
+    pack = []
+    for k in range(0, len(trips), per_message):
+        group, number = trips[k:k + per_message], k // per_message + 1
+        blocks = [npc_block(s, t["card"], [], t, t["items"], PROMPT_VERSION) for s, t in enumerate(group, 1)]
+        text = system_for(PROMPT_VERSION) + "\n\n" + batch_prompt(blocks, PROMPT_VERSION)
+        (folder / f"message_{number:02d}.txt").write_text(text, encoding="utf-8")
+        (folder / f"reply_{number:02d}.txt").write_text("", encoding="utf-8")
+        pack.append({"message": number, "trips": [{"trip": trip_key(t), "ids": [it["id"] for it in t["items"]]}
+                                                  for t in group]})
+    (folder / "pack.json").write_text(json.dumps({"prompt_version": PROMPT_VERSION, "messages": pack}), encoding="utf-8")
+    (folder / "HOW_TO.txt").write_text(PASTE_HOWTO.format(folder=shown_path(folder)), encoding="utf-8")
+    items = sum(len(t["items"]) for t in trips)
+    say(f"Wrote {len(pack)} messages ({items} situations, {len(trips)} shoppers) -> {shown_path(folder)}\n"
+        f"  Read HOW_TO.txt there: paste each message_KK.txt into the chat, save the answer in reply_KK.txt,\n"
+        f"  then: retina collect --paste-read {shown_path(folder)} --teacher chatgpt/<model>")
+    return len(pack), items
+
+
+def paste_read(folder=PASTE_DIR, teacher=None, store=None, pool=None, say=print):
+    """Read reply_KK.txt files of a paste pack, turn them into one answer per situation and import them
+    with import_labels (the same checks as every other teacher). Already imported ones are skipped."""
+    from retina.mind.teacher import parse_answers
+    if not teacher or "/" not in teacher:
+        raise SystemExit("Say which AI answered: --teacher chatgpt/<model>, e.g. chatgpt/gpt-5")
+    store = store or LabelStore()
+    pool = pool if pool is not None else load_pool(say=say)
+    folder = Path(folder)
+    meta = json.loads((folder / "pack.json").read_text(encoding="utf-8"))
+    by_id = {it["id"]: it for t in pool for it in t["items"]}
+    provider, _, model = teacher.partition("/")
+    done = {r["id"] for r in store.rows(0, provider, model, valid_only=False)}
+    rows, missing, unread = [], [], []
+    for msg in meta["messages"]:
+        reply = folder / f"reply_{msg['message']:02d}.txt"
+        text = reply.read_text(encoding="utf-8-sig").strip() if reply.exists() else ""
+        if not text:
+            missing.append(msg["message"])
+            continue
+        batch = [{"items": [by_id[i] for i in t["ids"]]} for t in msg["trips"]]
+        answers = parse_answers(text, batch)
+        for s, t in enumerate(msg["trips"], 1):
+            for i, sid in enumerate(t["ids"], 1):
+                if sid in done:
+                    continue
+                a = answers.get((s, i))
+                if a is None:
+                    unread.append(f"message {msg['message']:02d}: shopper {s} item {i}")
+                    continue
+                rows.append({"id": sid, "teacher": teacher, "choice": a["choice"], "reason_type": a["why_type"],
+                             "why": a["why"], "prompt_version": meta["prompt_version"]})
+    answers_file = folder / f"answers_{provider}.jsonl"
+    answers_file.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    n, problems = import_labels(answers_file, store=store, pool=pool, say=say) if rows else (0, [])
+    if missing:
+        say(f"  No reply yet in: {', '.join(f'reply_{k:02d}.txt' for k in missing)}")
+    if unread:
+        say(f"  {len(unread)} answers missing or not valid (wrong letter, sold out, or not in the JSON), e.g. "
+            + "; ".join(unread[:5]))
+    total = sum(len(t["ids"]) for m in meta["messages"] for t in m["trips"])
+    say(f"{teacher}: {len(done) + n} of {total} situations labelled. "
+        f"Compare: retina collect --compare-with {teacher}")
+    return n, missing, unread
+
+
+def shown_path(path):
+    try:
+        return str(Path(path).resolve().relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return str(path)
+
+
 def token_report(pool, store=None, say=print, real_per_label=None):
     """Estimated tokens per label: old prompt (v2) vs the compact one (v3), on the same trips, packed into
     requests the same way (prompt + reply text only - real use adds the model's hidden reasoning)."""

@@ -195,6 +195,12 @@ def collect_main(argv):
     ap.add_argument("--import", dest="import_file", metavar="JSONL", help="read another teacher's answers (checked like Groq's)")
     ap.add_argument("--compare-with", metavar="NAME/MODEL", help="report Groq vs this teacher (no new questions)")
     ap.add_argument("--tokens", action="store_true", help="tokens per label: old prompt vs compact prompt (no LLM)")
+    ap.add_argument("--paste-pack", type=int, metavar="N", help="N situations as ready-to-paste chat messages "
+                    "(for a chat AI with no free API, e.g. ChatGPT); uses --which, --out (folder)")
+    ap.add_argument("--same-as", metavar="NAME/MODEL", help="--paste-pack: the situations this teacher answered")
+    ap.add_argument("--per-message", type=int, default=4, help="--paste-pack: shoppers per message (default 4)")
+    ap.add_argument("--paste-read", metavar="FOLDER", nargs="?", const="", help="read the reply_KK.txt files and import them")
+    ap.add_argument("--teacher", metavar="NAME/MODEL", help="--paste-read: who answered, e.g. chatgpt/gpt-5")
     args = ap.parse_args(argv)
     os.environ["RETINA_STORE"] = "generic_supermarket"           # situations come from the supermarket
     from retina.student import collect as C
@@ -207,6 +213,10 @@ def collect_main(argv):
     elif args.export:
         out = args.out or C.TEACHER_DIR / f"export_{args.which}_{args.export}.jsonl"
         C.export_situations(out, args.export, args.which, store=store)
+    elif args.paste_pack:
+        C.paste_pack(args.out or C.PASTE_DIR, args.paste_pack, args.which, args.per_message, args.same_as, store=store)
+    elif args.paste_read is not None:
+        C.paste_read(args.paste_read or C.PASTE_DIR, args.teacher, store=store)
     elif args.import_file:
         C.import_labels(args.import_file, store=store)
     elif args.compare_with:
