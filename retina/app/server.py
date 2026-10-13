@@ -13,7 +13,9 @@ process - one run at a time. Endpoints:
   GET  /runs/current                the run in progress (and its last output lines)
   GET  /runs/{name}/report          the thinking-run report (report.txt)
   GET  /runs/{name}/files/{file}    download receipts.csv, trips.csv, ... of a run
-  GET  /runs/{name}/zip             all of a run's files in one ZIP (+ a short README)
+  GET  /runs/{name}/business/{file} download the business tables (sales_transactions.csv, ...)
+  GET  /runs/{name}/zip             the business tables + DATA_DICTIONARY + DATASET_CARD in one ZIP,
+                                    the simulation logs in extra/
   GET  /datasets                    exported datasets (data/export) and release builds (dist/)
   GET  /                           the website (web/dist, built with `npm run build` in web/), when built
 Every file it serves is SIMULATED data made on this PC.
@@ -43,6 +45,9 @@ STORES = {"supermarket": "generic_supermarket", "supercenter": "supercenter",
           "neighborhood": "neighborhood_market", "convenience": "convenience"}
 PERIODS = {"1w": 7, "2w": 14, "1m": 30, "3m": 91, "6m": 182, "1y": 365}
 WEB_DIST = ROOT / "web" / "dist"
+BUSINESS_FILES = ["sales_transactions.csv", "baskets.csv", "daily_product_sales.csv", "inventory_daily.csv",
+                  "daily_store_kpis.csv", "products.csv", "customers.csv", "promotions.csv",
+                  "DATA_DICTIONARY.md", "DATASET_CARD.md"]
 RUN_FILES = {"receipts.csv", "trips.csv", "stockouts.csv", "hourly.csv", "decisions.csv", "not_sold_here.csv",
              "report.txt", "report.json"}
 
@@ -141,8 +146,10 @@ def runs():
     out = []
     for folder in sorted(p for p in root.glob("*") if p.is_dir()) if root.exists() else []:
         files = sorted(f for f in folder.iterdir() if f.name in RUN_FILES)
+        biz = [folder / "business" / f for f in BUSINESS_FILES if (folder / "business" / f).exists()]
         out.append({"name": folder.name, "days_done": days_done(folder), "files": [f.name for f in files],
                     "sizes": {f.name: f.stat().st_size for f in files},
+                    "business": [f.name for f in biz], "business_sizes": {f.name: f.stat().st_size for f in biz},
                     "updated": datetime.fromtimestamp(max((f.stat().st_mtime for f in files), default=0)).isoformat(
                         timespec="seconds") if files else None})
     return out
@@ -177,9 +184,18 @@ def download(name: str, file: str):
     return FileResponse(path, filename=f"{name}_{file}")
 
 
-README = """RETINA - generated data (SIMULATED: not real sales)
+README = """RETINA - generated sales data (SIMULATED: not real sales)
 
 Run: {name}, {days} day(s), made on this PC with the RETINA local app.
+Start with DATASET_CARD.md and DATA_DICTIONARY.md. The business tables:
+sales_transactions.csv   one row per product line sold (price, discount, cost, profit)
+baskets.csv              one row per receipt
+daily_product_sales.csv  product x day: units, sales, profit, promotion, lost sales (forecasting)
+inventory_daily.csv      product x day with a stock movement: opening, delivered, wasted, sold, closing
+daily_store_kpis.csv     one row per day: customers, sales, margin, basket, stock-outs, waste
+products.csv / customers.csv / promotions.csv   product master, customers, promotion calendar
+
+extra/ holds the simulation logs:
 receipts.csv   one row per product line bought (date, hour, trip, shopper, product, price, deal, mind, why)
 trips.csv      one row per shopping trip (arrive / leave time, items, spend, mission)
 stockouts.csv  empty shelves met by a shopper (what they did instead)
@@ -190,17 +206,30 @@ Every value is SIMULATED. Product names / brands / sizes: Open Food Facts; price
 """
 
 
+@app.get("/runs/{name}/business/{file}")
+def download_business(name: str, file: str):
+    if file not in BUSINESS_FILES:
+        raise HTTPException(404, f"Only these files: {', '.join(BUSINESS_FILES)}")
+    path = run_dir(name) / "business" / file
+    if not path.exists():
+        raise HTTPException(404, f"{file} not in this run (business tables are made at the end of a run).")
+    return FileResponse(path, filename=f"{name}_{file}")
+
+
 @app.get("/runs/{name}/zip")
 def download_zip(name: str):
     folder = run_dir(name)
     files = sorted(f for f in folder.iterdir() if f.name in RUN_FILES)
-    if not files:
+    biz = [folder / "business" / f for f in BUSINESS_FILES if (folder / "business" / f).exists()]
+    if not files and not biz:
         raise HTTPException(404, "No files in this run yet.")
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
         z.writestr(f"{name}/README.txt", README.format(name=name, days=days_done(folder)))
-        for f in files:
+        for f in biz:
             z.write(f, f"{name}/{f.name}")
+        for f in files:
+            z.write(f, f"{name}/extra/{f.name}" if biz else f"{name}/{f.name}")
     buffer.seek(0)
     return StreamingResponse(buffer, media_type="application/zip",
                              headers={"Content-Disposition": f'attachment; filename="retina_{name}.zip"'})

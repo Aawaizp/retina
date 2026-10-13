@@ -32,7 +32,7 @@ import pandas as pd
 
 from . import config, csvsafe
 from .config import ROOT, PROFILE, TRAFFIC, shown
-from . import traffic
+from . import business, traffic
 from . import shopping
 from .engine import Simulation
 from .reports import build_sales_log, build_stockout_log
@@ -252,6 +252,9 @@ def main(argv=None):
         day = sim.day
         if args.view:
             shopping.RECORDER.update(day=day, events=[])     # write down every step of today's shoppers
+        stock_before = sim.inv.stock.copy()                # for the business inventory table
+        delivered = business.due_today(sim.inv, day)
+        waste_from = len(sim.waste)
         try:
             sales, trips = sim.run_day()
             events = list(shopping.RECORDER["events"])
@@ -278,6 +281,9 @@ def main(argv=None):
         if len(misses):
             append(build_stockout_log(misses, sim.store, sim.book).assign(data_label="SIMULATED"), "stockouts.csv")
         append(hourly, "hourly.csv")
+        append(business.inventory_moves(sim, day, stock_before, delivered, waste_from, sales, misses),
+               business.INVENTORY_FILE)
+        append(business.stock_snapshot(sim, day), business.STOCK_FILE)
         if args.mind != "fast":                           # memory first: a newer memory is rolled back
             mind_run.day_done(sim.mind, day, LIVE_DIR)    # on load, an older one could not catch up
         save_store(sim)                                   # after every day: safe to stop at any time
@@ -286,6 +292,7 @@ def main(argv=None):
             if args.wait and k < days - 1:
                 print(f"  (watching day {day + 1} in the browser - next day in {args.wait:.0f}s; Ctrl+C stops safely)")
                 time.sleep(args.wait)
+    business.build(LIVE_DIR, sim)                         # the business-ready tables (business/)
     print(f"\nSaved {days} day(s) ({sim.book.dates[first]:%d %b} to {sim.book.dates[sim.day - 1]:%d %b %Y}) "
           f"in {time.time() - t:.0f}s -> {shown(LIVE_DIR)}. Run again to continue.")
     if args.mind != "fast":

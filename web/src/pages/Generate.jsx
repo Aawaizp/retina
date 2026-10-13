@@ -12,6 +12,18 @@ const MINDS = {
 };
 // ESTIMATED seconds per day for the supermarket (7-day runs on the owner's PC, 14 Oct 2026)
 const SECONDS_PER_DAY = { student: 2.3, fast: 0.7 };
+const BUSINESS = {
+  "sales_transactions.csv": "one row per product sold: price, discount, cost, profit",
+  "baskets.csv": "one row per receipt: customer, times, items, total",
+  "daily_product_sales.csv": "product x day: units, sales, profit, promotion, lost sales (forecasting)",
+  "inventory_daily.csv": "stock movements: opening, delivered, wasted, sold, closing, out of stock",
+  "daily_store_kpis.csv": "one row per day: customers, sales, margin, basket, stock-outs, waste",
+  "products.csv": "product master: brand, category, size, price, cost",
+  "customers.csv": "customers: household, income band, price sensitivity, visits, spend",
+  "promotions.csv": "promotion calendar: product, week, discount",
+  "DATA_DICTIONARY.md": "every column explained",
+  "DATASET_CARD.md": "what this dataset is and how it was made",
+};
 const FILES = {
   "receipts.csv": "one row per product bought",
   "trips.csv": "one row per shopping trip",
@@ -96,7 +108,9 @@ export default function Generate() {
         <h1 className="text-2xl font-bold">Generate data</h1>
         <p className="text-sm muted">
           Choose a store and how much data you want. The RETINA simulation runs on your PC: the student model decides
-          for every shopper, the store engine handles traffic, prices, stock and checkout. Then download the CSV files.
+          for every shopper, the store engine handles traffic, prices, stock and checkout. You get business-ready
+          sales data: transactions, daily sales per product, inventory, store KPIs, products, customers and
+          promotions - as CSV files with a data dictionary.
           Every row is <span className="label">SIMULATED</span>.
         </p>
       </div>
@@ -192,7 +206,8 @@ export default function Generate() {
 }
 
 function Downloads({ run, highlight }) {
-  const total = Object.values(run.sizes || {}).reduce((a, b) => a + b, 0);
+  const total = [...Object.values(run.sizes || {}), ...Object.values(run.business_sizes || {})].reduce((a, b) => a + b, 0);
+  const business = run.business || [];
   return (
     <div className={`card space-y-3 ${highlight ? "border-brand-500" : ""}`}>
       <div className="flex flex-wrap items-baseline gap-2">
@@ -200,15 +215,31 @@ function Downloads({ run, highlight }) {
         <span className="text-sm muted">{run.days_done} days · {size(total)}{run.updated ? ` · ${run.updated.replace("T", " ")}` : ""}</span>
         <a href={url(`runs/${run.name}/zip`)} className="btn ml-auto bg-brand-500 text-white hover:bg-brand-600">Download all (ZIP)</a>
       </div>
-      <div className="divide-y divide-slate-200 dark:divide-slate-800">
-        {run.files.map((f) => (
-          <div key={f} className="flex flex-wrap items-center gap-2 py-2 text-sm">
-            <a href={url(`runs/${run.name}/files/${f}`)} className="font-medium text-brand-600 hover:underline">{f}</a>
-            <span className="muted">{FILES[f] || ""}</span>
-            <span className="ml-auto muted">{size(run.sizes?.[f] || 0)}</span>
-          </div>
-        ))}
-      </div>
+      {business.length > 0 && (
+        <div className="divide-y divide-slate-200 dark:divide-slate-800">
+          {business.map((f) => (
+            <FileRow key={f} href={url(`runs/${run.name}/business/${f}`)} name={f} text={BUSINESS[f]} bytes={run.business_sizes?.[f]} />
+          ))}
+        </div>
+      )}
+      <details className="text-sm" open={!business.length}>
+        <summary className="cursor-pointer muted">{business.length ? "Extra: simulation logs" : "Files"}</summary>
+        <div className="divide-y divide-slate-200 dark:divide-slate-800">
+          {run.files.map((f) => (
+            <FileRow key={f} href={url(`runs/${run.name}/files/${f}`)} name={f} text={FILES[f]} bytes={run.sizes?.[f]} />
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function FileRow({ href, name, text, bytes }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 py-2 text-sm">
+      <a href={href} className="font-medium text-brand-600 hover:underline">{name}</a>
+      <span className="muted">{text || ""}</span>
+      <span className="ml-auto muted">{size(bytes || 0)}</span>
     </div>
   );
 }

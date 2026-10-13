@@ -184,8 +184,21 @@ retina app                                    # then open http://localhost:8000 
 
 Choose the store, the shoppers (every NPC decided by the student model, or engine only) and how much
 data - 1 week, 1 month, 3 months, 6 months, 1 year or any number of days (1-365) - press Generate,
-watch the progress (day 12 of 30), then download each CSV (receipts, trips, stockouts, hourly,
-decisions, report) or everything as one ZIP. A year of the supermarket takes ~15 minutes; CSV zips
+watch the progress (day 12 of 30), then download **business-ready sales data** (every run, also from
+the command line, writes them to `data/live/<run>/business/`):
+
+| file | one row per | for |
+|---|---|---|
+| `sales_transactions.csv` | product line sold | sales, discounts, cost, gross profit, basket analysis |
+| `baskets.csv` | receipt | customer, arrival / checkout time, items, total |
+| `daily_product_sales.csv` | product x day | demand forecasting: units, sales, promotion, lost sales |
+| `inventory_daily.csv` | product x day with a stock movement | opening, delivered, wasted, sold, closing, out of stock |
+| `daily_store_kpis.csv` | day | customers, sales, margin, basket, stock-outs, waste, whole-store stock value |
+| `products.csv` / `customers.csv` / `promotions.csv` | product / customer / promotion | masters and the promotion calendar |
+
+Plus `DATA_DICTIONARY.md` and `DATASET_CARD.md`; the simulation logs come in `extra/`. All tables agree
+to the cent (tested): the same net sales in transactions, baskets, daily sales, KPIs and customers, and
+every stock row balances (opening - waste + delivered - sold = closing). A year of the supermarket takes ~15 minutes; CSV zips
 about 10x (25 days: 56 MB of CSV -> 6 MB ZIP). The API is at http://localhost:8000/docs.
 
 **Docker:**
