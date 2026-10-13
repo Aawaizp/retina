@@ -268,6 +268,8 @@ def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_po
     A decision with mind "llm" or "student" replaces the engine's shelf choice (product, or skip =
     product -1); every other decision ("autopilot", "llm_fallback", "engine") leaves the engine's own
     rules to choose.
+    The student's pick still gets the crowd's walk-away check ("too expensive today"): unlike an LLM it
+    cannot SKIP, so without it student shoppers would buy more items than anyone else.
     Python still checks what the mind picked: budget, and stock when the NPC reaches the shelf."""
     floor = store.floor
     plan, budget, trip_type, n_items = trip["plan"], trip["budget"], trip["mission"], trip["planned"]
@@ -341,6 +343,12 @@ def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_po
                     record(day, s, "SUBSTITUTE", decision["product"], instead_of=int(wanted),
                            reason="mind_choice", stop=k)
                     wanted, switched = decision["product"], False
+                # the student never learned to SKIP (an LLM can): it gets the crowd's walk-away check,
+                # with the same dice - "the aisle feels too expensive today"
+                if decision["mind"] == "student" and u[7] > min(1.0, group["inclusive"][aisle_name] ** CATEGORY_RESPONSE):
+                    effects.append((s, wanted, "walked_away", 1))
+                    record(day, s, "SKIP", wanted, reason="too_expensive", stop=k)
+                    continue
             else:
                 boost = group["boost"][wanted]
                 if route != "new" and u[5] < 1 - boost:            # usual item got pricier (or delisted)
