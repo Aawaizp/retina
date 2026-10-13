@@ -238,13 +238,23 @@ def onnx_matches(path, model, sets):
 
 # ================================================================== main
 def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=print, min_sets=100,
-          consensus=None, consensus_weight=2.0):
+          consensus=None, consensus_weight=2.0, teachers=()):
     """consensus = 'name/model' of a second teacher: training decisions where it picked the same option
-    count consensus_weight times (validation and test are never weighted)."""
+    count consensus_weight times (validation and test are never weighted).
+    teachers = extra 'name/model' teachers whose labels are ADDED to the training split only;
+    validation and test stay the main teacher's, so results compare with a main-teacher-only student."""
     store = store or LabelStore()
     rows = store.rows(0, provider, model)
     sets, skips = examples(rows)
     parts = {k: [d for d in sets if d["split"] == k] for k in ("train", "val", "test")}
+    extra = {}
+    for other in teachers:
+        p, _, m = other.partition("/")
+        added, _ = examples(store.rows(0, p, m or None))
+        added = [d for d in added if d["split"] == "train"]
+        parts["train"] += added
+        extra[other] = len(added)
+        say(f"Extra teacher {other}: +{len(added):,} training sets (its held-out NPCs are not used)")
     weighting = None
     if consensus:
         counts = consensus_weights(parts["train"], store, consensus, consensus_weight)
@@ -286,7 +296,7 @@ def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=
             "self_agreement": {"rate": ceiling, "items": n_rep}, "position_bias": position_bias(rows),
             "routing_curve_test": test_curve, "onnx_max_diff": diff, "real_repeat_share": REAL_REPEAT,
             "output": "scores per choosable option; probabilities = softmax(scores / temperature) within a decision",
-            "consensus_weighting": weighting}
+            "consensus_weighting": weighting, "extra_teachers": extra}
     (out / "student.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     card = model_card(meta)
     (out / "MODEL_CARD.md").write_text(card, encoding="utf-8")
@@ -314,7 +324,9 @@ def model_card(m):
         "A small model that copies the LLM teacher's shelf choices for thinking NPCs, so most of them need no LLM call. "
         "It ranks the 2-5 real products offered for one shopping-list item. Every output is SIMULATED behaviour.", "",
         "## Data",
-        f"- Teacher: **{m['teacher']['provider']} {m['teacher']['model']}** only (one mind; other providers' answers are not used).",
+        f"- Teacher: **{m['teacher']['provider']} {m['teacher']['model']}**"
+        + (" (main; extra teachers below add training labels)." if m.get("extra_teachers")
+           else " only (one mind; other providers' answers are not used)."),
         f"- {m['labels']:,} labels ({m['skips']} SKIPs counted, not learned): situations from `retina collect` "
         "(store states varied on purpose: price up, deal, sold out, remembered price) and teacher answers from mix runs.",
         f"- Split by NPC: train {m['sets']['train']:,} / validation {m['sets']['val']:,} / test {m['sets']['test']:,} "
@@ -323,6 +335,8 @@ def model_card(m):
          f"count x{m['consensus_weighting']['weight']:g} ({m['consensus_weighting']['agree']} agree, "
          f"{m['consensus_weighting']['disagree']} disagree, {m['consensus_weighting']['not_seen']} not seen); "
          "validation and test are not weighted." if m.get("consensus_weighting") else "- No consensus weighting."),
+        ("- Extra teachers in training only: " + ", ".join(f"{k} (+{v:,} sets)" for k, v in m["extra_teachers"].items())
+         + "; validation and test are the main teacher's." if m.get("extra_teachers") else "- No extra teachers."),
         f"- Features ({len(m['features'])}): NPC traits, why the item is on the list, trip type, price change, price level, "
         "deal, bought before, usual, engine pick, best seller, popularity, price vs last paid. NOT the option's position.", "",
         "## Results on held-out NPCs", *rows, "",

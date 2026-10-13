@@ -228,10 +228,13 @@ def train_main(argv):
     ap.add_argument("--out", help="folder for the model (default models/student)")
     ap.add_argument("--consensus", metavar="NAME/MODEL", help="weight up decisions where this second teacher agrees")
     ap.add_argument("--consensus-weight", type=float, default=2.0, help="weight of an agreed decision (default 2)")
+    ap.add_argument("--teachers", nargs="+", default=[], metavar="NAME/MODEL",
+                    help="extra teachers whose labels are added to TRAINING only (e.g. claude-code/opus-5-5)")
     args = ap.parse_args(argv)
     os.environ["RETINA_STORE"] = "generic_supermarket"
     from retina.student.train import train, MODEL_DIR
-    train(out=args.out or MODEL_DIR, consensus=args.consensus, consensus_weight=args.consensus_weight)
+    train(out=args.out or MODEL_DIR, consensus=args.consensus, consensus_weight=args.consensus_weight,
+          teachers=args.teachers)
 
 
 def release_main(argv):

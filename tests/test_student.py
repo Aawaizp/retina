@@ -219,6 +219,19 @@ def test_consensus_weighting(trained, tmp_path, monkeypatch):
     assert meta["onnx_max_diff"] < 1e-3
 
 
+def test_extra_teachers_add_training_sets_only(trained, tmp_path, monkeypatch):
+    folder, pool, store, base_meta = trained
+    monkeypatch.setitem(llm.PROVIDERS, "gemini", dict(llm.PROVIDERS["gemini"], model="gemini-test"))
+    monkeypatch.setattr(C, "TEACHER", ("fake", "rules-v1"))
+    C.compare("gemini", 200, store=store, pool=pool, say=lambda *a: None, teacher=SecondTeacher())
+    meta = train(store, "fake", "rules-v1", out=tmp_path / "m", say=lambda *a: None, min_sets=50,
+                 teachers=["gemini/gemini-test"])
+    added = meta["extra_teachers"]["gemini/gemini-test"]
+    assert added > 0 and meta["sets"]["train"] == base_meta["sets"]["train"] + added
+    assert meta["sets"]["val"] == base_meta["sets"]["val"] and meta["sets"]["test"] == base_meta["sets"]["test"]
+    assert "Extra teachers in training only" in (tmp_path / "m" / "MODEL_CARD.md").read_text(encoding="utf-8")
+
+
 def test_compact_prompt_is_shorter_and_old_labels_keep_their_version(trained, tmp_path, monkeypatch):
     from retina.mind.teacher import PROMPT_VERSION, batch_prompt, parse_answers, request_tokens
     _, pool, _, _ = trained
