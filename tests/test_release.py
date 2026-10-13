@@ -1,6 +1,7 @@
 """Release pipeline and local app (v2 Phase 5) - temp folders only, no LLM, no internet."""
 
 import hashlib
+import io
 import json
 import time
 import zipfile
@@ -69,7 +70,13 @@ def test_app_reads_runs_and_blocks_other_paths(client):
     (run / "state.pkl").write_bytes(b"secret")
     assert c.get("/health").json()["status"] == "ok"
     assert {s["name"] for s in c.get("/stores").json()} == {"supermarket", "supercenter", "neighborhood", "convenience"}
-    assert c.get("/runs").json() == [{"name": "convenience", "days_done": 2, "files": ["hourly.csv", "receipts.csv"]}]
+    listed = c.get("/runs").json()
+    assert [(r["name"], r["days_done"], r["files"]) for r in listed] == [("convenience", 2, ["hourly.csv", "receipts.csv"])]
+    assert listed[0]["sizes"] == {"hourly.csv": 39, "receipts.csv": 8}
+    with zipfile.ZipFile(io.BytesIO(c.get("/runs/convenience/zip").content)) as z:      # download all
+        assert sorted(z.namelist()) == ["convenience/README.txt", "convenience/hourly.csv", "convenience/receipts.csv"]
+        assert "SIMULATED" in z.read("convenience/README.txt").decode("utf-8")
+    assert c.get("/runs/..%2F..%2Fpyproject.toml/zip").status_code == 404
     assert c.get("/runs/convenience/files/receipts.csv").text == "a,b\n1,2\n"
     assert c.get("/runs/convenience/files/state.pkl").status_code == 404          # not a data file
     assert c.get("/runs/..%2F..%2Fpyproject.toml/files/receipts.csv").status_code == 404
@@ -90,3 +97,21 @@ def test_app_starts_one_run_at_a_time(client):
     assert state["exit_code"] == 0, state["output"][-5:]
     assert (live / "convenience" / "receipts.csv").exists()
     assert c.get("/runs").json()[0]["days_done"] >= 1
+
+
+def test_app_generates_student_data_for_a_period(client, monkeypatch, student_dir):
+    """The website's Generate button: --mind student for a chosen period, progress, then the files."""
+    c, live = client
+    monkeypatch.setenv("RETINA_STUDENT_DIR", str(student_dir))
+    assert c.post("/runs", json={"store": "convenience", "period": "1w", "mind": "student", "reset": True}).status_code == 202
+    for _ in range(480):
+        state = c.get("/runs/current").json()
+        if not state["running"]:
+            break
+        time.sleep(0.5)
+    assert state["exit_code"] == 0, state["output"][-5:]
+    assert state["run"] == "convenience_student" and state["days_wanted"] == 7 and state["days_done"] == 7
+    run = next(r for r in c.get("/runs").json() if r["name"] == "convenience_student")
+    assert {"receipts.csv", "trips.csv", "decisions.csv", "report.txt"} <= set(run["files"])
+    receipts = c.get("/runs/convenience_student/files/receipts.csv").text
+    assert ",student," in receipts and ",llm," not in receipts

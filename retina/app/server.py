@@ -1,6 +1,6 @@
 """The local RETINA app: a small API over the `retina` command, for your own PC or Docker.
 
-  retina app                 http://localhost:8000  (API docs at /docs)
+  retina app                 http://localhost:8000  (the website + its Generate page; API docs at /docs)
 
 It is NOT a public server: it binds to 127.0.0.1 by default, takes no API keys (the LLM keys stay in
 your environment variables), and every run it starts is the normal `retina` command in a background
@@ -13,21 +13,27 @@ process - one run at a time. Endpoints:
   GET  /runs/current                the run in progress (and its last output lines)
   GET  /runs/{name}/report          the thinking-run report (report.txt)
   GET  /runs/{name}/files/{file}    download receipts.csv, trips.csv, ... of a run
+  GET  /runs/{name}/zip             all of a run's files in one ZIP (+ a short README)
   GET  /datasets                    exported datasets (data/export) and release builds (dist/)
+  GET  /                           the website (web/dist, built with `npm run build` in web/), when built
 Every file it serves is SIMULATED data made on this PC.
 """
 
+import io
 import json
 import os
 import subprocess
 import sys
 import threading
+import zipfile
 from collections import deque
+from datetime import datetime
 from pathlib import Path
 from typing import Literal, Optional
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from retina import __version__
@@ -35,6 +41,8 @@ from retina import __version__
 ROOT = Path(__file__).resolve().parents[2]
 STORES = {"supermarket": "generic_supermarket", "supercenter": "supercenter",
           "neighborhood": "neighborhood_market", "convenience": "convenience"}
+PERIODS = {"1w": 7, "2w": 14, "1m": 30, "3m": 91, "6m": 182, "1y": 365}
+WEB_DIST = ROOT / "web" / "dist"
 RUN_FILES = {"receipts.csv", "trips.csv", "stockouts.csv", "hourly.csv", "decisions.csv", "not_sold_here.csv",
              "report.txt", "report.json"}
 
@@ -67,7 +75,7 @@ class Runner:
             if self.busy():
                 raise HTTPException(409, "A run is already going - wait for it (GET /runs/current).")
             how_much = ["--period", req.period] if req.period else ["--days", str(req.days)]
-            args = [sys.executable, "-m", "retina", "--store", req.store, *how_much, "--mind", req.mind,
+            args = [sys.executable, "-u", "-m", "retina", "--store", req.store, *how_much, "--mind", req.mind,
                     "--student", req.student, "--yes"] + (["--reset"] if req.reset else [])
             self.lines.clear()
             self.request = req.model_dump()
@@ -83,13 +91,26 @@ class Runner:
     def state(self):
         if self.process is None:
             return {"running": False, "request": None, "exit_code": None, "output": []}
-        return {"running": self.busy(), "request": self.request, "exit_code": self.process.poll(),
-                "output": list(self.lines)}
+        req = self.request
+        name = STORES[req["store"]] + ("" if req["mind"] == "fast" else f"_{req['mind']}")
+        folder = live_root() / name
+        return {"running": self.busy(), "request": req, "exit_code": self.process.poll(),
+                "run": name, "days_wanted": PERIODS.get(req["period"], req["days"]),
+                "days_done": days_done(folder) if folder.exists() else 0, "output": list(self.lines)}
 
 
 app = FastAPI(title="RETINA local app", version=__version__,
               description="Run RETINA's simulated stores on this PC. Every row it makes is SIMULATED.")
 runner = Runner()
+
+
+def days_done(folder):
+    hourly = Path(folder) / "hourly.csv"
+    if not hourly.exists():
+        return 0
+    with open(hourly, encoding="utf-8") as f:
+        next(f, None)
+        return len({line.split(",", 1)[0] for line in f})
 
 
 def run_dir(name):
@@ -119,11 +140,11 @@ def runs():
     root = live_root()
     out = []
     for folder in sorted(p for p in root.glob("*") if p.is_dir()) if root.exists() else []:
-        files = sorted(f.name for f in folder.iterdir() if f.name in RUN_FILES)
-        hourly = folder / "hourly.csv"
-        days = len({line.split(",", 1)[0] for line in hourly.read_text(encoding="utf-8").splitlines()[1:]}) \
-            if hourly.exists() else 0
-        out.append({"name": folder.name, "days_done": days, "files": files})
+        files = sorted(f for f in folder.iterdir() if f.name in RUN_FILES)
+        out.append({"name": folder.name, "days_done": days_done(folder), "files": [f.name for f in files],
+                    "sizes": {f.name: f.stat().st_size for f in files},
+                    "updated": datetime.fromtimestamp(max((f.stat().st_mtime for f in files), default=0)).isoformat(
+                        timespec="seconds") if files else None})
     return out
 
 
@@ -156,6 +177,35 @@ def download(name: str, file: str):
     return FileResponse(path, filename=f"{name}_{file}")
 
 
+README = """RETINA - generated data (SIMULATED: not real sales)
+
+Run: {name}, {days} day(s), made on this PC with the RETINA local app.
+receipts.csv   one row per product line bought (date, hour, trip, shopper, product, price, deal, mind, why)
+trips.csv      one row per shopping trip (arrive / leave time, items, spend, mission)
+stockouts.csv  empty shelves met by a shopper (what they did instead)
+hourly.csv     trips per hour of each day
+decisions.csv  thinking runs: every shelf choice with its options and who decided (autopilot / student)
+report.txt     thinking runs: what the thinking shoppers did, next to public statistics
+Every value is SIMULATED. Product names / brands / sizes: Open Food Facts; prices: Open Prices (ODbL 1.0).
+"""
+
+
+@app.get("/runs/{name}/zip")
+def download_zip(name: str):
+    folder = run_dir(name)
+    files = sorted(f for f in folder.iterdir() if f.name in RUN_FILES)
+    if not files:
+        raise HTTPException(404, "No files in this run yet.")
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+        z.writestr(f"{name}/README.txt", README.format(name=name, days=days_done(folder)))
+        for f in files:
+            z.write(f, f"{name}/{f.name}")
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="application/zip",
+                             headers={"Content-Disposition": f'attachment; filename="retina_{name}.zip"'})
+
+
 @app.get("/datasets")
 def datasets():
     export = ROOT / "data" / "export"
@@ -163,3 +213,8 @@ def datasets():
     return {"exports": sorted(p.name for p in export.iterdir() if p.is_dir()) if export.exists() else [],
             "releases": sorted(json.loads(m.read_text(encoding="utf-8"))["version"]
                                for m in dist.glob("*/manifest.json")) if dist.exists() else []}
+
+
+# The website (built with `npm run build` in web/) - mounted LAST, so every API route above wins.
+if (WEB_DIST / "index.html").exists():
+    app.mount("/", StaticFiles(directory=WEB_DIST, html=True), name="website")

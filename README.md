@@ -175,8 +175,18 @@ each dataset card says so. Nothing a visitor does can start a build. Try it loca
 retina release --version test --days 7 --stores convenience     # -> dist/test/
 ```
 
-**Local app** (your PC only, binds to 127.0.0.1): `retina app`, then http://localhost:8000/docs -
-list stores and runs, start a run (one at a time), see the report, download a run's CSVs.
+**Generate data in the website** (your PC only, binds to 127.0.0.1):
+
+```powershell
+cd web; npm install; npm run build; cd ..     # once: build the website
+retina app                                    # then open http://localhost:8000 -> Generate
+```
+
+Choose the store, the shoppers (every NPC decided by the student model, or engine only) and how much
+data - 1 week, 1 month, 3 months, 6 months, 1 year or any number of days (1-365) - press Generate,
+watch the progress (day 12 of 30), then download each CSV (receipts, trips, stockouts, hourly,
+decisions, report) or everything as one ZIP. A year of the supermarket takes ~15 minutes; CSV zips
+about 10x (25 days: 56 MB of CSV -> 6 MB ZIP). The API is at http://localhost:8000/docs.
 
 **Docker:**
 ```powershell

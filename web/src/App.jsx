@@ -5,9 +5,11 @@ import Home from "./pages/Home.jsx";
 // Heavy pages load only when opened: the home page stays fast on a phone.
 const Dashboards = lazy(() => import("./pages/Dashboards.jsx"));
 const WhatIf = lazy(() => import("./pages/WhatIf.jsx"));
+const Generate = lazy(() => import("./pages/Generate.jsx"));
 
 const nav = [
   ["/", "Home"],
+  ["/generate", "Generate"],
   ["/dashboards", "Dashboards"],
   ["/what-if", "What-if"],
 ];
@@ -43,6 +45,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/dashboards" element={<Dashboards />} />
             <Route path="/what-if" element={<WhatIf />} />
+            <Route path="/generate" element={<Generate />} />
             <Route path="*" element={<Home />} />
           </Routes>
         </Suspense>
