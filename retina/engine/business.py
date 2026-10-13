@@ -98,6 +98,25 @@ def decided_by(r):
     return out
 
 
+def npc_cards(run_dir):
+    """{customer_id: card} from the run's memory (thinking runs): each NPC's role and habits."""
+    path = Path(run_dir) / "memory.sqlite"
+    if not path.exists():
+        return {}
+    import sqlite3
+    db = sqlite3.connect(path)
+    try:
+        return {f"C{int(npc):05d}": json.loads(card) for npc, card in db.execute("SELECT npc, card FROM cards")}
+    except sqlite3.Error:
+        return {}
+    finally:
+        db.close()
+
+
+def role(card):
+    return card["persona"]["shopping_style"].split(" - ")[0] if card else None
+
+
 # ------------------------------------------------------------- after the run
 def build(run_dir, sim, say=print):
     run_dir = Path(run_dir)
@@ -152,6 +171,7 @@ def build(run_dir, sim, say=print):
         "customer_id": t["shopper_id"].map(lambda s: f"C{int(s):05d}"),
         "arrival_time": t["arrive_time"], "checkout_time": t["leave_time"],
         "minutes_in_store": t["minutes_in_store"].round(1), "checkout_wait_min": t["wait_min"].round(1),
+        "walk_metres": t["walk_m"].round(0), "shelves_visited": t["shelves_visited"], "aisles_passed": t["aisles_seen"],
         "trip_type": t["mission"]}).set_index("transaction_id").join(agg, how="inner").reset_index()
     baskets = baskets.rename(columns={"lines_": "lines"})
     for c in ("gross_sales", "discount", "net_sales", "gross_profit"):
@@ -256,7 +276,18 @@ def build(run_dir, sim, say=print):
     cust = cust.set_index("customer_id").join(spend).join(fav.rename("favourite_category")).reset_index()
     cust["total_spend"] = cust["total_spend"].round(2)
     cust["avg_basket_value"] = (cust["total_spend"] / cust["visits"]).round(2)
+    cards = npc_cards(run_dir)
+    if cards:
+        cust["age"] = cust["customer_id"].map(lambda c: cards.get(c, {}).get("facts", {}).get("age"))
+        cust["shopper_role"] = cust["customer_id"].map(lambda c: role(cards.get(c)))
     cust["data_label"] = "SIMULATED"
+    profiles = pd.DataFrame([{
+        "customer_id": cid, "name": c["facts"]["name"], "age": c["facts"]["age"], "shopper_role": role(c),
+        "shopping_style": c["persona"]["shopping_style"], "bio": c["persona"]["bio"],
+        "cares_about": "; ".join(c["persona"].get("cares_about", [])), "quote": c["persona"].get("quote", ""),
+        "habit_products": "; ".join(c["facts"].get("habit_products", [])),
+        "favourite_day": c["facts"].get("favorite_day"), "days_between_trips": c["facts"].get("days_between_trips"),
+        "data_label": "SIMULATED"} for cid, c in sorted(cards.items())])
 
     # 8. promotions: the calendar for the weeks of this run
     book = sim.book
@@ -283,6 +314,8 @@ def build(run_dir, sim, say=print):
     tables = {"sales_transactions": lines, "baskets": baskets, "daily_product_sales": day_sales,
               "inventory_daily": inventory, "daily_store_kpis": kpi, "products": prod, "customers": cust,
               "promotions": promos}
+    if len(profiles):
+        tables["npc_profiles"] = profiles
     for name, df in tables.items():
         csvsafe.to_csv(df, out / f"{name}.csv", index=False)
     (out / "DATA_DICTIONARY.md").write_text(dictionary(tables), encoding="utf-8")
@@ -330,6 +363,13 @@ COLUMNS = {
     "last_visit": "last visit in the period", "visits": "trips in the period", "total_spend": "net sales in the period",
     "favourite_category": "category with the most spend", "promotion_id": "promotion id", "start_date": "first day",
     "end_date": "last day", "discount_pct": "percent off", "promotion_price": "price during the promotion",
+    "walk_metres": "metres walked in the store", "shelves_visited": "shelves stopped at",
+    "aisles_passed": "aisles walked through", "age": "age (ESTIMATED to fit the household)",
+    "shopper_role": "the NPC's role: Deal hunter, Steady regular or Convenience first",
+    "name": "made-up first name and initial (SIMULATED person)", "shopping_style": "role with a short description",
+    "bio": "short persona written from the NPC's facts", "cares_about": "what matters to them in the store",
+    "quote": "something they might say", "habit_products": "products they buy again and again",
+    "favourite_day": "day they like to shop", "days_between_trips": "usual days between trips",
     "data_label": "SIMULATED - made by the RETINA simulation, not real sales",
 }
 

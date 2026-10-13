@@ -115,6 +115,7 @@ def test_mind_student_every_npc_decides_without_llm(trained, tmp_path):
     assert set(sales["mind"]) <= {"student", "engine"} and (sales["mind"] == "student").mean() > 0.85
     assert set(d["mind"]) <= {"student", "engine"}                    # never an LLM, never the autopilot:
     assert (d["mind"] == "student").mean() > 0.9                      # the student makes every shelf choice
+    assert d.loc[d["mind"] == "student", "why"].str.contains("Deal hunter|Steady regular|Convenience first").all()
     again, _ = student_run(folder, tmp_path / "b", 3)
     assert sales.reset_index(drop=True).equals(again.reset_index(drop=True))   # same seed, same data
 

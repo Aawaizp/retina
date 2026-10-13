@@ -1,0 +1,95 @@
+{
+  "note": "Real Instacart department shares, rescaled over the departments the RETINA Supercenter sells (babies included when it has products).",
+  "departments": {
+    "produce": {
+      "instacart_share": 0.29226,
+      "n_products": 672,
+      "share": 0.29353
+    },
+    "dairy eggs": {
+      "instacart_share": 0.16692,
+      "n_products": 1617,
+      "share": 0.16764
+    },
+    "snacks": {
+      "instacart_share": 0.08903,
+      "n_products": 3266,
+      "share": 0.08942
+    },
+    "beverages": {
+      "instacart_share": 0.08294,
+      "n_products": 2431,
+      "share": 0.0833
+    },
+    "frozen": {
+      "instacart_share": 0.06895,
+      "n_products": 2688,
+      "share": 0.06925
+    },
+    "pantry": {
+      "instacart_share": 0.05783,
+      "n_products": 3745,
+      "share": 0.05808
+    },
+    "bakery": {
+      "instacart_share": 0.03628,
+      "n_products": 583,
+      "share": 0.03644
+    },
+    "canned goods": {
+      "instacart_share": 0.03293,
+      "n_products": 1195,
+      "share": 0.03307
+    },
+    "deli": {
+      "instacart_share": 0.03241,
+      "n_products": 438,
+      "share": 0.03255
+    },
+    "dry goods pasta": {
+      "instacart_share": 0.02672,
+      "n_products": 891,
+      "share": 0.02684
+    },
+    "household": {
+      "instacart_share": 0.02277,
+      "n_products": 134,
+      "share": 0.02287
+    },
+    "breakfast": {
+      "instacart_share": 0.02188,
+      "n_products": 510,
+      "share": 0.02197
+    },
+    "meat seafood": {
+      "instacart_share": 0.02186,
+      "n_products": 445,
+      "share": 0.02195
+    },
+    "personal care": {
+      "instacart_share": 0.01379,
+      "n_products": 1098,
+      "share": 0.01385
+    },
+    "international": {
+      "instacart_share": 0.0083,
+      "n_products": 664,
+      "share": 0.00834
+    },
+    "alcohol": {
+      "instacart_share": 0.00474,
+      "n_products": 343,
+      "share": 0.00476
+    },
+    "babies": {
+      "instacart_share": 0.01307,
+      "n_products": 707,
+      "share": 0.01313
+    },
+    "pets": {
+      "instacart_share": 0.00301,
+      "n_products": 28,
+      "share": 0.00302
+    }
+  }
+}

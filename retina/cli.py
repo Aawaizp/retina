@@ -43,7 +43,8 @@ from retina import __version__
 
 ROOT = Path(__file__).resolve().parent.parent
 STORES_DIR = ROOT / "stores"
-ALIASES = {"supermarket": "generic_supermarket", "neighborhood": "neighborhood_market"}   # short names
+ALIASES = {"supermarket": "generic_supermarket", "neighborhood": "neighborhood_market",   # short names
+           "retina": "retina_supercenter"}
 MINDS = ("fast", "student", "mix", "llm")
 PERIODS = {"1w": 7, "2w": 14, "1m": 30, "3m": 91, "6m": 182, "1y": 365}
 

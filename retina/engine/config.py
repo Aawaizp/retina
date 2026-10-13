@@ -55,6 +55,8 @@ def load_profile(store_id):
 
 PROFILE = load_profile(os.environ.get("RETINA_STORE", "generic_supermarket"))
 BUILTIN_CATALOG_FILE = ROOT / PROFILE["catalog_file"]           # the US catalog (23,011 products)
+if PROFILE.get("departments_file"):                             # a store with its own departments (the
+    DEPARTMENTS_FILE = ROOT / PROFILE["departments_file"]       # RETINA Supercenter: + babies, pets)
 # Uploaded products (retina --products my.csv; retina/products/): the command converts the upload and
 # sets these BEFORE the engine is imported. builtin = the US catalog; only = just the uploaded products;
 # add = the US catalog plus the uploaded ones.

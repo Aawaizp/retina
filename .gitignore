@@ -47,3 +47,7 @@ CLAUDE.md
 
 # Claude Code local preview settings
 .claude/
+
+# Open Food / Products / Beauty Facts US extracts (big, rebuildable: loaders/fmcg_catalog.py)
+data/processed/off_us_products.parquet
+data/processed/opf_obf_us_products.parquet

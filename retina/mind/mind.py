@@ -81,6 +81,14 @@ def build_options(sim, s, k, day, wanted, table, prices, promo, regular, recall=
     return aisle, out
 
 
+WHY_WORDS = {"habit": "my usual one", "deal": "took the deal", "try_new": "tried something new"}
+
+
+def role_of(card):
+    """The NPC's role from its card: 'Deal hunter', 'Steady regular' or 'Convenience first'."""
+    return card["persona"]["shopping_style"].split(" - ")[0] if card else None
+
+
 class Mind:
     def __init__(self, sim, mode, run_dir, panel_size=PANEL, provider="auto", model=None,
                  cache_file=CACHE_FILE, say=print, student="auto", student_dir=None, labels_file=None):
@@ -121,6 +129,7 @@ class Mind:
         self.memory.db.commit()
         self.today = {}
         self.batch = BATCH
+        self.roles = {}                                        # npc -> role from its card (student runs)
 
     # ---------------------------------------------------------------- who
     def thinks(self, s):
@@ -174,6 +183,8 @@ class Mind:
         sh = self.sim.shoppers
         out, rows, asking = {}, [], []
         for s, trip in trips.items():
+            if self.mode == "student":                         # every NPC gets its role card (kept in memory)
+                self.roles.setdefault(s, role_of(self.card(s, day)))
             g = int(sh.sensitivity_group[s])
             prices, promo, table = ctx["prices_g"][g], ctx["promo_g"][g], ctx["tables"][g]
             decisions, items = {}, []
@@ -228,8 +239,10 @@ class Mind:
                     "why_type": "", "why": "nothing in stock to choose"}
         if option is None or (p < self.student.threshold and not self.student_only):
             return None
-        return {"mind": "student", "product": int(option["product"]), "why_type": why_type(option, wanted),
-                "why": f"student, {p:.0%} sure"}
+        kind = why_type(option, wanted)
+        role = self.roles.get(s)
+        why = f"student, {p:.0%} sure" if role is None else f"{role}: {WHY_WORDS.get(kind, kind)} (student, {p:.0%} sure)"
+        return {"mind": "student", "product": int(option["product"]), "why_type": kind, "why": why}
 
     def _save_labels(self, a, day, answers, provider, model):
         """Active learning: a teacher answer from THE teacher becomes a training label (source 'run')."""

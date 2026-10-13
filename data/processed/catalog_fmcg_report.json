@@ -1,0 +1,207 @@
+{
+ "products": 21455,
+ "real_purchase_products": 19635,
+ "added_products": 1820,
+ "real_prices": 19639,
+ "estimated_prices": 1816,
+ "own_brands_removed": 2616,
+ "misfiled_removed": 760,
+ "price_estimate": {
+  "held_out_prices": 1906,
+  "median_error": 0.334,
+  "within_30pct": 0.459,
+  "within_50pct": 0.663
+ },
+ "anchors": [
+  {
+   "aisle": "soft drinks",
+   "group": "Diet Coke",
+   "products": 9,
+   "share_pct": 7.8,
+   "was_pct": 9.03,
+   "year": "2023",
+   "confidence": "good"
+  },
+  {
+   "aisle": "soft drinks",
+   "group": "Sprite",
+   "products": 10,
+   "share_pct": 8.1,
+   "was_pct": 15.29,
+   "year": "2023",
+   "confidence": "good"
+  },
+  {
+   "aisle": "soft drinks",
+   "group": "Pepsi",
+   "products": 14,
+   "share_pct": 8.3,
+   "was_pct": 5.78,
+   "year": "2023",
+   "confidence": "good"
+  },
+  {
+   "aisle": "soft drinks",
+   "group": "Dr Pepper",
+   "products": 11,
+   "share_pct": 8.3,
+   "was_pct": 1.47,
+   "year": "2023",
+   "confidence": "good"
+  },
+  {
+   "aisle": "soft drinks",
+   "group": "Coca-Cola",
+   "products": 17,
+   "share_pct": 19.2,
+   "was_pct": 2.97,
+   "year": "2023",
+   "confidence": "good"
+  },
+  {
+   "aisle": "chips pretzels",
+   "group": "Utz",
+   "products": 11,
+   "share_pct": 4.4,
+   "was_pct": 1.73,
+   "year": "2023",
+   "confidence": "good"
+  },
+  {
+   "aisle": "chips pretzels",
+   "group": "Frito-Lay",
+   "products": 117,
+   "share_pct": 60.0,
+   "was_pct": 22.12,
+   "year": "2022",
+   "confidence": "good"
+  },
+  {
+   "aisle": "cereal",
+   "group": "General Mills + Kellogg's",
+   "products": 127,
+   "share_pct": 60.0,
+   "was_pct": 57.82,
+   "year": "older (IRI; year not stated)",
+   "confidence": "medium"
+  },
+  {
+   "aisle": "laundry",
+   "group": "Tide",
+   "products": 2,
+   "share_pct": 37.0,
+   "was_pct": 5.01,
+   "year": "2023",
+   "confidence": "good"
+  },
+  {
+   "aisle": "yogurt",
+   "group": "Yoplait",
+   "products": 37,
+   "share_pct": 15.6,
+   "was_pct": 3.75,
+   "year": "2017",
+   "confidence": "medium"
+  },
+  {
+   "aisle": "yogurt",
+   "group": "Chobani",
+   "products": 59,
+   "share_pct": 20.6,
+   "was_pct": 12.42,
+   "year": "2017",
+   "confidence": "medium"
+  },
+  {
+   "aisle": "yogurt",
+   "group": "Danone brands",
+   "products": 51,
+   "share_pct": 32.5,
+   "was_pct": 8.16,
+   "year": "2017",
+   "confidence": "medium"
+  },
+  {
+   "aisle": "diapers wipes",
+   "group": "Huggies",
+   "products": 4,
+   "share_pct": 37.0,
+   "was_pct": 19.05,
+   "year": "undated",
+   "confidence": "low"
+  },
+  {
+   "aisle": "diapers wipes",
+   "group": "Pampers",
+   "products": 1,
+   "share_pct": 44.0,
+   "was_pct": 4.76,
+   "year": "undated",
+   "confidence": "low"
+  },
+  {
+   "aisle": "paper goods",
+   "group": "Charmin",
+   "status": "no products of this brand"
+  },
+  {
+   "aisle": "paper goods",
+   "group": "Bounty",
+   "status": "no products of this brand"
+  },
+  {
+   "aisle": "coffee",
+   "group": "Starbucks",
+   "products": 83,
+   "share_pct": 3.3,
+   "was_pct": 10.77,
+   "year": "2013",
+   "confidence": "low"
+  },
+  {
+   "aisle": "coffee",
+   "group": "Maxwell House",
+   "products": 10,
+   "share_pct": 10.0,
+   "was_pct": 1.13,
+   "year": "2013",
+   "confidence": "low"
+  },
+  {
+   "aisle": "coffee",
+   "group": "Folgers",
+   "products": 25,
+   "share_pct": 15.6,
+   "was_pct": 6.41,
+   "year": "2013",
+   "confidence": "low"
+  }
+ ],
+ "top_brands": {
+  "Morton & Bassett Spices": 106,
+  "Mccormick": 98,
+  "Amy's": 86,
+  "Organics": 84,
+  "Starbucks": 82,
+  "Kraft": 69,
+  "McCormick": 68,
+  "Chobani": 67,
+  "Tillamook": 65,
+  "Campbell's": 64,
+  "Kellogg's": 63,
+  "Betty Crocker": 57,
+  "Pepperidge Farm": 57,
+  "Simply Organic": 57,
+  "Stonewall Kitchen": 56,
+  "Del Monte": 56,
+  "General Mills": 55,
+  "H\u00e4agen-Dazs": 55,
+  "Jimmy Dean": 52,
+  "Nestl\u00e9": 51,
+  "Ghirardelli": 49,
+  "Lee Kum Kee": 49,
+  "Stouffer's": 49,
+  "Barilla": 48,
+  "The Spice Hunter": 46
+ }
+}
