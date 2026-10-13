@@ -1,0 +1,298 @@
+{
+ "version": "student-2026-10-13",
+ "model": "LightGBM ranker",
+ "features": [
+  "price_change",
+  "price_level",
+  "deal",
+  "deal_depth",
+  "bought_before",
+  "times_log",
+  "usual",
+  "engine_pick",
+  "best_seller",
+  "popularity_log",
+  "vs_last_paid",
+  "sold_out_before",
+  "sensitivity",
+  "household",
+  "kids",
+  "income",
+  "budget_log",
+  "rebuy_rate",
+  "route_need",
+  "route_repeat",
+  "route_new",
+  "route_partner",
+  "mission_top_up",
+  "mission_routine",
+  "mission_stock_up",
+  "deal_x_sensitivity",
+  "change_x_sensitivity",
+  "usual_x_rebuy"
+ ],
+ "temperature": 0.668740304976422,
+ "threshold": 0.5,
+ "coverage_at_threshold": 0.664,
+ "agreement_at_threshold": 0.602,
+ "teacher": {
+  "provider": "all",
+  "model": "all teachers"
+ },
+ "labels": 4608,
+ "skips": 57,
+ "sets": {
+  "train": 3149,
+  "val": 439,
+  "test": 919
+ },
+ "test": {
+  "random": {
+   "agreement": 0.309,
+   "repeat_share_natural": 0.372,
+   "repeat_share_natural_drawn": 0.355,
+   "log_loss": 1.372,
+   "ece": 0.047,
+   "repeat_share": 0.372,
+   "deal_share": 0.177,
+   "elasticity": 0.0,
+   "elasticity_sets": 652,
+   "realism_gap": 0.37
+  },
+  "engine": {
+   "agreement": 0.277,
+   "repeat_share_natural": 0.279,
+   "repeat_share_natural_drawn": 0.309,
+   "log_loss": 1.753,
+   "ece": 0.187,
+   "repeat_share": 0.281,
+   "deal_share": 0.232,
+   "elasticity": -1.33,
+   "elasticity_sets": 652,
+   "realism_gap": 0.3495
+  },
+  "conditional logit": {
+   "agreement": 0.526,
+   "repeat_share_natural": 0.729,
+   "repeat_share_natural_drawn": 0.578,
+   "log_loss": 1.105,
+   "ece": 0.043,
+   "repeat_share": 0.682,
+   "deal_share": 0.323,
+   "elasticity": -1.22,
+   "elasticity_sets": 652,
+   "temperature": 1.084,
+   "val_log_loss": 1.075,
+   "val_realism_gap": 0.22,
+   "realism_gap": 0.086
+  },
+  "LightGBM ranker": {
+   "agreement": 0.554,
+   "repeat_share_natural": 0.717,
+   "repeat_share_natural_drawn": 0.583,
+   "log_loss": 1.056,
+   "ece": 0.047,
+   "repeat_share": 0.658,
+   "deal_share": 0.287,
+   "elasticity": -1.03,
+   "elasticity_sets": 652,
+   "temperature": 0.669,
+   "val_log_loss": 1.018,
+   "val_realism_gap": 0.2195,
+   "realism_gap": 0.0905
+  }
+ },
+ "teacher_on_test": {
+  "repeat_share": 0.495,
+  "repeat_share_natural": 0.52,
+  "deal_share": 0.293,
+  "elasticity": -1.26,
+  "elasticity_sets": 652
+ },
+ "self_agreement": {
+  "rate": 0.65,
+  "items": 100
+ },
+ "position_bias": {
+  "A": {
+   "picked": 0.24038672819160625,
+   "expected": 0.20049439683586706
+  },
+  "B": {
+   "picked": 0.2034717644473742,
+   "expected": 0.2013000805683799
+  },
+  "C": {
+   "picked": 0.1949022192924632,
+   "expected": 0.19730828389365615
+  },
+  "D": {
+   "picked": 0.19578114700065918,
+   "expected": 0.1989928953343651
+  },
+  "E": {
+   "picked": 0.16545814106789716,
+   "expected": 0.20190434336776467
+  }
+ },
+ "routing_curve_test": [
+  {
+   "threshold": 0.3,
+   "coverage": 0.983,
+   "agreement": 0.548
+  },
+  {
+   "threshold": 0.35,
+   "coverage": 0.946,
+   "agreement": 0.558
+  },
+  {
+   "threshold": 0.4,
+   "coverage": 0.862,
+   "agreement": 0.566
+  },
+  {
+   "threshold": 0.45,
+   "coverage": 0.761,
+   "agreement": 0.581
+  },
+  {
+   "threshold": 0.5,
+   "coverage": 0.664,
+   "agreement": 0.602
+  },
+  {
+   "threshold": 0.55,
+   "coverage": 0.556,
+   "agreement": 0.636
+  },
+  {
+   "threshold": 0.6,
+   "coverage": 0.45,
+   "agreement": 0.674
+  },
+  {
+   "threshold": 0.65,
+   "coverage": 0.354,
+   "agreement": 0.729
+  },
+  {
+   "threshold": 0.7,
+   "coverage": 0.296,
+   "agreement": 0.754
+  },
+  {
+   "threshold": 0.75,
+   "coverage": 0.217,
+   "agreement": 0.789
+  },
+  {
+   "threshold": 0.8,
+   "coverage": 0.16,
+   "agreement": 0.81
+  },
+  {
+   "threshold": 0.85,
+   "coverage": 0.113,
+   "agreement": 0.837
+  },
+  {
+   "threshold": 0.9,
+   "coverage": 0.07,
+   "agreement": 0.828
+  },
+  {
+   "threshold": 0.95,
+   "coverage": 0.03,
+   "agreement": 0.857
+  }
+ ],
+ "pick": "draw",
+ "onnx_max_diff": 0.03470402710235623,
+ "real_repeat_share": 0.6,
+ "output": "scores per choosable option; probabilities = softmax(scores / temperature) within a decision",
+ "consensus_weighting": null,
+ "extra_teachers": {},
+ "labels_by_teacher": {
+  "gemini/gemini-3.5-flash-lite": 899,
+  "groq/openai/gpt-oss-120b": 1068,
+  "chatgpt/gpt-5-codex": 497,
+  "claude-code/opus-5-5": 1000,
+  "claude/opus-5-5": 200,
+  "chatgpt/GPT-5": 944
+ },
+ "balance": {
+  "anthropic": {
+   "sets": 857,
+   "weight": 1.225
+  },
+  "google": {
+   "sets": 548,
+   "weight": 1.915
+  },
+  "openai": {
+   "sets": 1744,
+   "weight": 0.602
+  }
+ },
+ "choose": "realism",
+ "excluded": [],
+ "test_by_teacher": {
+  "chatgpt/GPT-5": {
+   "sets": 157,
+   "agreement": 0.592,
+   "teacher_repeat_natural": 0.373
+  },
+  "chatgpt/gpt-5-codex": {
+   "sets": 77,
+   "agreement": 0.494,
+   "teacher_repeat_natural": 0.522
+  },
+  "claude-code/opus-5-5": {
+   "sets": 171,
+   "agreement": 0.503,
+   "teacher_repeat_natural": 0.712
+  },
+  "claude/opus-5-5": {
+   "sets": 30,
+   "agreement": 0.533,
+   "teacher_repeat_natural": 0.714
+  },
+  "gemini/gemini-3.5-flash-lite": {
+   "sets": 234,
+   "agreement": 0.581,
+   "teacher_repeat_natural": 0.662
+  },
+  "groq/openai/gpt-oss-120b": {
+   "sets": 250,
+   "agreement": 0.524,
+   "teacher_repeat_natural": 0.338
+  }
+ },
+ "price_boost": {
+  "coef": 1.7756,
+  "feature": "price_change",
+  "target": -2.5,
+  "label": "ESTIMATED",
+  "calibration_elasticity": {
+   "before": -1.17,
+   "after": -2.5
+  },
+  "test_before": {
+   "agreement": 0.554,
+   "log_loss": 1.056,
+   "repeat_share_natural_drawn": 0.583,
+   "deal_share": 0.287,
+   "elasticity": -1.03,
+   "realism_gap": 0.0905
+  },
+  "test_after": {
+   "agreement": 0.544,
+   "log_loss": 1.072,
+   "repeat_share_natural_drawn": 0.549,
+   "deal_share": 0.393,
+   "elasticity": -2.36,
+   "realism_gap": 0.058
+  }
+ }
+}
