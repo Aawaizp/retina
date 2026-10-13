@@ -282,6 +282,31 @@ def release_main(argv):
     release(args.version, args.days, stores, args.out, args.realism, not args.no_student)
 
 
+def lists_main(argv):
+    ap = argparse.ArgumentParser(prog="retina lists", description="Teacher shopping lists for the list student "
+                                 "(RETINA Supercenter scenarios; paced; stops at 80% of the free day).")
+    ap.add_argument("--pool", action="store_true", help="(re)build the scenario pool")
+    ap.add_argument("--collect", type=int, metavar="N", help="valid lists to reach from this teacher")
+    ap.add_argument("--provider", choices=("gemini", "groq", "fake"), default="gemini")
+    ap.add_argument("--status", action="store_true")
+    ap.add_argument("--paste-pack", type=int, metavar="N", help="N scenarios as ready-to-paste chat messages")
+    ap.add_argument("--paste-read", metavar="FOLDER", nargs="?", const="", help="read the reply_KK.txt files")
+    ap.add_argument("--teacher", metavar="NAME/MODEL", help="--paste-read: who answered, e.g. chatgpt/gpt-5")
+    args = ap.parse_args(argv)
+    os.environ["RETINA_STORE"] = "retina_supercenter"           # scenarios come from the RETINA Supercenter
+    from retina.student import listplan as L
+    if args.pool:
+        L.build_pool()
+    if args.collect:
+        L.collect(args.collect, provider=args.provider)
+    if args.paste_pack:
+        L.paste_pack(args.paste_pack)
+    if args.paste_read is not None:
+        L.paste_read(args.teacher, args.paste_read or L.PASTE_DIR)
+    if args.status or not (args.pool or args.collect or args.paste_pack or args.paste_read is not None):
+        L.status()
+
+
 def web_data_main(argv):
     ap = argparse.ArgumentParser(prog="retina web-data", description="Build the website's small data files "
                                  "(aggregated, SIMULATED, without the private per-shopper profiles).")
@@ -310,7 +335,8 @@ def app_main(argv):
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     commands = {"products": products_main, "export": export_main, "collect": collect_main, "train": train_main,
-                "release": release_main, "app": app_main, "web-data": web_data_main}
+                "release": release_main, "app": app_main, "web-data": web_data_main,
+                "lists": lists_main}
     if argv[:1] and argv[0] in commands:
         commands[argv[0]](argv[1:])
         return
