@@ -1,4 +1,4 @@
-"""Run report for thinking runs: the LLM panel next to the engine crowd.
+"""Run report for thinking runs: the thinking panel (LLM or student) next to the engine crowd.
 
   1. Shopping (receipts.csv): repeat share (product bought before), deal share, items and $ per
      trip - panel NPCs vs everyone else in the same store, same days.
@@ -83,7 +83,7 @@ def option_sets(decisions):
 
 
 def shopping_table(receipts, panel, mode):
-    r = receipts.assign(group=np.where(receipts["shopper_id"].isin(panel), "LLM panel", "engine crowd"))
+    r = receipts.assign(group=np.where(receipts["shopper_id"].isin(panel), "thinking panel", "engine crowd"))
     rows = {}
     for name, g in r.groupby("group"):
         trips = g["trip_id"].nunique()
