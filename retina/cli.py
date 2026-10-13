@@ -250,13 +250,16 @@ def train_main(argv):
                     help="fit = best validation log loss (default); realism = closest to real shoppers on validation")
     ap.add_argument("--exclude", nargs="+", default=[], metavar="TEACHER|FAMILY",
                     help="leave out teachers (name/model) or families (openai, anthropic, google)")
+    ap.add_argument("--price-target", type=float, metavar="E",
+                    help="add an ESTIMATED price correction so the student's own-price elasticity reaches E (e.g. -2.5)")
     args = ap.parse_args(argv)
     os.environ["RETINA_STORE"] = "generic_supermarket"
     from retina.student.train import train, MODEL_DIR
     provider, _, model = args.teacher.partition("/")
     train(provider=provider, model=None if provider == "all" else (model or None), out=args.out or MODEL_DIR,
           consensus=args.consensus, consensus_weight=args.consensus_weight, teachers=args.teachers,
-          pick=args.pick, balance=args.balance, choose=args.choose, exclude=args.exclude)
+          pick=args.pick, balance=args.balance, choose=args.choose, exclude=args.exclude,
+          price_target=args.price_target)
 
 
 def release_main(argv):

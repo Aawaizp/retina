@@ -172,6 +172,36 @@ class Ranker:
         return self.model.predict(X, raw_score=True)
 
 
+class Boosted:
+    """A trained student plus a price correction: scores - coef * price_change (price_change = log(price/regular),
+    so a dearer-than-usual option loses score). Used because every LLM
+    teacher reacts to price less than real shoppers (research ~-2.5). The coefficient is ESTIMATED: tuned
+    so the student's own-price elasticity reaches the target on training + validation NPCs WITHOUT looking
+    at any label (only the student's own picks), then checked on the held-out test NPCs."""
+
+    def __init__(self, base, coef):
+        self.base, self.coef, self.name = base, float(coef), base.name
+        self.col = FEATURES.index("price_change")
+
+    def scores(self, X):
+        return np.asarray(self.base.scores(X), dtype=float).ravel() - self.coef * np.asarray(X)[:, self.col]
+
+
+def calibrate_price(model, t, sets, target):
+    """(coef, elasticity before, after): the smallest coef >= 0 whose elasticity reaches target (bisection)."""
+    el = lambda c: evaluate(sets, lambda d: probs_of("model", d, Boosted(model, c), t))["elasticity"]
+    start = el(0.0)
+    if start is None or start <= target:
+        return 0.0, start, start
+    lo, hi = 0.0, 1.0
+    while el(hi) > target and hi < 256:
+        lo, hi = hi, hi * 2
+    for _ in range(14):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if el(mid) > target else (lo, mid)
+    return round(hi, 4), start, el(hi)
+
+
 def fit_temperature(model, val):
     """The T that makes softmax(scores / T) best calibrated on validation (log loss)."""
     best = (np.inf, 1.0)
@@ -248,9 +278,27 @@ def pick_threshold(curve, target):
 
 # ================================================================== export
 def export_onnx(model, path):
-    """Logit: a tiny hand-made graph ((x - mean) / std) @ b. Ranker: onnxmltools (skl2onnx cannot)."""
+    """Logit: a tiny hand-made graph ((x - mean) / std) @ b. Ranker: onnxmltools (skl2onnx cannot).
+    Boosted: the base graph, then  reshape(scores, [-1, 1]) + x @ w  (w = -coef at price_change)."""
     import onnx
     from onnx import TensorProto, helper
+    if isinstance(model, Boosted):
+        export_onnx(model.base, path)
+        onx = onnx.load(path)
+        g = onx.graph
+        out = g.output[0].name
+        for node in g.node:
+            node.output[:] = [f"{out}_raw" if o == out else o for o in node.output]
+        w = np.zeros(len(FEATURES), dtype=np.float32)
+        w[model.col] = -model.coef
+        g.initializer.extend([helper.make_tensor("price_w", TensorProto.FLOAT, [len(FEATURES), 1], w),
+                              helper.make_tensor("shape_n1", TensorProto.INT64, [2], [-1, 1])])
+        g.node.extend([helper.make_node("MatMul", [g.input[0].name, "price_w"], ["price_add"]),
+                       helper.make_node("Reshape", [f"{out}_raw", "shape_n1"], [f"{out}_col"]),
+                       helper.make_node("Add", [f"{out}_col", "price_add"], [out])])
+        del g.output[0].type.tensor_type.shape.dim[:]
+        onnx.save(onx, path)
+        return
     n = len(FEATURES)
     if isinstance(model, Logit):
         graph = helper.make_graph(
@@ -282,7 +330,7 @@ def onnx_matches(path, model, sets):
 # ================================================================== main
 def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=print, min_sets=100,
           consensus=None, consensus_weight=2.0, teachers=(), pick="draw", balance="none", choose="fit",
-          exclude=()):
+          exclude=(), price_target=None):
     """consensus = 'name/model' of a second teacher: training decisions where it picked the same option
     count consensus_weight times (validation and test are never weighted).
     teachers = extra 'name/model' teachers whose labels are ADDED to the training split only;
@@ -290,7 +338,8 @@ def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=
     balance = 'family': training weights so each model family counts the same (val/test unweighted).
     choose = 'fit' (lowest validation log loss) or 'realism' (closest to real shoppers on validation:
     natural repeat share when drawing vs ~60%, and price elasticity vs ~-2.5).
-    exclude = teachers ('name/model') or families ('openai', 'anthropic', 'google') to leave out."""
+    exclude = teachers ('name/model') or families ('openai', 'anthropic', 'google') to leave out.
+    price_target = e.g. -2.5: add an ESTIMATED price correction so the student's elasticity reaches it."""
     store = store or LabelStore()
     if provider == "all":                    # every teacher's labels; train, validation AND test mix them
         rows = store.rows(0)
@@ -343,6 +392,19 @@ def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=
         v["realism_gap"] = realism_gap(v)
     best_name = min(fitted, key=lambda k: fitted[k][3] if choose == "realism" else fitted[k][2])
     best, t = fitted[best_name][:2]
+    boost = None
+    if price_target is not None:
+        coef, before, after = calibrate_price(best, t, parts["train"] + parts["val"], price_target)
+        raw = results[best_name]
+        best = Boosted(best, coef)
+        boosted = evaluate(parts["test"], lambda d: probs_of("model", d, best, t))
+        boosted["realism_gap"] = realism_gap(boosted)
+        keys = ("agreement", "log_loss", "repeat_share_natural_drawn", "deal_share", "elasticity", "realism_gap")
+        boost = {"coef": coef, "feature": "price_change", "target": price_target, "label": "ESTIMATED",
+                 "calibration_elasticity": {"before": before, "after": after},
+                 "test_before": {k: raw[k] for k in keys}, "test_after": {k: boosted[k] for k in keys}}
+        say(f"Price correction (ESTIMATED): coef {coef:g}; elasticity on train+val {before} -> {after}; "
+            f"on test {raw['elasticity']} -> {boosted['elasticity']}")
     per_teacher = {}
     for name in sorted({d["teacher"] for d in parts["test"]}, key=str):
         mine = [d for d in parts["test"] if d["teacher"] == name]
@@ -370,7 +432,7 @@ def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=
             "output": "scores per choosable option; probabilities = softmax(scores / temperature) within a decision",
             "consensus_weighting": weighting, "extra_teachers": extra, "labels_by_teacher": by_teacher,
             "balance": families, "choose": choose, "excluded": list(exclude),
-            "test_by_teacher": per_teacher}
+            "test_by_teacher": per_teacher, "price_boost": boost}
     (out / "student.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     card = model_card(meta)
     (out / "MODEL_CARD.md").write_text(card, encoding="utf-8")
@@ -429,6 +491,18 @@ def model_card(m):
         f"- Features ({len(m['features'])}): NPC traits, why the item is on the list, trip type, price change, price level, "
         "deal, bought before, usual, engine pick, best seller, popularity, price vs last paid. NOT the option's position.", "",
         "## Results on held-out NPCs", *rows, "",
+        *(["## Price correction (ESTIMATED)",
+           f"Every LLM teacher reacts to price less than real shoppers (research ~{m['price_boost']['target']}). "
+           f"So the chosen student gets one extra term: score - {m['price_boost']['coef']:g} x price_change, tuned on "
+           "training + validation NPCs WITHOUT labels (only the student's own picks) until its elasticity reaches "
+           "the target, then checked on the test NPCs:",
+           "| on test NPCs | agreement | log loss | repeat share (natural, drawn) | deal share | elasticity |",
+           "|---|---|---|---|---|---|",
+           *[f"| {name} | {pct(v['agreement'])} | {v['log_loss']:.3f} | {pct(v['repeat_share_natural_drawn'])} | "
+             f"{pct(v['deal_share'])} | {num(v['elasticity'])} |"
+             for name, v in (("without correction", m["price_boost"]["test_before"]),
+                             ("with correction (used)", m["price_boost"]["test_after"]))], ""]
+          if m.get("price_boost") else []),
         *(["## Chosen student vs each teacher (held-out NPCs)",
            "| teacher | test sets | student agrees | teacher's own repeat share (natural) |", "|---|---|---|---|",
            *per_rows, ""] if len(per) > 1 else []),

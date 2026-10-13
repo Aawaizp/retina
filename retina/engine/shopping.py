@@ -265,8 +265,9 @@ def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_po
                  decisions=None):
     """Step 2 of a trip: walk the store with the list from make_list, shelf by shelf.
     decisions = {list position: the mind's decision} for thinking NPCs (retina.mind), else None.
-    A decision with mind "llm" replaces the engine's shelf choice (product, or skip = product -1);
-    every other decision ("autopilot", "llm_fallback") leaves the engine's own rules to choose.
+    A decision with mind "llm" or "student" replaces the engine's shelf choice (product, or skip =
+    product -1); every other decision ("autopilot", "llm_fallback", "engine") leaves the engine's own
+    rules to choose.
     Python still checks what the mind picked: budget, and stock when the NPC reaches the shelf."""
     floor = store.floor
     plan, budget, trip_type, n_items = trip["plan"], trip["budget"], trip["mission"], trip["planned"]
@@ -332,7 +333,7 @@ def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_po
             aisle_name = store.aisle_of[wanted]
             record(day, s, "VIEW_PRODUCT", wanted, route=route, stop=k)
             decision = decisions.get(i) if decisions else None
-            if decision is not None and decision["mind"] == "llm":   # the mind already chose here
+            if decision is not None and decision["mind"] in ("llm", "student"):   # the mind already chose here
                 if decision["product"] < 0:
                     record(day, s, "SKIP", wanted, reason="mind_skip", stop=k)
                     continue

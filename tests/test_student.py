@@ -71,6 +71,29 @@ def test_mix_run_with_student_only_needs_no_llm(trained, tmp_path):
     sim.mind.close()
 
 
+def test_student_choices_are_what_the_shopper_buys(trained, tmp_path):
+    """The student's pick must reach the basket (a bug let only 'llm' decisions change purchases)."""
+    folder, _, _, _ = trained
+    sim = Simulation(verbose=False)
+    sim.mind = M.Mind(sim, "mix", tmp_path / "run", 25, provider="auto", cache_file=tmp_path / "c.sqlite",
+                      say=lambda *a: None, student="only", student_dir=folder / "model")
+    sim.mind.teacher = None
+    bought = []
+    for _ in range(4):
+        day = sim.day
+        sales = sim.run_day()[0]
+        sim.mind.end_day(day)
+        bought.append(sales[sales["mind"] == "student"])
+    sales = pd.concat(bought)
+    d = pd.DataFrame(sim.mind.memory.decisions())
+    own = d[(d["mind"] == "student") & (d["product"] >= 0) & (d["product"] != d["engine_product"])]
+    assert len(own) > 0
+    have = set(zip(sales["day"], sales["shopper_id"], sales["product_idx"]))
+    found = [(r.day, r.npc, r.product) in have for r in own.itertuples()]
+    assert np.mean(found) > 0.8          # the rest: sold out at the shelf or over budget
+    sim.mind.close()
+
+
 class Never:
     name, offline, calls = "never", False, 0
 
@@ -316,6 +339,18 @@ def test_family_balance_exclude_and_realism_choice(trained, tmp_path, monkeypatc
     assert gaps[meta["model"]] == min(gaps.values())                  # chosen by realism on validation
     left = train(store, "all", None, out=tmp_path / "m2", say=lambda *a: None, min_sets=50, exclude=("google",))
     assert "gemini/gemini-test" not in left["labels_by_teacher"] and left["excluded"] == ["google"]
+
+
+def test_price_correction_reaches_the_target_and_onnx_keeps_it(trained, tmp_path):
+    folder, pool, store, base = trained
+    meta = train(store, "fake", "rules-v1", out=tmp_path / "m", say=lambda *a: None, min_sets=50, price_target=-2.5)
+    b = meta["price_boost"]
+    assert b["label"] == "ESTIMATED" and b["coef"] >= 0
+    if b["coef"] > 0:                                                  # the fake teacher may already be there
+        assert abs(b["calibration_elasticity"]["after"] - (-2.5)) < 0.1
+        assert b["test_after"]["elasticity"] < b["test_before"]["elasticity"]
+    assert meta["onnx_max_diff"] < 1e-3                                # the correction is inside the ONNX file
+    assert "Price correction (ESTIMATED)" in (tmp_path / "m" / "MODEL_CARD.md").read_text(encoding="utf-8")
 
 
 def test_compact_prompt_is_shorter_and_old_labels_keep_their_version(trained, tmp_path, monkeypatch):
