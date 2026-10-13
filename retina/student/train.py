@@ -38,6 +38,11 @@ def split_of(npc):
     return "test" if h < 20 else ("val" if h < 36 else "train")
 
 
+def teacher_name(r):
+    """'name/model' of a label (old labels have no teacher field: built from provider + model)."""
+    return r.get("teacher") or f"{r.get('provider')}/{r.get('model')}"
+
+
 def examples(rows):
     """Labels -> decision sets {X, y (index of the pick), opts, w (engine weights), npc}. Skips SKIPs."""
     out, skips = [], 0
@@ -50,7 +55,8 @@ def examples(rows):
         if len(opts) < 2 or len(pick) != 1:
             continue
         w = np.array([max(o["w"], 1e-9) for o in opts])
-        out.append({"id": r["id"], "weight": 1.0, "X": X, "y": pick[0], "opts": opts, "w": w / w.sum(), "npc": r["npc"],
+        out.append({"id": r["id"], "teacher": teacher_name(r), "weight": 1.0, "X": X, "y": pick[0], "opts": opts,
+                    "w": w / w.sum(), "npc": r["npc"],
                     "engine": int(np.argmax(w)), "split": split_of(r["npc"]), "variation": r.get("variation")})
     return out, skips
 
@@ -171,7 +177,12 @@ def evaluate(sets, probs):
     if len(el_sets) >= 30:
         b = conditional_logit(el_sets)
         el = round(elasticity(el_sets, b), 2)
+    natural = [d["opts"][t]["times"] > 0 for t, d in zip(top, sets) if d.get("variation") == "natural"]
+    drawn = [float(sum(q for q, o in zip(x, d["opts"]) if o["times"] > 0))       # if it DRAWS from p instead
+             for x, d in zip(p, sets) if d.get("variation") == "natural"]
     return {"agreement": round(float(hit.mean()), 3),
+            "repeat_share_natural": round(float(np.mean(natural)), 3) if natural else None,
+            "repeat_share_natural_drawn": round(float(np.mean(drawn)), 3) if drawn else None,
             "log_loss": round(float(-np.mean([np.log(max(x[d["y"]], 1e-12)) for x, d in zip(p, sets)])), 3),
             "ece": round(float(ece), 3),
             "repeat_share": round(float(np.mean([d["opts"][t]["times"] > 0 for t, d in zip(top, sets)])), 3),
@@ -182,7 +193,7 @@ def evaluate(sets, probs):
 def teacher_side(sets):
     """The teacher's own picks on the same sets (repeat/deal share, elasticity)."""
     m = evaluate(sets, lambda d: np.eye(len(d["X"]))[d["y"]])
-    return {k: m[k] for k in ("repeat_share", "deal_share", "elasticity", "elasticity_sets")}
+    return {k: m[k] for k in ("repeat_share", "repeat_share_natural", "deal_share", "elasticity", "elasticity_sets")}
 
 
 def routing_curve(sets, model, t):
@@ -238,13 +249,20 @@ def onnx_matches(path, model, sets):
 
 # ================================================================== main
 def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=print, min_sets=100,
-          consensus=None, consensus_weight=2.0, teachers=()):
+          consensus=None, consensus_weight=2.0, teachers=(), pick="draw"):
     """consensus = 'name/model' of a second teacher: training decisions where it picked the same option
     count consensus_weight times (validation and test are never weighted).
     teachers = extra 'name/model' teachers whose labels are ADDED to the training split only;
     validation and test stay the main teacher's, so results compare with a main-teacher-only student."""
     store = store or LabelStore()
-    rows = store.rows(0, provider, model)
+    if provider == "all":                    # every teacher's labels; train, validation AND test mix them
+        rows = store.rows(0)
+        model = "all teachers"
+    else:
+        rows = store.rows(0, provider, model)
+    by_teacher = {}
+    for r in rows:
+        by_teacher[teacher_name(r)] = by_teacher.get(teacher_name(r), 0) + 1
     sets, skips = examples(rows)
     parts = {k: [d for d in sets if d["split"] == k] for k in ("train", "val", "test")}
     extra = {}
@@ -278,7 +296,14 @@ def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=
                                                                                            "val_log_loss": val_loss}
     best_name = min(fitted, key=lambda k: fitted[k][2])
     best, t, _ = fitted[best_name]
-    ceiling, n_rep = self_agreement(store, provider, model)
+    per_teacher = {}
+    for name in sorted({d["teacher"] for d in parts["test"]}, key=str):
+        mine = [d for d in parts["test"] if d["teacher"] == name]
+        if len(mine) >= 10:
+            got = evaluate(mine, lambda d: probs_of("model", d, best, t))
+            per_teacher[name] = {"sets": len(mine), "agreement": got["agreement"],
+                                 "teacher_repeat_natural": teacher_side(mine)["repeat_share_natural"]}
+    ceiling, n_rep = self_agreement(store, *(TEACHER if provider == "all" else (provider, model)))
     target = 0.95 * ceiling if ceiling else 0.80
     val_curve = routing_curve(parts["val"], best, t)
     chosen = pick_threshold(val_curve, target)
@@ -294,9 +319,10 @@ def train(store=None, provider=TEACHER[0], model=TEACHER[1], out=MODEL_DIR, say=
             "labels": len(rows), "skips": skips, "sets": {k: len(v) for k, v in parts.items()},
             "test": results, "teacher_on_test": teacher_side(parts["test"]),
             "self_agreement": {"rate": ceiling, "items": n_rep}, "position_bias": position_bias(rows),
-            "routing_curve_test": test_curve, "onnx_max_diff": diff, "real_repeat_share": REAL_REPEAT,
+            "routing_curve_test": test_curve, "pick": pick, "onnx_max_diff": diff, "real_repeat_share": REAL_REPEAT,
             "output": "scores per choosable option; probabilities = softmax(scores / temperature) within a decision",
-            "consensus_weighting": weighting, "extra_teachers": extra}
+            "consensus_weighting": weighting, "extra_teachers": extra, "labels_by_teacher": by_teacher,
+            "test_by_teacher": per_teacher}
     (out / "student.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     card = model_card(meta)
     (out / "MODEL_CARD.md").write_text(card, encoding="utf-8")
@@ -308,13 +334,20 @@ def model_card(m):
     r, te = m["test"], m["teacher_on_test"]
     pct = lambda x: "-" if x is None else f"{x:.0%}"
     num = lambda x: "-" if x is None else f"{x:+.2f}"
-    rows = ["| chooser | agreement with teacher | log loss | calibration error | repeat share | deal share | own-price elasticity |",
-            "|---|---|---|---|---|---|---|",
-            f"| teacher ({m['teacher']['model']}) | - | - | - | {pct(te['repeat_share'])} | {pct(te['deal_share'])} | {num(te['elasticity'])} |"]
+    rows = ["| chooser | agreement with teacher | log loss | calibration error | repeat share | repeat share (natural; real ~60%) "
+            "| deal share | own-price elasticity |",
+            "|---|---|---|---|---|---|---|---|",
+            f"| teacher ({m['teacher']['model']}) | - | - | - | {pct(te['repeat_share'])} | {pct(te.get('repeat_share_natural'))} "
+            f"| {pct(te['deal_share'])} | {num(te['elasticity'])} |"]
     for k in ("random", "engine", "conditional logit", "LightGBM ranker"):
         x = r[k]
         rows.append(f"| {k}{' **(chosen)**' if k == m['model'] else ''} | {pct(x['agreement'])} | {x['log_loss']:.3f} | "
-                    f"{x['ece']:.3f} | {pct(x['repeat_share'])} | {pct(x['deal_share'])} | {num(x['elasticity'])} |")
+                    f"{x['ece']:.3f} | {pct(x['repeat_share'])} | {pct(x.get('repeat_share_natural'))} | "
+                    f"{pct(x['deal_share'])} | {num(x['elasticity'])} |")
+    per = m.get("test_by_teacher") or {}
+    per_rows = ([f"| {k} | {v['sets']:,} | {pct(v['agreement'])} | {pct(v['teacher_repeat_natural'])} |"
+                 for k, v in per.items()])
+    by = m.get("labels_by_teacher") or {}
     sa = m["self_agreement"]
     bias = " ".join(f"{k} {v['picked']:.0%} (expected {v['expected']:.0%})" for k, v in m["position_bias"].items())
     curve = " | ".join(f"{c['threshold']:.2f}: {pct(c['coverage'])} decided, {pct(c['agreement'])} agree"
@@ -324,9 +357,12 @@ def model_card(m):
         "A small model that copies the LLM teacher's shelf choices for thinking NPCs, so most of them need no LLM call. "
         "It ranks the 2-5 real products offered for one shopping-list item. Every output is SIMULATED behaviour.", "",
         "## Data",
-        f"- Teacher: **{m['teacher']['provider']} {m['teacher']['model']}**"
-        + (" (main; extra teachers below add training labels)." if m.get("extra_teachers")
-           else " only (one mind; other providers' answers are not used)."),
+        (f"- Teachers: **all** - " + ", ".join(f"{k} {v:,}" for k, v in sorted(by.items(), key=lambda kv: -kv[1]))
+         + " labels. The student learns their shared habits; test agreement is with whichever teacher answered."
+         if m["teacher"]["provider"] == "all" else
+         f"- Teacher: **{m['teacher']['provider']} {m['teacher']['model']}**"
+         + (" (main; extra teachers below add training labels)." if m.get("extra_teachers")
+            else " only (one mind; other providers' answers are not used).")),
         f"- {m['labels']:,} labels ({m['skips']} SKIPs counted, not learned): situations from `retina collect` "
         "(store states varied on purpose: price up, deal, sold out, remembered price) and teacher answers from mix runs.",
         f"- Split by NPC: train {m['sets']['train']:,} / validation {m['sets']['val']:,} / test {m['sets']['test']:,} "
@@ -340,7 +376,12 @@ def model_card(m):
         f"- Features ({len(m['features'])}): NPC traits, why the item is on the list, trip type, price change, price level, "
         "deal, bought before, usual, engine pick, best seller, popularity, price vs last paid. NOT the option's position.", "",
         "## Results on held-out NPCs", *rows, "",
-        f"Teacher self-agreement (the ceiling: the same situation asked twice): **{pct(sa['rate'])}** on {sa['items']} items.",
+        *(["## Chosen student vs each teacher (held-out NPCs)",
+           "| teacher | test sets | student agrees | teacher's own repeat share (natural) |", "|---|---|---|---|",
+           *per_rows, ""] if len(per) > 1 else []),
+        f"Teacher self-agreement (the ceiling: the same situation asked twice"
+        + (", measured for Groq" if m["teacher"]["provider"] == "all" else "")
+        + f"): **{pct(sa['rate'])}** on {sa['items']} items.",
         f"Real repeat share for comparison: ~{m['real_repeat_share']:.0%} (Instacart reorder rate, PUBLIC_STATISTIC).",
         "Own-price elasticity: conditional logit on price change within the options (research on grocery choice: about -2.5).", "",
         "## Routing", f"Confidence threshold **{m['threshold']:.2f}** (the lowest one that reaches 95% of the teacher's "
@@ -353,8 +394,14 @@ def model_card(m):
         f"- `student.onnx` ({m['model']}): input `x` [options x {len(m['features'])}] float32 in the order of "
         "`student.json` features; output = one score per option; probabilities = softmax(scores / temperature) "
         f"within a decision (temperature {m['temperature']:.3f}). ONNX vs Python max difference: {m['onnx_max_diff']:.1e}.",
-        "- Used by `retina --mind mix` (confident -> student, unsure -> teacher); `--student only` for no-LLM runs.", "",
+        "- Used by `retina --mind mix` (confident -> student, unsure -> teacher); `--student only` for no-LLM runs.",
+        ("- Pick: **draw** - the student DRAWS an option from its probabilities (seeded dice), like a real shopper; "
+         f"repeat share in natural situations when drawing: {pct(r[m['model']].get('repeat_share_natural_drawn'))} "
+         "(always taking the top option exaggerates habits)." if m.get("pick") == "draw"
+         else "- Pick: **top** - always the most likely option."), "",
         "## Limits",
-        "- It copies ONE LLM's habits, including its biases (LLM shoppers are more deal-driven than real ones).",
+        ("- It learns the shared habits of several LLM teachers (they agree only ~55-60% with each other), "
+         "including their biases (LLM shoppers are more deal-driven than real ones)." if m["teacher"]["provider"] == "all"
+         else "- It copies ONE LLM's habits, including its biases (LLM shoppers are more deal-driven than real ones)."),
         "- US products and prices; NPCs and situations are SIMULATED; agreement is with the teacher, not with real people.",
         "- Small data: a few thousand decisions. Retrain as labels grow (`retina train`).", ""])

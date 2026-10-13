@@ -261,6 +261,39 @@ def test_extra_teachers_add_training_sets_only(trained, tmp_path, monkeypatch):
     assert "Extra teachers in training only" in (tmp_path / "m" / "MODEL_CARD.md").read_text(encoding="utf-8")
 
 
+def test_student_draws_by_probability_and_is_repeatable(trained):
+    folder, pool, _, meta = trained
+    from retina.engine.config import stream
+    from retina.student.model import Student
+    st = Student(folder / "model")
+    assert meta["pick"] == "draw" and st.pick == "draw"
+    t = next(t for t in pool for it in t["items"] if sum(o["in_stock"] for o in it["options"]) >= 3)
+    it = next(it for it in t["items"] if sum(o["in_stock"] for o in it["options"]) >= 3)
+    args = (t["npc_x"], it["route"], t["mission"], it["options"], it["engine_product"])
+    picks = [st.choose(*args, rng=stream(12, 1, 2, n))[0]["product"] for n in range(300)]
+    top, conf, p = st.choose(*args)                                   # no dice -> the most likely option
+    assert conf == max(p) and top["product"] == max(set(picks), key=picks.count) or max(p) < 0.6
+    if max(p) < 0.95:
+        assert len(set(picks)) > 1                                    # not always the same product
+    again = [st.choose(*args, rng=stream(12, 1, 2, n))[0]["product"] for n in range(300)]
+    assert picks == again                                             # same dice -> same choices
+    st.pick = "top"
+    assert {st.choose(*args, rng=stream(12, 1, 2, n))[0]["product"] for n in range(20)} == {top["product"]}
+
+
+def test_train_on_all_teachers(trained, tmp_path, monkeypatch):
+    folder, pool, store, _ = trained
+    monkeypatch.setitem(llm.PROVIDERS, "gemini", dict(llm.PROVIDERS["gemini"], model="gemini-test"))
+    monkeypatch.setattr(C, "TEACHER", ("fake", "rules-v1"))
+    C.compare("gemini", 200, store=store, pool=pool, say=lambda *a: None, teacher=SecondTeacher())
+    meta = train(store, "all", None, out=tmp_path / "m", say=lambda *a: None, min_sets=50)
+    assert set(meta["labels_by_teacher"]) >= {"fake/rules-v1", "gemini/gemini-test"}
+    assert "fake/rules-v1" in meta["test_by_teacher"] and set(meta["test_by_teacher"]) <= set(meta["labels_by_teacher"])
+    assert "repeat_share_natural" in meta["test"]["conditional logit"]
+    card = (tmp_path / "m" / "MODEL_CARD.md").read_text(encoding="utf-8")
+    assert "Teachers: **all**" in card and meta["onnx_max_diff"] < 1e-3
+
+
 def test_compact_prompt_is_shorter_and_old_labels_keep_their_version(trained, tmp_path, monkeypatch):
     from retina.mind.teacher import PROMPT_VERSION, batch_prompt, parse_answers, request_tokens
     _, pool, _, _ = trained

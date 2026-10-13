@@ -1,14 +1,20 @@
 """Shared set-up for RETINA's tests: make the retina package importable and run the store ONCE
 (a short run) so every test can look at the same results. Run all tests:  python -m pytest"""
 
+import os
 import pickle
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))          # works with or without `pip install -e .`
+
+# Tests never use the owner's trained student (models/student): a test that wants a student trains
+# its own and passes the folder. Set before any retina import (model.py reads it at import time).
+os.environ["RETINA_STUDENT_DIR"] = str(Path(tempfile.gettempdir()) / "retina-tests-no-student")
 
 DAYS = 10          # short runs keep the tests fast (about half a minute in total)
 

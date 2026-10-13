@@ -58,11 +58,11 @@ def elasticity(sets, b):
 
 
 def option_sets(decisions):
-    """LLM decisions -> (features, LLM label, engine weights) per decision with a real price spread."""
+    """Thinking decisions (LLM or student) -> (features, chosen label, engine weights) per decision with a real price spread."""
     llm_sets, engine_sets = [], []
     for d in decisions:
         opts = json.loads(d["options"]) if isinstance(d["options"], str) else d["options"]
-        if d["mind"] != "llm" or d["product"] is None or d["product"] < 0 or len(opts) < 2:
+        if d["mind"] not in ("llm", "student") or d["product"] is None or d["product"] < 0 or len(opts) < 2:
             continue
         price = np.maximum([o["price"] for o in opts], 0.01)
         regular = np.maximum([o["regular"] for o in opts], 0.01)
@@ -149,15 +149,15 @@ def build_report(mind, run_dir):
             p = out["price"]
             lines += ["", f"Price response on the same {p['decisions']} option sets with a price change "
                           f"(conditional logit):",
-                      f"  own-price elasticity  LLM {p['llm_elasticity']:+.2f} | engine {p['engine_elasticity']:+.2f}"
+                      f"  own-price elasticity  mind {p['llm_elasticity']:+.2f} | engine {p['engine_elasticity']:+.2f}"
                       f"   (research {REAL['elasticity']})",
-                      f"  dear-brand slope      LLM {p['llm_price_level']:+.2f} | engine {p['engine_price_level']:+.2f}"
+                      f"  dear-brand slope      mind {p['llm_price_level']:+.2f} | engine {p['engine_price_level']:+.2f}"
                       f"   (below 0 = prefers cheaper products)",
-                      f"  pull of the usual     LLM {p['llm_usual_effect']:+.2f} | engine {p['engine_usual_effect']:+.2f}"
+                      f"  pull of the usual     mind {p['llm_usual_effect']:+.2f} | engine {p['engine_usual_effect']:+.2f}"
                       f"   (the engine's shelf weights do not know personal habits)"]
         else:
             out["price"] = {"decisions": len(llm_sets), "note": "too few"}
-            lines += ["", f"Price response: too few LLM decisions with a price change among the options "
+            lines += ["", f"Price response: too few thinking (LLM or student) decisions with a price change among the options "
                           f"({len(llm_sets)}; needs {MIN_DECISIONS}) - run more days."]
     text = "\n".join(lines)
     (run_dir / "report.txt").write_text(text + "\n", encoding="utf-8")

@@ -27,6 +27,7 @@ from retina.mind.teacher import (LLMTeacher, FakeTeacher, npc_block, request_tok
 
 STREAM_MIND_ORDER = 10        # dice: the order options are shown in (no "A is always right" bias)
 STREAM_MIND_CHECK = 11        # dice: which routine buys get a sampled LLM check
+STREAM_MIND_STUDENT = 12      # dice: the student's draw from its probabilities (models with pick "draw")
 CHECK_RATE = 0.05             # ESTIMATED: share of routine buys the teacher double-checks
 PRICE_UP = 1.05               # dearer than remembered by more than 5% = worth a thought (ESTIMATED)
 BATCH = 5                     # NPCs per LLM request
@@ -182,7 +183,8 @@ class Mind:
                 if trigger is None:
                     decisions[k] = {"mind": "autopilot", "product": int(wanted), "why_type": "habit", "why": "usual buy"}
                 else:
-                    pick = self._student_pick(s, route, trip["mission"], options, int(wanted))
+                    pick = self._student_pick(s, route, trip["mission"], options, int(wanted),
+                                              stream(STREAM_MIND_STUDENT, day, s, k))
                     if pick is not None:
                         decisions[k] = pick
                     else:
@@ -209,13 +211,13 @@ class Mind:
         self.today.setdefault("rows", []).extend(r for r, _, _ in rows)
         return out
 
-    def _student_pick(self, s, route, mission, options, wanted):
+    def _student_pick(self, s, route, mission, options, wanted, rng=None):
         """The student's decision when it is sure enough (or always with --student only), else None."""
         if self.student is None:
             return None
         from retina.student.features import npc_numbers
         from retina.student.model import why_type
-        option, p, _ = self.student.choose(npc_numbers(self.sim.shoppers, s), route, mission, options, wanted)
+        option, p, _ = self.student.choose(npc_numbers(self.sim.shoppers, s), route, mission, options, wanted, rng)
         if option is None and self.student_only:          # nothing choosable (all sold out): the engine's
             return {"mind": "engine", "product": wanted,   # empty-shelf rules decide - never the LLM
                     "why_type": "", "why": "nothing in stock to choose"}

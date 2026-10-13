@@ -189,8 +189,8 @@ def collect_main(argv):
                     "report agreement (uses only that LLM's free quota)")
     ap.add_argument("--items", type=int, default=200, help="situations to compare (default 200)")
     ap.add_argument("--export", type=int, metavar="N", help="write N situations (prompt + shuffled options, no answers) as JSONL")
-    ap.add_argument("--which", choices=("new", "labelled"), default="new",
-                    help="--export: new = not yet labelled by Groq (default); labelled = the ones Groq labelled (compare)")
+    ap.add_argument("--which", choices=("new", "labelled", "unlabelled"), default="new",
+                    help="new = not yet labelled by Groq (default); labelled = the ones Groq labelled (compare); unlabelled = by no teacher (from the pool end)")
     ap.add_argument("--out", help="--export: file (default data/teacher/export_<which>_<N>.jsonl)")
     ap.add_argument("--import", dest="import_file", metavar="JSONL", help="read another teacher's answers (checked like Groq's)")
     ap.add_argument("--compare-with", metavar="NAME/MODEL", help="report Groq vs this teacher (no new questions)")
@@ -240,11 +240,17 @@ def train_main(argv):
     ap.add_argument("--consensus-weight", type=float, default=2.0, help="weight of an agreed decision (default 2)")
     ap.add_argument("--teachers", nargs="+", default=[], metavar="NAME/MODEL",
                     help="extra teachers whose labels are added to TRAINING only (e.g. claude-code/opus-5-5)")
+    ap.add_argument("--teacher", default="groq/openai/gpt-oss-120b", metavar="NAME/MODEL|all",
+                    help="whose labels train AND test the student (default Groq); 'all' = every teacher together")
+    ap.add_argument("--pick", choices=("draw", "top"), default="draw",
+                    help="draw = choose by the student's probabilities like a real shopper (default); top = always the most likely")
     args = ap.parse_args(argv)
     os.environ["RETINA_STORE"] = "generic_supermarket"
     from retina.student.train import train, MODEL_DIR
-    train(out=args.out or MODEL_DIR, consensus=args.consensus, consensus_weight=args.consensus_weight,
-          teachers=args.teachers)
+    provider, _, model = args.teacher.partition("/")
+    train(provider=provider, model=None if provider == "all" else (model or None), out=args.out or MODEL_DIR,
+          consensus=args.consensus, consensus_weight=args.consensus_weight, teachers=args.teachers,
+          pick=args.pick)
 
 
 def release_main(argv):

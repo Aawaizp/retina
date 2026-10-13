@@ -337,10 +337,14 @@ def trip_key(t):
 
 def choose_situations(which, n, store, pool):
     """Trips holding n situations: 'labelled' = the first n THE teacher (Groq) labelled (for comparing
-    teachers), 'new' = the first n of the pool Groq has not labelled yet."""
+    teachers), 'new' = the first n of the pool Groq has not labelled yet, 'unlabelled' = n that NO
+    teacher has labelled, taken from the END of the pool (Groq's collect works from the start)."""
     groq = store.ids(0, teacher_of(*TEACHER))
     if which == "labelled":
         wanted = [r["id"] for r in store.rows(0, *TEACHER)][:n]
+    elif which == "unlabelled":
+        anyone = {r["id"] for r in store.rows(0, valid_only=False)}
+        wanted = [it["id"] for t in reversed(pool) for it in t["items"] if it["id"] not in anyone][:n]
     else:
         wanted = [it["id"] for t in pool for it in t["items"] if it["id"] not in groq][:n]
     keep = set(wanted)

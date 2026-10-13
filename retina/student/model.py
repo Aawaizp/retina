@@ -24,13 +24,17 @@ class Student:
         self.input = self.session.get_inputs()[0].name
         self.temperature = float(self.meta["temperature"])
         self.threshold = float(self.meta["threshold"])
+        self.pick = self.meta.get("pick", "top")
 
     @staticmethod
     def available(folder=MODEL_DIR):
         return (Path(folder) / "student.onnx").exists() and (Path(folder) / "student.json").exists()
 
-    def choose(self, npc, route, mission, options, engine_product):
-        """(chosen option, its probability, all probabilities) or (None, 0, []) when nothing is choosable."""
+    def choose(self, npc, route, mission, options, engine_product, rng=None):
+        """(chosen option, confidence, all probabilities) or (None, 0, []) when nothing is choosable.
+        Models trained with pick "draw" DRAW the option from the probabilities (with rng), like a real
+        shopper who does not always buy the same thing; otherwise the most likely option. Confidence =
+        the top probability either way (it decides student vs teacher in mix runs)."""
         X, opts = matrix(npc, route, mission, options, engine_product)
         if not opts:
             return None, 0.0, []
@@ -38,7 +42,9 @@ class Student:
         p = np.exp(scores - scores.max())
         p /= p.sum()
         i = int(np.argmax(p))
-        return opts[i], float(p[i]), p
+        if self.pick == "draw" and rng is not None:
+            i = int(rng.choice(len(p), p=p))
+        return opts[i], float(p.max()), p
 
 
 def why_type(option, engine_product):
