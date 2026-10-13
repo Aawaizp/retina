@@ -1,0 +1,41 @@
+{
+ "days": 90,
+ "data_label": "SIMULATED",
+ "groups": {
+  "engine crowd": {
+   "trips": 16983,
+   "lines": 160106,
+   "repeat_share": 0.435,
+   "units_on_deal": 0.15,
+   "items_per_trip": 10.0,
+   "spend_per_trip": 58.13
+  },
+  "thinking panel (student)": {
+   "trips": 403,
+   "lines": 3528,
+   "repeat_share": 0.528,
+   "units_on_deal": 0.358,
+   "items_per_trip": 11.0,
+   "spend_per_trip": 50.01
+  }
+ },
+ "price": {
+  "decisions": 2727,
+  "llm_elasticity": -2.21,
+  "engine_elasticity": -1.75,
+  "llm_price_level": -0.76,
+  "engine_price_level": 0.0,
+  "llm_usual_effect": 1.33,
+  "engine_usual_effect": -0.01
+ },
+ "minds": {
+  "student": 3220,
+  "autopilot": 773,
+  "engine": 16
+ },
+ "real": {
+  "repeat_share": "~60% (Instacart reorder rate, PUBLIC_STATISTIC)",
+  "units_on_deal": "~24-31% (Nielsen 2019-2020, Bernstein 2022; PUBLIC_STATISTIC)",
+  "elasticity": "about -2.5 (grocery research, PUBLIC_STATISTIC)"
+ }
+}

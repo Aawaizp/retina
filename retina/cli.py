@@ -277,6 +277,19 @@ def release_main(argv):
     release(args.version, args.days, stores, args.out, args.realism, not args.no_student)
 
 
+def web_data_main(argv):
+    ap = argparse.ArgumentParser(prog="retina web-data", description="Build the website's small data files "
+                                 "(aggregated, SIMULATED, without the private per-shopper profiles).")
+    ap.add_argument("--days", type=int, default=90, help="days per store (default 90)")
+    ap.add_argument("--stores", help="comma list (default: all four)")
+    ap.add_argument("--out", help="folder (default web/public)")
+    ap.add_argument("--no-student", action="store_true", help="leave out the student panel and the what-if model")
+    args = ap.parse_args(argv)
+    from retina.web_data import web_data, WEB
+    stores = [resolve_store(s.strip()) for s in args.stores.split(",")] if args.stores else None
+    web_data(args.days, stores, args.out or WEB, not args.no_student)
+
+
 def app_main(argv):
     ap = argparse.ArgumentParser(prog="retina app", description="The local RETINA app (FastAPI) - your PC only.")
     ap.add_argument("--host", default="127.0.0.1", help="127.0.0.1 (default: this PC only); Docker uses 0.0.0.0")
@@ -292,7 +305,7 @@ def app_main(argv):
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     commands = {"products": products_main, "export": export_main, "collect": collect_main, "train": train_main,
-                "release": release_main, "app": app_main}
+                "release": release_main, "app": app_main, "web-data": web_data_main}
     if argv[:1] and argv[0] in commands:
         commands[argv[0]](argv[1:])
         return

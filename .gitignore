@@ -44,3 +44,6 @@ RETINA_CONTEXT.md
 
 # Claude Code instructions (private)
 CLAUDE.md
+
+# Claude Code local preview settings
+.claude/

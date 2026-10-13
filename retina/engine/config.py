@@ -30,6 +30,8 @@ PAIRS_FILE = PROCESSED_DIR / "instacart_pairs.csv"          # real "bought toget
 AISLE_STATS_FILE = PROCESSED_DIR / "instacart_aisle_stats.csv"   # real aisle shares (loaders/aisle_stats.py)
 AISLE_PAIRS_FILE = PROCESSED_DIR / "instacart_aisle_pairs.csv"   # real aisles bought together
 SHOPPER_PROFILES_FILE = PROCESSED_DIR / "instacart_shopper_profiles.csv"   # real habits, together
+if os.environ.get("RETINA_NO_PROFILES"):     # build like a fresh clone: never use the private per-shopper
+    SHOPPER_PROFILES_FILE = PROCESSED_DIR / "__private_profiles_switched_off__.csv"   # file (public builds)
 TRIP_STATS_FILE = PROCESSED_DIR / "instacart_trip_stats.json"    # trip size vs days since last trip (loaders/trip_needs.py)
 AISLE_CYCLES_FILE = PROCESSED_DIR / "instacart_aisle_cycles.csv"  # trips until the same product is bought again
 

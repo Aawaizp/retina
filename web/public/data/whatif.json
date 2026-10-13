@@ -1,0 +1,333 @@
+{
+ "data_label": "SIMULATED",
+ "shelves": [
+  {
+   "aisle": "fresh fruits",
+   "department": "produce",
+   "products": [
+    {
+     "id": 643126971962,
+     "name": "Banana, 3 lb",
+     "brand": "Dole",
+     "regular": 2.49,
+     "pop": 0.172953
+    },
+    {
+     "id": 66022009025,
+     "name": "Organic Hass Avocado, 4 ct",
+     "brand": "Eco Farms",
+     "regular": 3.93,
+     "pop": 0.156339
+    },
+    {
+     "id": 42563018504,
+     "name": "Organic Diced Avocado",
+     "brand": "Woodstock",
+     "regular": 7.39,
+     "pop": 0.129425
+    },
+    {
+     "id": 741839006664,
+     "name": "Gala Organic Apples, 4 ct",
+     "brand": "Stemilt",
+     "regular": 3.99,
+     "pop": 0.053322
+    },
+    {
+     "id": 698539061847,
+     "name": "Small haas avocado",
+     "brand": "nan",
+     "regular": 2.97,
+     "pop": 0.035883
+    }
+   ]
+  },
+  {
+   "aisle": "packaged vegetables fruits",
+   "department": "produce",
+   "products": [
+    {
+     "id": 741243002894,
+     "name": "Organic Grape Tomatoes",
+     "brand": "nan",
+     "regular": 2.83,
+     "pop": 0.093211
+    },
+    {
+     "id": 99482533472,
+     "name": "OG RED SEEDLESS GRAPES",
+     "brand": "nan",
+     "regular": 12.67,
+     "pop": 0.091478
+    },
+    {
+     "id": 79893408835,
+     "name": "Organic baby arugula, 5 oz",
+     "brand": "Organics",
+     "regular": 3.99,
+     "pop": 0.080571
+    },
+    {
+     "id": 32601953577,
+     "name": "Organic Baby Spinach, 5 oz",
+     "brand": "Earthbound Farm",
+     "regular": 4.49,
+     "pop": 0.053527
+    },
+    {
+     "id": 681131328982,
+     "name": "Organic Baby Spinach, 5 oz",
+     "brand": "Marketside",
+     "regular": 2.66,
+     "pop": 0.053527
+    }
+   ]
+  },
+  {
+   "aisle": "fresh vegetables",
+   "department": "produce",
+   "products": [
+    {
+     "id": 681131180733,
+     "name": "Organic Garlic, 3 ct",
+     "brand": "Marketside",
+     "regular": 2.98,
+     "pop": 0.126783
+    },
+    {
+     "id": 40679,
+     "name": "Zucchini, 1 large",
+     "brand": "nan",
+     "regular": 1.49,
+     "pop": 0.12106
+    },
+    {
+     "id": 681131091145,
+     "name": "YELLOW ONIONS",
+     "brand": "MARKETSIDE",
+     "regular": 3.98,
+     "pop": 0.084501
+    },
+    {
+     "id": 24000013204,
+     "name": "Peas & Carrots, 128 g",
+     "brand": "Del Monte",
+     "regular": 1.99,
+     "pop": 0.084003
+    },
+    {
+     "id": 896315001579,
+     "name": "Asparagus",
+     "brand": "nan",
+     "regular": 9.99,
+     "pop": 0.077706
+    }
+   ]
+  },
+  {
+   "aisle": "milk",
+   "department": "dairy eggs",
+   "products": [
+    {
+     "id": 99482516635,
+     "name": "organic whole milk",
+     "brand": "nan",
+     "regular": 7.99,
+     "pop": 0.116763
+    },
+    {
+     "id": 99482522315,
+     "name": "Organic Whole Milk",
+     "brand": "365 Whole Foods Market",
+     "regular": 4.59,
+     "pop": 0.077842
+    },
+    {
+     "id": 99482516642,
+     "name": "Organic Reduced fat milk",
+     "brand": "nan",
+     "regular": 7.99,
+     "pop": 0.045569
+    },
+    {
+     "id": 742365264856,
+     "name": "Organic reduced fat milk",
+     "brand": "Horizon Organic",
+     "regular": 6.46,
+     "pop": 0.045294
+    },
+    {
+     "id": 742365005398,
+     "name": "Organic Milk",
+     "brand": "Horizon Organic",
+     "regular": 8.99,
+     "pop": 0.042662
+    }
+   ]
+  },
+  {
+   "aisle": "spreads",
+   "department": "pantry",
+   "products": [
+    {
+     "id": 99482161514,
+     "name": "Organic Strawberry Fruit Spread, 17 oz",
+     "brand": "365 Whole Foods Market",
+     "regular": 4.69,
+     "pop": 0.032759
+    },
+    {
+     "id": 894455000315,
+     "name": "Classic Almond Butter, 16 oz",
+     "brand": "Justin's",
+     "regular": 14.99,
+     "pop": 0.018861
+    },
+    {
+     "id": 4800035102214,
+     "name": "All-Natural Classic Peanut Butter, 364 g",
+     "brand": "Lily's",
+     "regular": 8.49,
+     "pop": 0.01116
+    },
+    {
+     "id": 51500245408,
+     "name": "JIF PEANUT BUTTER SPREAD",
+     "brand": "Jif",
+     "regular": 4.49,
+     "pop": 0.010245
+    },
+    {
+     "id": 71157306444,
+     "name": "Organic Peanut Butter",
+     "brand": "Koeze Sweet Ella's",
+     "regular": 9.69,
+     "pop": 0.006573
+    }
+   ]
+  },
+  {
+   "aisle": "ice cream ice",
+   "department": "frozen",
+   "products": [
+    {
+     "id": 74570009008,
+     "name": "Vanilla ice cream, vanilla, 0.5 gallons",
+     "brand": "H\u00e4agen-Dazs",
+     "regular": 17.49,
+     "pop": 0.036819
+    },
+    {
+     "id": 76840001774,
+     "name": "Core Chocolate Chip Cookie Dough Ice Cream, 16 fl oz",
+     "brand": "Ben & Jerry's",
+     "regular": 6.49,
+     "pop": 0.024726
+    },
+    {
+     "id": 72830020176,
+     "name": "Vanilla Bean Ice Cream Sandwiches",
+     "brand": "Tillamook",
+     "regular": 6.99,
+     "pop": 0.01943
+    },
+    {
+     "id": 76840102075,
+     "name": "americone dream",
+     "brand": "Ben & Jerry's",
+     "regular": 4.99,
+     "pop": 0.018704
+    },
+    {
+     "id": 186852000334,
+     "name": "Caramel Cookie Crunch",
+     "brand": "Unilever",
+     "regular": 4.99,
+     "pop": 0.016766
+    }
+   ]
+  },
+  {
+   "aisle": "packaged cheese",
+   "department": "dairy eggs",
+   "products": [
+    {
+     "id": 465670073806,
+     "name": "Grated parmesan, 3 oz",
+     "brand": "nan",
+     "regular": 1.98,
+     "pop": 0.142463
+    },
+    {
+     "id": 11863109755,
+     "name": "Shredded Parmesan, 28 g",
+     "brand": "Sartori",
+     "regular": 7.99,
+     "pop": 0.114521
+    },
+    {
+     "id": 41757025755,
+     "name": "Mini Original Semisoft Cheese",
+     "brand": "Babybel",
+     "regular": 10.99,
+     "pop": 0.034612
+    },
+    {
+     "id": 815441011320,
+     "name": "Feta Cheese Crumbles",
+     "brand": "Simply",
+     "regular": 5.99,
+     "pop": 0.03396
+    },
+    {
+     "id": 42421059328,
+     "name": "All Natural Feta Cheese Crumbles, 28 g",
+     "brand": "Boar's Head",
+     "regular": 8.49,
+     "pop": 0.03396
+    }
+   ]
+  },
+  {
+   "aisle": "frozen produce",
+   "department": "frozen",
+   "products": [
+    {
+     "id": 99482446659,
+     "name": "Organic Chopped Spinach",
+     "brand": "365 everyday value",
+     "regular": 2.89,
+     "pop": 0.04143
+    },
+    {
+     "id": 504737,
+     "name": "Organic Mango Chunks (Frozen), 16 oz",
+     "brand": "Trader Joe\u2019s",
+     "regular": 2.99,
+     "pop": 0.036771
+    },
+    {
+     "id": 96619309658,
+     "name": "Organic Mixed Vegetables, 5lbs",
+     "brand": "Kirkland Signature",
+     "regular": 8.59,
+     "pop": 0.034315
+    },
+    {
+     "id": 711575004996,
+     "name": "Edamame",
+     "brand": "Seapoint Farms",
+     "regular": 3.79,
+     "pop": 0.026388
+    },
+    {
+     "id": 850035467121,
+     "name": "Organic Green Beans, 2 lbs",
+     "brand": "Heart & Field",
+     "regular": 6.79,
+     "pop": 0.024821
+    }
+   ]
+  }
+ ]
+}
