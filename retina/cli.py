@@ -292,6 +292,7 @@ def lists_main(argv):
     ap.add_argument("--paste-pack", type=int, metavar="N", help="N scenarios as ready-to-paste chat messages")
     ap.add_argument("--paste-read", metavar="FOLDER", nargs="?", const="", help="read the reply_KK.txt files")
     ap.add_argument("--teacher", metavar="NAME/MODEL", help="--paste-read: who answered, e.g. chatgpt/gpt-5")
+    ap.add_argument("--train", action="store_true", help="train the list student -> models/list_student/")
     args = ap.parse_args(argv)
     os.environ["RETINA_STORE"] = "retina_supercenter"           # scenarios come from the RETINA Supercenter
     from retina.student import listplan as L
@@ -303,7 +304,10 @@ def lists_main(argv):
         L.paste_pack(args.paste_pack)
     if args.paste_read is not None:
         L.paste_read(args.teacher, args.paste_read or L.PASTE_DIR)
-    if args.status or not (args.pool or args.collect or args.paste_pack or args.paste_read is not None):
+    if args.train:
+        from retina.student.listtrain import train
+        train()
+    if args.status or not (args.pool or args.collect or args.paste_pack or args.paste_read is not None or args.train):
         L.status()
 
 

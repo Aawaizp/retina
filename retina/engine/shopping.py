@@ -330,7 +330,8 @@ def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_po
         record(day, s, "MOVE_TO_DEPARTMENT", department=floor.aisle_dept[stop],
                aisle=floor.aisle_names[stop], stop=k)
         for i in items_at[k]:
-            wanted, route, switched, together, u = plan[i]
+            wanted, route, switched, together, u = plan[i][:5]
+            want_qty = plan[i][5] if len(plan[i]) > 5 else None    # the list student says how many
             picks += 1
             aisle_name = store.aisle_of[wanted]
             record(day, s, "VIEW_PRODUCT", wanted, route=route, stop=k)
@@ -389,7 +390,18 @@ def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_po
             if together and product == wanted:
                 effects.append((s, product, "bought_together", 1))
             qty = 1
-            if promo[product]:
+            if want_qty and want_qty > 1:                          # planned quantity: what stock and budget allow
+                extra = min(want_qty - 1, int(inv.stock[product]))
+                if budget < np.inf and prices is not None:
+                    extra = min(extra, max(0, int((budget - spent) // max(prices[product], 0.01))))
+                if extra > 0:
+                    if prices is not None:
+                        spent += extra * prices[product]
+                    for _ in range(extra):
+                        take_unit(product, inv)
+                    basket[product] += extra
+                    qty += extra
+            elif promo[product]:
                 if switched and product == wanted:
                     effects.append((s, product, "brand_switch", 1))
                 extra = min(poisson_from_u(STOCKPILE_RATE * sens, u[10]), inv.stock[product])

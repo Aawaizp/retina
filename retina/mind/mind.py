@@ -28,6 +28,8 @@ from retina.mind.teacher import (LLMTeacher, FakeTeacher, npc_block, request_tok
 STREAM_MIND_ORDER = 10        # dice: the order options are shown in (no "A is always right" bias)
 STREAM_MIND_CHECK = 11        # dice: which routine buys get a sampled LLM check
 STREAM_MIND_STUDENT = 12      # dice: the student's draw from its probabilities (models with pick "draw")
+STREAM_MIND_LIST = 33         # dice: which candidates the list student puts on the list
+STREAM_MIND_LIST_ITEM = 34    # dice: each planned item's own fixed block (as make_list gives)
 CHECK_RATE = 0.05             # ESTIMATED: share of routine buys the teacher double-checks
 PRICE_UP = 1.05               # dearer than remembered by more than 5% = worth a thought (ESTIMATED)
 BATCH = 5                     # NPCs per LLM request
@@ -91,7 +93,8 @@ def role_of(card):
 
 class Mind:
     def __init__(self, sim, mode, run_dir, panel_size=PANEL, provider="auto", model=None,
-                 cache_file=CACHE_FILE, say=print, student="auto", student_dir=None, labels_file=None):
+                 cache_file=CACHE_FILE, say=print, student="auto", student_dir=None, labels_file=None,
+                 list_dir=None):
         if mode not in ("mix", "llm", "student"):
             raise ValueError(f"unknown mind '{mode}'")
         if student not in ("auto", "off", "only"):
@@ -108,6 +111,11 @@ class Mind:
             elif student == "only":
                 raise SystemExit("--student only / --mind student need a trained student: retina collect, "
                                  "then retina train.")
+        self.lister = None                                     # the list student plans lists (student runs)
+        if mode == "student":
+            from retina.student.listmodel import ListStudent, MODEL_DIR as LIST_DIR
+            if ListStudent.available(list_dir or LIST_DIR):
+                self.lister = ListStudent(list_dir or LIST_DIR)
         self.labels_file, self.labels = labels_file, None
         self.memory = MemoryStore(run_dir / "memory.sqlite")
         settings = self.memory.get("settings")
@@ -182,13 +190,16 @@ class Mind:
         Routine items go to autopilot; the rest of the whole batch goes to the teacher in ONE request."""
         sh = self.sim.shoppers
         out, rows, asking = {}, [], []
+        if self.lister is not None:                            # the NPC brain plans the list itself
+            for s, trip in trips.items():
+                self._plan_list(s, day, ctx, trip)
         for s, trip in trips.items():
             if self.mode == "student":                         # every NPC gets its role card (kept in memory)
                 self.roles.setdefault(s, role_of(self.card(s, day)))
             g = int(sh.sensitivity_group[s])
             prices, promo, table = ctx["prices_g"][g], ctx["promo_g"][g], ctx["tables"][g]
             decisions, items = {}, []
-            for k, (wanted, route, _, _, _) in enumerate(trip["plan"]):
+            for k, (wanted, route, *_) in enumerate(trip["plan"]):
                 aisle, options = self.options(s, k, day, int(wanted), table, prices, promo, ctx["regular"])
                 trigger = self.route(s, k, day, int(wanted), route, options, prices) if options else None
                 row = {"day": day, "hour": ctx["hour"][s], "npc": int(s), "item": k, "aisle": aisle,
@@ -226,6 +237,26 @@ class Mind:
         self.memory.add_decisions([r for r, _, _ in rows])
         self.today.setdefault("rows", []).extend(r for r, _, _ in rows)
         return out
+
+    def _plan_list(self, s, day, ctx, trip):
+        """Replace the habit-rule list by the list student's: products and quantities from the NPC's
+        scenario (same candidates as the teachers saw). Routes keep the engine's meaning."""
+        from retina.student.features import npc_numbers
+        from retina.student.listplan import STREAM_LIST, candidates
+        sh = self.sim.shoppers
+        g = int(sh.sensitivity_group[s])
+        cands = candidates(self.sim, s, day, ctx["prices_g"][g], ctx["regular"], ctx["promo_g"][g],
+                           stream(STREAM_LIST, day, s))
+        last = sh.last_trip_day[s]
+        budget = trip["budget"] if np.isfinite(trip["budget"]) else None
+        scenario = {"candidates": cands, "npc_x": npc_numbers(sh, s), "usual_items": float(sh.basket_mean[s]),
+                    "since": int(day - last) if last >= 0 else None, "budget": budget}
+        plan = []
+        for k, (c, qty) in enumerate(self.lister.plan(scenario, stream(STREAM_MIND_LIST, day, s))):
+            route = ("need" if c["ran_out"] else "repeat") if c["source"] == "usual" else                 "partner" if c["source"] == "goes with" else "new"
+            plan.append((c["product"], route, False, route == "partner",
+                         stream(STREAM_MIND_LIST_ITEM, day, s, k).random(11), qty))
+        trip.update(plan=plan, planned=len(plan), list_by="list student")
 
     def _student_pick(self, s, route, mission, options, wanted, rng=None):
         """The student's decision when it is sure enough (or always with --student only), else None."""

@@ -32,6 +32,34 @@ def test_candidates_are_real_and_from_the_npcs_state():
     assert [x["product"] for x in again] == [x["product"] for x in c]          # same dice, same scenario
 
 
+def test_list_student_trains_exports_and_plans_npc_lists(pool, tmp_path):
+    from retina.engine.config import stream as dice
+    from retina.mind.mind import Mind
+    from retina.student.listmodel import ListStudent
+    from retina.student.listtrain import train
+    labels = L.ListLabels(tmp_path / "labels.sqlite")
+    big = L.build_pool(tmp_path / "pool2.jsonl.gz", days=(14, 21, 28), npcs=60, say=lambda *a: None)
+    L.collect(len(big), provider="fake", labels=labels, pool=big, say=lambda *a: None)
+    meta = train(labels.rows(), big, out=tmp_path / "model", say=lambda *a: None, min_lists=30)
+    assert meta["test"]["auc"] > 0.9 and abs(meta["test"]["student"]["items_per_list"] -
+                                              meta["test"]["teacher"]["items_per_list"]) < 3
+    ls = ListStudent(tmp_path / "model")                               # ONNX: same choices for the same dice
+    a = [(c["product"], q) for c, q in ls.plan(big[0], dice(1, 2, 3))]
+    assert a == [(c["product"], q) for c, q in ls.plan(big[0], dice(1, 2, 3))] and all(1 <= q <= 6 for _, q in a)
+    sim = Simulation(verbose=False)                                    # the NPC's list, planned by the mind
+    while sim.day < 14:
+        sim.run_day()
+    prices, regular, promo, _ = shelf_prices(14, sim.store, sim.book, sim.iv, SENSITIVITY_GROUPS)
+    m = Mind.__new__(Mind)
+    m.sim, m.lister = sim, ls
+    trip = {"budget": float("inf"), "plan": []}
+    s = next(s for s in range(len(sim.shoppers.shopper_id)) if len(sim.shoppers.counts[s] or {}) >= 5)
+    m._plan_list(s, 14, {"prices_g": prices, "regular": regular, "promo_g": promo}, trip)
+    assert trip["list_by"] == "list student" and len(trip["plan"]) == trip["planned"]
+    assert all(len(item) == 6 and 1 <= item[5] <= 6 and item[1] in ("need", "repeat", "partner", "new")
+               for item in trip["plan"])
+
+
 def test_reply_is_checked(pool):
     group = pool[:2]
     a, b = group[0]["candidates"], group[1]["candidates"]

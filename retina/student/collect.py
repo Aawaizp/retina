@@ -85,7 +85,7 @@ def build_pool(path=None, days=POOL_DAYS, panel=POOL_PANEL, say=print):
             trip = make_list(s, day, sim.store, sh, sim.tables, promo_g[g], stream(STREAM_COLLECT, day, s), prices_g[g])
             facts = npc_facts(sim, s)
             items = []
-            for k, (wanted, route, _, _, _) in enumerate(trip["plan"]):
+            for k, (wanted, route, *_) in enumerate(trip["plan"]):
                 aisle, options = build_options(sim, s, k, day, int(wanted), sim.tables[g], prices_g[g], promo_g[g],
                                                regular, order_key=(STREAM_COLLECT_ORDER, day, s, k))
                 if len(options) < 2:
