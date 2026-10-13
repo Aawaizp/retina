@@ -15,6 +15,7 @@ from retina.mind.teacher import MAX_REQUEST_TOKENS
 # ESTIMATED prompt sizes (tokens) from the prompt layout in teacher.py; first real Groq run (12 Oct 2026):
 # 2 requests, 70 items, 14,349 tokens = ~205 per item - these give ~205 per item, so they agree
 TOKENS = {"fixed": 230, "per_npc": 110, "per_item": 30, "per_option": 28, "reply_per_item": 35}
+SECONDS_PER_TRIP = 0.013      # --mind student: 7 supermarket days, 1,327 trips in ~16 s (14 Oct 2026, ESTIMATED)
 TEACH_SHARE_PRIOR = 0.8       # share of a thinking NPC's items sent to the teacher in mix mode
                               # (ESTIMATED from a 3-day supermarket run: 111 of 138; "new on the list" dominates)
 
@@ -22,6 +23,11 @@ TEACH_SHARE_PRIOR = 0.8       # share of a thinking NPC's items sent to the teac
 def attach(sim, mode, run_dir, panel, provider, model, student="auto"):
     mind = Mind(sim, mode, run_dir, panel, provider, model, student=student)
     who = f"panel of {len(mind.panel)} thinking NPCs" if mind.mode == "mix" else "every NPC thinks"
+    if mind.mode == "student":
+        m = mind.student.meta
+        print(f"Mind: student (every NPC decides with the student model {m['model']}, {m['version']}; "
+              f"routine buys on autopilot; no LLM at all)")
+        return mind
     if mind.student is not None:
         m = mind.student.meta
         stu = (f"student {m['model']} decides ALL non-routine choices (no LLM)" if mind.student_only else
@@ -39,7 +45,7 @@ def estimate(sim, days):
     trips = sum(traffic.expected_npcs(d) for d in range(start, start + days)) if traffic.enabled() else \
         float(np.isin(sh.next_visit_day, range(start, start + days)).sum())
     pool = len(sh.shopper_id)
-    ids = np.arange(pool) if mind.mode == "llm" else np.array(sorted(mind.panel))
+    ids = np.arange(pool) if mind.mode in ("llm", "student") else np.array(sorted(mind.panel))
     thinking_trips = trips * len(ids) / pool
     items = float(sh.basket_mean[ids].mean())
     past = mind.memory.decisions()
@@ -89,6 +95,10 @@ def check_estimate(sim, days, yes):
           f"~{e['teach']:,.0f} for the LLM teacher ({e['share']:.0%}, {e['share_source']})")
     print(f"  ~{e['calls']:,} LLM requests (up to {BATCH} NPCs each), ~{e['tokens']:,} tokens. "
           f"Cached answers (reruns) cost nothing.")
+    if mind.mode == "student":
+        print(f"  No LLM. Time ESTIMATED from a 7-day supermarket run (~{SECONDS_PER_TRIP * 1000:.1f} s per 1,000 "
+              f"trips): ~{max(1, round(e['trips'] * SECONDS_PER_TRIP / 60))} min.")
+        return True
     if mind.mode == "llm":
         print("  WARNING: --mind llm sends EVERY choice of EVERY NPC to the LLM. Meant for small runs only "
               "(a few days, a small store); free tiers run out fast.")

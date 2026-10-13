@@ -71,6 +71,16 @@ plays each day and then loads the next one by itself.
 
 ## Thinking NPCs (v2)
 
+**Make data with the student model** - every NPC decides at the shelf with the trained student
+(routine buys on autopilot; the store itself - traffic, prices, stock, checkout - is the engine).
+No LLM, no key, no cost; choose how much data:
+
+```powershell
+retina --mind student --period 1m        # 1w, 2w, 1m, 3m, 6m or 1y (a year: ~15 min for the supermarket)
+retina --mind student --period 1y --store convenience --reset
+retina --mind student --report           # what the student shoppers did
+```
+
 ```powershell
 retina --store supermarket --mind mix --days 10    # a panel of 50 NPCs think; the rest is the engine
 retina --store supermarket --mind mix --report     # LLM panel vs engine crowd

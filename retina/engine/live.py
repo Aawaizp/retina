@@ -41,6 +41,9 @@ LIVE_DIR = ROOT / "data" / "live" / PROFILE["id"]
 STATE = LIVE_DIR / "state.pkl"
 
 
+PERIODS = {"1w": 7, "2w": 14, "1m": 30, "3m": 91, "6m": 182, "1y": 365}
+
+
 def use_run_dir(mind):
     """fast runs keep data/live/<store>/; thinking runs get their own folder (<store>_mix, <store>_llm),
     and uploaded products too (<store>+<upload tag>), so different data never mixes in one file."""
@@ -78,7 +81,7 @@ def open_store(scale, per_week):
 
 
 def load_store():
-    mind = next((m for m in ("mix", "llm") if LIVE_DIR.name.endswith(f"_{m}")), "fast")
+    mind = next((m for m in ("mix", "llm", "student") if LIVE_DIR.name.endswith(f"_{m}")), "fast")
     products = " --products <your file>" if config.CATALOG_TAG else ""
     reset = (f"This saved store was made by an older RETINA version. Start a new one: "
              f"retina --store {PROFILE['id']}{products} --mind {mind} --reset")
@@ -195,8 +198,11 @@ def main(argv=None):
     ap.add_argument("--per-week", type=int, help="new store only: real shoppers a week")
     ap.add_argument("--view", action="store_true", help="write view.html: the NPCs walking, day by day")
     ap.add_argument("--wait", type=float, default=0, help="seconds to wait between days (to watch --view)")
-    ap.add_argument("--mind", choices=("fast", "mix", "llm"), default="fast",
-                    help="fast = engine only; mix = a panel of thinking NPCs; llm = every NPC thinks (small runs)")
+    ap.add_argument("--mind", choices=("fast", "student", "mix", "llm"), default="fast",
+                    help="fast = engine only; student = EVERY NPC decides with the trained student (no LLM); "
+                         "mix = a panel of thinking NPCs; llm = every NPC asks the LLM (small runs)")
+    ap.add_argument("--period", choices=tuple(PERIODS), help="how much data: " + ", ".join(
+        f"{k} = {v} days" for k, v in PERIODS.items()) + " (instead of --days)")
     ap.add_argument("--panel", type=int, default=50, help="new mix run only: thinking NPCs (default 50)")
     ap.add_argument("--provider", default="auto", help="LLM teacher: auto (chain), groq, gemini, ollama, cerebras, "
                                                        "or fake (fixed rules, no LLM - for tests)")
@@ -206,6 +212,8 @@ def main(argv=None):
     ap.add_argument("--student", choices=("auto", "off", "only"), default="auto",
                     help="mix runs: auto = a trained student decides when sure; off; only = student, no LLM")
     args = ap.parse_args(argv)
+    if args.period:
+        args.days = PERIODS[args.period]
     use_run_dir(args.mind)
 
     if args.reset and LIVE_DIR.exists():
@@ -227,7 +235,7 @@ def main(argv=None):
         return
     if args.report:
         if args.mind == "fast":
-            raise SystemExit("--report is for thinking runs (--mind mix or --mind llm).")
+            raise SystemExit("--report is for thinking runs (--mind student, mix or llm).")
         mind_run.finish(sim.mind, LIVE_DIR)
         return
 

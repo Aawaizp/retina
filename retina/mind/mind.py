@@ -84,19 +84,22 @@ def build_options(sim, s, k, day, wanted, table, prices, promo, regular, recall=
 class Mind:
     def __init__(self, sim, mode, run_dir, panel_size=PANEL, provider="auto", model=None,
                  cache_file=CACHE_FILE, say=print, student="auto", student_dir=None, labels_file=None):
-        if mode not in ("mix", "llm"):
+        if mode not in ("mix", "llm", "student"):
             raise ValueError(f"unknown mind '{mode}'")
         if student not in ("auto", "off", "only"):
             raise ValueError("student must be auto, off or only")
         self.sim, self.say = sim, say
+        if mode == "student":                                  # every NPC, the student only, never an LLM
+            student = "only"
         self.student, self.student_only = None, student == "only"
-        if mode == "mix" and student != "off":
+        if mode in ("mix", "student") and student != "off":
             from retina.student.model import Student, MODEL_DIR
             folder = student_dir or MODEL_DIR
             if Student.available(folder):
                 self.student = Student(folder)
             elif student == "only":
-                raise SystemExit("--student only needs a trained student: retina collect, then retina train.")
+                raise SystemExit("--student only / --mind student need a trained student: retina collect, "
+                                 "then retina train.")
         self.labels_file, self.labels = labels_file, None
         self.memory = MemoryStore(run_dir / "memory.sqlite")
         settings = self.memory.get("settings")
@@ -121,7 +124,7 @@ class Mind:
 
     # ---------------------------------------------------------------- who
     def thinks(self, s):
-        return self.mode == "llm" or s in self.panel
+        return self.mode in ("llm", "student") or s in self.panel
 
     def card(self, s, day):
         """The NPC's card: written once (facts on the day they join), read every trip after."""

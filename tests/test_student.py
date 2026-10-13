@@ -94,6 +94,43 @@ def test_student_choices_are_what_the_shopper_buys(trained, tmp_path):
     sim.mind.close()
 
 
+def student_run(folder, run_dir, days):
+    sim = Simulation(verbose=False)
+    sim.mind = M.Mind(sim, "student", run_dir, cache_file=run_dir / "c.sqlite", say=lambda *a: None,
+                      student_dir=folder / "model")
+    sim.mind.teacher = None                                           # any LLM call would crash
+    sales = []
+    for _ in range(days):
+        day = sim.day
+        sales.append(sim.run_day()[0])
+        sim.mind.end_day(day)
+    d = pd.DataFrame(sim.mind.memory.decisions())
+    sim.mind.close()
+    return pd.concat(sales), d
+
+
+def test_mind_student_every_npc_decides_without_llm(trained, tmp_path):
+    folder, _, _, _ = trained
+    sales, d = student_run(folder, tmp_path / "a", 3)
+    assert set(sales["mind"]) <= {"autopilot", "student", "engine"} and (sales["mind"] == "student").any()
+    assert (sales["mind"] != "engine").mean() > 0.9                   # nearly every line: a thinking NPC decided
+    assert set(d["mind"]) <= {"autopilot", "student", "engine"}       # never an LLM
+    again, _ = student_run(folder, tmp_path / "b", 3)
+    assert sales.reset_index(drop=True).equals(again.reset_index(drop=True))   # same seed, same data
+
+
+def test_period_choices_and_sold_out_options_left_out_of_the_price_measure():
+    from retina.cli import PERIODS, build_parser
+    from retina.mind.report import option_sets
+    assert PERIODS == {"1w": 7, "2w": 14, "1m": 30, "3m": 91, "6m": 182, "1y": 365}
+    assert build_parser().parse_args(["--period", "1y", "--mind", "student"]).period == "1y"
+    opt = lambda p, price, stock: {"product": p, "price": price, "regular": 2.0, "times": 0, "w": 1.0, "pop": 1.0,
+                                   "in_stock": stock}
+    sets, _ = option_sets([{"mind": "student", "product": 1, "options": [opt(1, 2.0, True), opt(2, 1.0, False),
+                                                                         opt(3, 2.2, True)]}])
+    assert len(sets) == 1 and len(sets[0][0]) == 2                    # the sold-out deal is not an option
+
+
 class Never:
     name, offline, calls = "never", False, 0
 

@@ -8,7 +8,8 @@ process - one run at a time. Endpoints:
   GET  /health                      is it up
   GET  /stores                      the store formats
   GET  /runs                        runs in data/live (days done, files)
-  POST /runs                        start: {"store": "supermarket", "days": 3, "mind": "fast"|"mix", "student": "auto"|"off"|"only"}
+  POST /runs                        start: {"store": "supermarket", "days": 3 or "period": "1w"|"1m"|"3m"|"6m"|"1y",
+                                     "mind": "fast"|"student"|"mix", "student": "auto"|"off"|"only"}
   GET  /runs/current                the run in progress (and its last output lines)
   GET  /runs/{name}/report          the thinking-run report (report.txt)
   GET  /runs/{name}/files/{file}    download receipts.csv, trips.csv, ... of a run
@@ -23,7 +24,7 @@ import sys
 import threading
 from collections import deque
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse
@@ -45,7 +46,8 @@ def live_root():
 class RunRequest(BaseModel):
     store: Literal["supermarket", "supercenter", "neighborhood", "convenience"] = "supermarket"
     days: int = Field(1, ge=1, le=365)
-    mind: Literal["fast", "mix"] = "fast"
+    period: Optional[Literal["1w", "2w", "1m", "3m", "6m", "1y"]] = None     # instead of days
+    mind: Literal["fast", "student", "mix"] = "fast"
     student: Literal["auto", "off", "only"] = "auto"
     reset: bool = False
 
@@ -64,7 +66,8 @@ class Runner:
         with self.lock:
             if self.busy():
                 raise HTTPException(409, "A run is already going - wait for it (GET /runs/current).")
-            args = [sys.executable, "-m", "retina", "--store", req.store, "--days", str(req.days), "--mind", req.mind,
+            how_much = ["--period", req.period] if req.period else ["--days", str(req.days)]
+            args = [sys.executable, "-m", "retina", "--store", req.store, *how_much, "--mind", req.mind,
                     "--student", req.student, "--yes"] + (["--reset"] if req.reset else [])
             self.lines.clear()
             self.request = req.model_dump()

@@ -44,7 +44,8 @@ from retina import __version__
 ROOT = Path(__file__).resolve().parent.parent
 STORES_DIR = ROOT / "stores"
 ALIASES = {"supermarket": "generic_supermarket", "neighborhood": "neighborhood_market"}   # short names
-MINDS = ("fast", "llm", "mix")
+MINDS = ("fast", "student", "mix", "llm")
+PERIODS = {"1w": 7, "2w": 14, "1m": 30, "3m": 91, "6m": 182, "1y": 365}
 
 
 def store_ids():
@@ -75,8 +76,11 @@ def build_parser():
     ap.add_argument("--store", default=os.environ.get("RETINA_STORE", "generic_supermarket"),
                     help="supermarket (default), supercenter, neighborhood, convenience (or a full id)")
     ap.add_argument("--days", type=int, default=1, help="how many days to simulate now (default 1)")
+    ap.add_argument("--period", choices=tuple(PERIODS), help="how much data: " + ", ".join(
+        f"{k} = {v} days" for k, v in PERIODS.items()) + " (instead of --days)")
     ap.add_argument("--mind", choices=MINDS, default="fast",
-                    help="fast = engine only (default); mix = panel of thinking NPCs; llm = every NPC (small runs)")
+                    help="fast = engine only (default); student = EVERY NPC decides with the trained student "
+                         "(no LLM); mix = panel of thinking NPCs; llm = every NPC asks the LLM (small runs)")
     ap.add_argument("--panel", type=int, default=50, help="new mix run only: how many NPCs think (default 50)")
     ap.add_argument("--provider", default="auto",
                     help="LLM teacher: auto (Groq -> Gemini -> Ollama), groq, gemini, ollama, cerebras, "
@@ -310,6 +314,8 @@ def main(argv=None):
         commands[argv[0]](argv[1:])
         return
     args = build_parser().parse_args(argv)
+    if args.period:
+        args.days = PERIODS[args.period]
     if args.stores:
         list_stores()
         return

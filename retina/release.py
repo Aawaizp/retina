@@ -5,7 +5,7 @@
 
 For each store format (engine mind): `retina export` (Parquet + CSV, data card, dictionary, scorecard,
 checks), zipped. When a trained student model exists (models/student/), one more dataset: the
-supermarket with a panel of 50 thinking NPCs decided by the student - no LLM call at all.
+supermarket where EVERY NPC decides with the student model (--mind student) - no LLM call at all.
 Everything is built in a temporary folder and only the finished files land in dist/<version>/:
   retina_<store>_<version>.zip ...     the datasets
   manifest.json                        files, sizes, sha256, rows per table, scorecard, how it was built
@@ -103,12 +103,14 @@ def add_card_note(folder, notes):
 def student_card(folder, version, days, notes):
     (Path(folder) / "DATASET_CARD.md").write_text("\n".join([
         f"# RETINA thinking-NPC sample - {version}", "",
-        "**SIMULATED** supermarket data where a panel of 50 NPCs decide at the shelf with the RETINA student "
-        "model (a small model trained to copy an LLM teacher's choices); everyone else shops with the "
-        "statistical engine. No LLM was called to make this data.", "",
+        "**SIMULATED** supermarket data where EVERY NPC decides at the shelf with the RETINA student model "
+        "(a small model trained on the choices of several LLM shoppers, balanced by model family); routine "
+        "buys go on autopilot. The store itself (traffic, prices, stock, checkout) is the statistical engine. "
+        "No LLM was called to make this data.", "",
         f"- {days} days, generic supermarket format; files: receipts, trips, stockouts, hourly, decisions "
         "(every thinking-NPC choice with its options and who decided: autopilot / student / engine), report.",
-        "- `mind` column on receipts: engine, autopilot, student. `why_type` / `why`: the reason category.",
+        "- `mind` column on receipts: autopilot, student (engine = nothing choosable, e.g. all sold out). "
+        "`why_type` / `why`: the reason category.",
         "- The student's own quality and limits: see its model card in the repository (models/student/MODEL_CARD.md).",
         *[f"- {n}" for n in notes], ""]), encoding="utf-8")
 
@@ -139,9 +141,9 @@ def release(version, days=None, stores=None, out=None, realism=False, student=Tr
         if student and STUDENT.exists() and "generic_supermarket" in stores:
             name = f"retina_student_supermarket_{version}"
             say(f"Building {name} (student model, no LLM)...")
-            run(["--store", "supermarket", "--mind", "mix", "--student", "only", "--days", str(days or 365),
-                 "--reset", "--yes"], env, say)
-            run_dir = tmp / "live" / "generic_supermarket_mix"
+            run(["--store", "supermarket", "--mind", "student", "--days", str(days or 365), "--reset", "--yes"],
+                env, say)
+            run_dir = tmp / "live" / "generic_supermarket_student"
             folder = tmp / name
             folder.mkdir()
             for f in LIVE_FILES:

@@ -62,6 +62,7 @@ def option_sets(decisions):
     llm_sets, engine_sets = [], []
     for d in decisions:
         opts = json.loads(d["options"]) if isinstance(d["options"], str) else d["options"]
+        opts = [o for o in opts if o.get("in_stock", True)]     # a sold-out option could not be picked:
         if d["mind"] not in ("llm", "student") or d["product"] is None or d["product"] < 0 or len(opts) < 2:
             continue
         price = np.maximum([o["price"] for o in opts], 0.01)
@@ -110,6 +111,9 @@ def build_report(mind, run_dir):
         lines.append(f"{name:<16}{s['trips']:>7,}{s['lines']:>8,}{s['repeat_share']:>8.0%}{s['deal_share']:>7.0%}"
                      f"{s['items_per_trip']:>11.1f}{s['spend_per_trip']:>8.2f}")
     lines.append(f"  repeat = product bought before (real {REAL['repeat_share']}); deals = lines on promotion")
+    if mind.mode == "student":
+        lines.append("  (--mind student: every NPC decides with the student, so there is no engine crowd here - "
+                     "compare with a fast run)")
     if mind.mode == "llm":
         lines.append("  (--mind llm: every NPC thinks, so there is no engine crowd here - compare with a fast run)")
     if len(d):
