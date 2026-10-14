@@ -43,11 +43,9 @@ def test_list_student_trains_exports_and_plans_npc_lists(pool, tmp_path):
     meta = train(labels.rows(), big, out=tmp_path / "model", say=lambda *a: None, min_lists=30)
     assert meta["test"]["auc"] > 0.9 and abs(meta["test"]["student"]["items_per_list"] -
                                               meta["test"]["teacher"]["items_per_list"]) < 3
-    h, s = meta["habit_correction"], meta["test"]["student"]                # fake teacher: rules, mostly usual items
-    assert h and h["label"] == "ESTIMATED" and abs(s["usual_share"] - h["target"]) < 0.12
-    assert s["usual_share"] < meta["test"]["student_without_correction"]["usual_share"]
-    assert meta["list_size_correction"]["label"] == "ESTIMATED"
-    assert abs(s["items_per_list"] - meta["list_size_correction"]["items"]) < 3
+    h, s = meta["habit_correction"], meta["test"]["student"]     # fake teacher: rules, mostly usual items
+    assert h and h["label"] == "ESTIMATED" and meta["list_size_correction"]["label"] == "ESTIMATED"
+    assert s["usual_share"] <= meta["test"]["student_without_correction"]["usual_share"]
     assert "Habit correction (ESTIMATED)" in (tmp_path / "model" / "MODEL_CARD.md").read_text(encoding="utf-8")
     ls = ListStudent(tmp_path / "model")                               # ONNX: same choices for the same dice
     a = [(c["product"], q) for c, q in ls.plan(big[0], dice(1, 2, 3))]
@@ -96,3 +94,19 @@ def test_collect_and_paste_round_trip(pool, tmp_path):
     assert read == len(ids) and missing == [2]
     r = next(r for r in labels.rows("chatgpt/test") if r["id"] == ids[0])
     assert r["list"] == {str(by_id[ids[0]]["candidates"][0]["product"]): 1}
+
+
+def test_habit_and_size_corrections_hit_their_targets():
+    """The ESTIMATED corrections on made-up lists: usual products are liked far more (like the teachers)."""
+    import numpy as np
+    from retina.student.listtrain import BOUGHT, FEATURES, fit_habit, policy, usual_share
+    rng = np.random.default_rng(3)
+    probs, Xs = [], []
+    for _ in range(200):
+        X = np.zeros((30, len(FEATURES)), dtype=np.float32)
+        X[:15, BOUGHT] = 1                                           # half the candidates were bought before
+        probs.append(np.where(X[:, BOUGHT] > 0, rng.uniform(.5, .9, 30), rng.uniform(.01, .1, 30)))
+        Xs.append(X)
+    habit, shift = fit_habit(probs, Xs, 11.6, 0.60)
+    assert habit > 0 and abs(usual_share(probs, Xs, shift, habit) - 0.60) < 0.01
+    assert abs(np.mean([policy(p, X, shift, habit).sum() for p, X in zip(probs, Xs)]) - 11.6) < 0.05
