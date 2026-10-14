@@ -42,8 +42,8 @@ def test_list_student_trains_exports_and_plans_npc_lists(pool, tmp_path):
     big = L.build_pool(tmp_path / "pool2.jsonl.gz", days=(14, 21, 28), npcs=60, say=lambda *a: None)
     L.collect(len(big), provider="fake", labels=labels, pool=big, say=lambda *a: None)
     meta = train(labels.rows(), big, out=tmp_path / "model", say=lambda *a: None, min_lists=30, calibration=big)
-    assert meta["test"]["auc"] > 0.9 and abs(meta["test"]["student"]["items_per_list"] -
-                                              meta["test"]["teacher"]["items_per_list"]) < 3
+    assert meta["test"]["auc"] > 0.9 and abs(meta["test"]["student"]["items_per_list"] -     # real-size lists,
+                                              meta["list_size_correction"]["items"]) < 3      # not the teachers'
     h, s = meta["habit_correction"], meta["test"]["student"]     # fake teacher: rules, mostly usual items
     assert h and h["label"] == "ESTIMATED" and meta["list_size_correction"]["label"] == "ESTIMATED"
     assert s["usual_share"] <= meta["test"]["student_without_correction"]["usual_share"]
