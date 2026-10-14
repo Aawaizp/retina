@@ -177,6 +177,9 @@ def build(run_dir, sim, say=print):
     for c in ("gross_sales", "discount", "net_sales", "gross_profit"):
         baskets[c] = baskets[c].round(2)
     baskets = baskets.rename(columns={"discount": "discount_amount", "promo_units": "lines_on_promotion"})
+    if "list_planned_by" in t:                                   # student runs: who wrote the shopping list
+        baskets["list_planned_by"] = baskets["transaction_id"].map(
+            t.set_index("trip_id")["list_planned_by"]).fillna("store rule")
     baskets["data_label"] = "SIMULATED"
 
     # 3. daily_product_sales: product x day with sales or lost demand
@@ -341,6 +344,7 @@ COLUMNS = {
     "decided_by": "who chose the product: student model (the thinking NPC), autopilot, LLM, or a store rule",
     "minutes_in_store": "time in the store", "checkout_wait_min": "waiting time at the till",
     "trip_type": "top_up / routine / stock_up", "lines": "different products on the receipt",
+    "list_planned_by": "who wrote the shopping list: list student (the NPC brain) or a store rule (student runs only)",
     "units": "units on the receipt", "lines_on_promotion": "receipt lines on promotion",
     "units_sold": "units sold", "transactions": "receipts", "avg_unit_price": "average price paid",
     "lost_sales_units": "units customers wanted but the shelf was empty and they bought nothing instead",

@@ -11,10 +11,11 @@ Split by NPC (test NPCs never seen). Checks on the test NPCs, next to the teache
   list size (items per list), share of usual products (re-buys; real Instacart ~60%),
   share of deals, share of products that ran out, AUC and agreement (F1) with the teachers.
 Runtime policy: each candidate is DRAWN with its probability (seeded dice) - a real shopper does not
-write the same list every week - after a shift fitted on validation so the average list size matches
-the teachers' (bias_shift in list_student.json). ESTIMATED habit correction: the teachers' lists are ~90%
+write the same list every week - after a shift (bias_shift in list_student.json) that sets the average
+list size: ESTIMATED from real baskets (Instacart ~10.1 products / the share of planned items bought here),
+not the teachers' longer lists. ESTIMATED habit correction: the teachers' lists are ~90%
 usual products against a real ~60%, so one extra term lowers the logit of products bought before; it is
-tuned (with its own shift, list size kept) on training + validation NPCs and checked on the test NPCs.
+tuned (with its own shift, list size kept) on all pool scenarios of non-test NPCs, checked on the test NPCs.
 
   retina lists --train          -> models/list_student/ (list_student.onnx, list_qty.onnx, json, card)
 """
@@ -38,6 +39,9 @@ FEATURES = ["price_log", "price_vs_list", "price_vs_budget", "deal", "off", "bou
            ["sensitivity", "household", "kids", "income", "budget_log", "rebuy_rate", "usual_items", "since",
             "n_ran_out", "n_candidates"]
 REAL_REPEAT = 0.60                     # Instacart reorder rate (PUBLIC_STATISTIC)
+REAL_LINES = 10.09                     # Instacart products per order (PUBLIC_STATISTIC, instacart_aisle_stats.csv)
+PLAN_FILL = 0.871                      # bought lines per planned item (stock-outs, budget): 1-month student run, 14 Oct
+LIST_SIZE = round(REAL_LINES / PLAN_FILL, 2)   # ESTIMATED list size that gives real-size baskets (~11.6)
 
 
 def split_of(npc):
@@ -151,7 +155,8 @@ def fit_habit(probs, Xs, size, target):
     return habit, fit_shift(probs, Xs, size, habit)
 
 
-def train(labels=None, pool=None, out=MODEL_DIR, say=print, min_lists=60, seed=7, habit_target=REAL_REPEAT):
+def train(labels=None, pool=None, out=MODEL_DIR, say=print, min_lists=60, seed=7, habit_target=REAL_REPEAT,
+          size_target=LIST_SIZE):
     import lightgbm as lgb
     from sklearn.metrics import f1_score, roc_auc_score
     labels = labels if labels is not None else ListLabels().rows()
@@ -176,11 +181,12 @@ def train(labels=None, pool=None, out=MODEL_DIR, say=print, min_lists=60, seed=7
     teacher_size = float(np.mean([s["y"].sum() for s in parts["train"] + parts["val"]]))
     p_val = [buy.predict_proba(s["X"])[:, 1] for s in parts["val"]]
     raw_shift = fit_shift(p_val, [s["X"] for s in parts["val"]], teacher_size)
-    habit, shift = 0.0, raw_shift
-    if habit_target is not None:                     # tuned on training + validation NPCs, no answers used
-        calib = parts["train"] + parts["val"]
-        habit, shift = fit_habit([buy.predict_proba(s["X"])[:, 1] for s in calib], [s["X"] for s in calib],
-                                 teacher_size, habit_target)
+    size = size_target or teacher_size               # ESTIMATED: real basket size, not the teachers' list size
+    test_npcs = {s["npc"] for s in parts["test"]}    # tuned on ALL pool scenarios of non-test NPCs (days 14-91,
+    X_cal = [scenario_matrix(t, rebuy) for t in pool   # labelled or not): no teacher answer is used
+             if t["candidates"] and t["npc"] not in test_npcs and split_of(t["npc"]) != "test"]
+    p_cal = [buy.predict_proba(X)[:, 1] for X in X_cal]
+    habit, shift = fit_habit(p_cal, X_cal, size, habit_target) if habit_target is not None else         (0.0, fit_shift(p_cal, X_cal, size))
 
     def drawn(p, X, rng, sh, hb):
         return (rng.random(len(p)) < policy(p, X, sh, hb)).astype(float)
@@ -203,6 +209,8 @@ def train(labels=None, pool=None, out=MODEL_DIR, say=print, min_lists=60, seed=7
         r = result[who]
         say(f"  {who:27} items/list {r['items_per_list']}, usual share {r['usual_share']}, deals {r['deal_share']}, "
             f"ran out {r['ran_out_share']}")
+    if size_target:
+        say(f"  list size (ESTIMATED): {size} items so baskets come to ~{REAL_LINES} products (Instacart)")
     if habit:
         say(f"  habit correction (ESTIMATED): {habit} -> usual share on test {result['student']['usual_share']} "
             f"(target {habit_target}, real Instacart re-buy rate)")
@@ -213,6 +221,10 @@ def train(labels=None, pool=None, out=MODEL_DIR, say=print, min_lists=60, seed=7
     meta = {"version": f"list-student-{date.today().isoformat()}", "features": FEATURES, "bias_shift": shift,
             "habit_correction": {"coef": habit, "target": habit_target, "label": "ESTIMATED",
                                  "target_source": "Instacart reorder rate (PUBLIC_STATISTIC)"} if habit else None,
+            "list_size_correction": {"items": size, "label": "ESTIMATED", "real_lines_per_basket": REAL_LINES,
+                                     "plan_fill": PLAN_FILL, "target_source": "Instacart products per order "
+                                     "(PUBLIC_STATISTIC) / bought-per-planned in a RETINA student run"}
+            if size_target else None,
             "teacher_items_per_list": round(teacher_size, 2), "labels": len(sets), "teachers": teachers,
             "prompt_versions": pd.Series([r.get("prompt_version", 1) for r in labels]).value_counts().to_dict(),
             "sets": {k: len(v) for k, v in parts.items()}, "test": result, "real_repeat_share": REAL_REPEAT,
@@ -247,9 +259,14 @@ def card(m):
     pct = lambda x: "-" if x is None else f"{x:.0%}"
     row = lambda name, v: (f"| {name} | {v['items_per_list']} | {pct(v['usual_share'])} | {pct(v['deal_share'])} | "
                            f"{pct(v['ran_out_share'])} |")
+    z = m.get("list_size_correction")
+    size_lines = [f"List size correction (ESTIMATED): the teachers wrote {m['teacher_items_per_list']} items per list; "
+                  f"real baskets have ~{z['real_lines_per_basket']} products (Instacart) and {z['plan_fill']:.0%} of "
+                  f"planned items get bought here, so bias_shift is fitted to {z['items']} planned items "
+                  f"(instead of the teachers' size).", ""] if z else []
     habit_lines = [f"Habit correction (ESTIMATED): the teachers put far more usual products on a list than real "
                    f"shoppers re-buy, so at run time each usual product's logit is lowered by {h['coef']} (tuned on "
-                   f"training + validation NPCs, list size kept) to bring the usual share to ~{h['target']:.0%} "
+                   f"all scenarios of non-test NPCs, list size kept) to bring the usual share to ~{h['target']:.0%} "
                    f"({h['target_source']}). Checked on the test NPCs above.", ""] if h else []
     return "\n".join([
         f"# RETINA list student - {m['version']}", "",
@@ -263,5 +280,4 @@ def card(m):
         row("list student (drawn, used in the store)", s), "",
         f"AUC {m['test']['auc']}, F1 with the teachers {m['test']['f1_with_teacher']}, quantity error (MAE) "
         f"{m['test']['qty_mae']}. Real re-buy share for comparison: ~{m['real_repeat_share']:.0%} (Instacart).", "",
-        f"Policy: {m['policy']}; bias_shift {m['bias_shift']} makes the average list size match the teachers' "
-        f"({m['teacher_items_per_list']}).", ""] + habit_lines)
+        f"Policy: {m['policy']}; bias_shift {m['bias_shift']} sets the average list size.", ""] + size_lines + habit_lines)

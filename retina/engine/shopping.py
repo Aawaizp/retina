@@ -424,7 +424,7 @@ def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_po
             lasts = HOME_FACTOR * store.product_cycle[product] * gap * qty * (0.5 + j)
             home[product] = max(home.get(product, -1), day + int(lasts))
     info = {"mission": trip_type, "routes": routes, "budget": budget, "spent": spent, "planned": n_items,
-            "minds": minds, "not_sold": trip.get("not_sold", [])}
+            "minds": minds, "not_sold": trip.get("not_sold", []), "list_by": trip.get("list_by")}
     return basket, misses, effects, walk, info
 
 
@@ -466,7 +466,7 @@ def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, table
         arrive[s] = hour * 60 + stream(STREAM_WALK, day, s).random() * 60
     order = sorted(visitors, key=lambda v: arrive[v])          # early shoppers find fuller shelves
 
-    rows, misses, effects, trips, chunks, not_sold_trips = [], [], [], [], {}, []
+    rows, misses, effects, trips, chunks, not_sold_trips, list_by = [], [], [], [], {}, [], []
     thinkers = [s for s in order if mind.thinks(s)] if mind is not None else []
     ready, ctx = {}, {"prices_g": prices_g, "regular": regular, "promo_g": promo_g, "tables": tables,
                       "hour": {s: int(arrive[s] // 60) for s in order}}
@@ -515,6 +515,7 @@ def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, table
                       len(walk.passed), items, len(basket), info["mission"], info["planned"],
                       round(min(info["budget"], 1e6), 2), round(info["spent"], 2)])
         not_sold_trips.append(info["not_sold"])
+        list_by.append(info.get("list_by"))
         if recording:
             chunk = RECORDER["events"][first:]
             del RECORDER["events"][first:]
@@ -538,6 +539,8 @@ def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, table
     if NOT_SOLD_HERE:                                          # custom store: wants it does not sell
         trips["not_sold_here"] = [len(x) for x in not_sold_trips]
         trips["not_sold_aisles"] = ["; ".join(x) for x in not_sold_trips]
+    if any(list_by):                                           # student runs: who planned each list
+        trips["list_planned_by"] = [b or "store rule" for b in list_by]
     if recording:
         add_trip_events(day, floor, trips, chunks)
 
