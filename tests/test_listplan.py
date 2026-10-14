@@ -3,6 +3,7 @@ answers checked, a paste pack round trip. Small store run, no LLM."""
 
 import json
 
+import numpy as np
 import pytest
 
 from retina.engine.engine import Simulation, shelf_prices
@@ -40,7 +41,7 @@ def test_list_student_trains_exports_and_plans_npc_lists(pool, tmp_path):
     labels = L.ListLabels(tmp_path / "labels.sqlite")
     big = L.build_pool(tmp_path / "pool2.jsonl.gz", days=(14, 21, 28), npcs=60, say=lambda *a: None)
     L.collect(len(big), provider="fake", labels=labels, pool=big, say=lambda *a: None)
-    meta = train(labels.rows(), big, out=tmp_path / "model", say=lambda *a: None, min_lists=30)
+    meta = train(labels.rows(), big, out=tmp_path / "model", say=lambda *a: None, min_lists=30, calibration=big)
     assert meta["test"]["auc"] > 0.9 and abs(meta["test"]["student"]["items_per_list"] -
                                               meta["test"]["teacher"]["items_per_list"]) < 3
     h, s = meta["habit_correction"], meta["test"]["student"]     # fake teacher: rules, mostly usual items
@@ -110,3 +111,17 @@ def test_habit_and_size_corrections_hit_their_targets():
     habit, shift = fit_habit(probs, Xs, 11.6, 0.60)
     assert habit > 0 and abs(usual_share(probs, Xs, shift, habit) - 0.60) < 0.01
     assert abs(np.mean([policy(p, X, shift, habit).sum() for p, X in zip(probs, Xs)]) - 11.6) < 0.05
+
+
+def test_calibration_uses_the_npcs_who_really_shop_today():
+    from retina.engine import traffic
+    sim = Simulation(verbose=False)
+    while sim.day < 14:
+        sim.run_day()
+    who = L.todays_shoppers(sim, 50)
+    due = sim.shoppers.next_visit_day
+    today = set(traffic.choose_visitors(14, due, traffic.npcs_today(14)).tolist()) if traffic.enabled() \
+        else set(np.flatnonzero(due == 14).tolist())
+    assert 0 < len(who) <= 50 and len(set(who)) == len(who) and set(who) <= today
+    c = L.scenarios(sim, (14,), 5, "c", who=L.todays_shoppers)
+    assert c and all(t["id"].startswith("c-") and t["npc"] in today for t in c)

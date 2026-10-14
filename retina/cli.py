@@ -286,6 +286,9 @@ def lists_main(argv):
     ap = argparse.ArgumentParser(prog="retina lists", description="Teacher shopping lists for the list student "
                                  "(RETINA Supercenter scenarios; paced; stops at 80% of the free day).")
     ap.add_argument("--pool", action="store_true", help="(re)build the scenario pool")
+    ap.add_argument("--calibration", action="store_true",
+                    help="build scenarios from a STUDENT-run store (91 days) to tune the list size + habit; "
+                         "then --train again")
     ap.add_argument("--collect", type=int, metavar="N", help="valid lists to reach from this teacher")
     ap.add_argument("--provider", choices=("gemini", "groq", "fake"), default="gemini")
     ap.add_argument("--status", action="store_true")
@@ -300,6 +303,8 @@ def lists_main(argv):
     from retina.student import listplan as L
     if args.pool:
         L.build_pool()
+    if args.calibration:
+        L.build_calibration()
     if args.collect:
         L.collect(args.collect, provider=args.provider, share=min(max(args.share, 0.1), 1.0))
     if args.paste_pack:
@@ -309,7 +314,7 @@ def lists_main(argv):
     if args.train:
         from retina.student.listtrain import train
         train()
-    if args.status or not (args.pool or args.collect or args.paste_pack or args.paste_read is not None or args.train):
+    if args.status or not (args.pool or args.calibration or args.collect or args.paste_pack or args.paste_read is not None or args.train):
         L.status()
 
 

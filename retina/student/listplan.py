@@ -36,6 +36,7 @@ from retina.student.labels import TEACHER_DIR
 
 LIST_DIR = TEACHER_DIR / "lists"
 POOL_FILE = LIST_DIR / "pool.jsonl.gz"
+CALIB_FILE = LIST_DIR / "calibration_student_run.jsonl.gz"   # scenarios from a STUDENT-run store (no labels)
 LABELS_FILE = LIST_DIR / "labels.sqlite"
 PASTE_DIR = LIST_DIR / "paste"
 POOL_DAYS = tuple(range(14, 92, 7))        # 12 days: NPCs have real habits by then
@@ -114,30 +115,69 @@ def candidates(sim, s, day, prices, regular, promo, rng):
 
 def build_pool(path=POOL_FILE, days=POOL_DAYS, npcs=POOL_NPCS, say=print):
     """Scenarios from a running RETINA store (deterministic: same seed -> same pool)."""
-    from retina.engine.engine import Simulation, shelf_prices
-    from retina.engine.personas import npc_facts, template_persona, varied_sample
+    from retina.engine.engine import Simulation
     say(f"Building the list-scenario pool: {PROFILE['name']}, {len(days)} days x {npcs} NPCs...")
-    sim = Simulation(verbose=False)
+    return save_scenarios(scenarios(Simulation(verbose=False), days, npcs, "l"), path, say)
+
+
+def build_calibration(path=CALIB_FILE, days=POOL_DAYS, npcs=POOL_NPCS, say=print, list_dir=None):
+    """Scenarios of the NPCs who really shop each day, in a store where the STUDENT runs every NPC, so the
+    shoppers' histories are the ones the list student meets at run time. Only for tuning the ESTIMATED
+    list size and habit corrections - never labelled, never shown to a teacher."""
+    import tempfile
+    from retina.engine.engine import Simulation
+    from retina.mind.mind import Mind
+    say(f"Building calibration scenarios from a student run: {PROFILE['name']}, days up to {max(days)}...")
+    with tempfile.TemporaryDirectory() as tmp:
+        sim = Simulation(verbose=False)
+        sim.mind = Mind(sim, "student", Path(tmp), 50, "fake", None, list_dir=list_dir)
+        if sim.mind.lister is None:
+            raise SystemExit("No list student yet: retina lists --train first")
+        found = scenarios(sim, days, npcs, "c", after_day=sim.mind.end_day, who=todays_shoppers)
+        sim.mind.close()
+    return save_scenarios(found, path, say)
+
+
+def todays_shoppers(sim, n):
+    """n of the NPCs who really shop today (chosen exactly as the store chooses them), spread evenly.
+    They have been away longer than an average NPC, so more has run out at home - a fixed focus group
+    (varied_sample) gives shorter lists than the store's real shoppers."""
+    from retina.engine import traffic
+    due = sim.shoppers.next_visit_day
+    today = traffic.choose_visitors(sim.day, due, traffic.npcs_today(sim.day)) if traffic.enabled()         else np.flatnonzero(due == sim.day)
+    return [int(x) for x in today[np.unique(np.linspace(0, len(today) - 1, min(n, len(today))).round().astype(int))]]
+
+
+def scenarios(sim, days, npcs, prefix, after_day=None, who=None):
+    from retina.engine.engine import shelf_prices
+    from retina.engine.personas import npc_facts, template_persona, varied_sample
     pool = []
     for day in days:
         while sim.day < day:
+            d = sim.day
             sim.run_day()
+            if after_day:
+                after_day(d)
         prices_g, regular, promo_g, _ = shelf_prices(day, sim.store, sim.book, sim.iv, SENSITIVITY_GROUPS)
         sh = sim.shoppers
-        for s in varied_sample(sim, npcs):
+        for s in (who or varied_sample)(sim, npcs):
             g = int(sh.sensitivity_group[s])
             cands = candidates(sim, s, day, prices_g[g], regular, promo_g[g], stream(STREAM_LIST, day, s))
             if len(cands) < 8:
                 continue
             last = sh.last_trip_day[s]
             facts = npc_facts(sim, s)
-            pool.append({"id": f"l-{PROFILE['id']}-{sim.seed}-{day}-{s}", "day": day, "npc": int(s),
+            pool.append({"id": f"{prefix}-{PROFILE['id']}-{sim.seed}-{day}-{s}", "day": day, "npc": int(s),
                          "card": {"facts": facts, "persona": template_persona(facts)},
                          "npc_x": npc_numbers(sh, s), "since": int(day - last) if last >= 0 else None,
                          "usual_items": round(float(sh.basket_mean[s]), 1),
                          "budget": round(float(sh.weekly_budget[s]) * max((day - last) if last >= 0 else 7, 7) / 7, 2)
                          if sh.weekly_budget is not None else None,
                          "candidates": cands})
+    return pool
+
+
+def save_scenarios(pool, path, say=print):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(path, "wt", encoding="utf-8") as f:

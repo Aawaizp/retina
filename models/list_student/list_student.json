@@ -27,18 +27,19 @@
   "n_ran_out",
   "n_candidates"
  ],
- "bias_shift": 2.0918,
+ "bias_shift": 2.0244,
  "habit_correction": {
-  "coef": 3.873,
+  "coef": 4.1943,
   "target": 0.6,
   "label": "ESTIMATED",
   "target_source": "Instacart reorder rate (PUBLIC_STATISTIC)"
  },
  "list_size_correction": {
-  "items": 11.58,
+  "items": 11.16,
   "label": "ESTIMATED",
   "real_lines_per_basket": 10.09,
-  "plan_fill": 0.871,
+  "plan_fill": 0.904,
+  "tuned_on": "student-run scenarios",
   "target_source": "Instacart products per order (PUBLIC_STATISTIC) / bought-per-planned in a RETINA student run"
  },
  "teacher_items_per_list": 12.56,
@@ -72,10 +73,10 @@
    "ran_out_share": 0.909
   },
   "student": {
-   "items_per_list": 11.807,
-   "usual_share": 0.577,
-   "deal_share": 0.238,
-   "ran_out_share": 0.575
+   "items_per_list": 10.567,
+   "usual_share": 0.538,
+   "deal_share": 0.258,
+   "ran_out_share": 0.535
   },
   "qty_mae": 0.061
  },

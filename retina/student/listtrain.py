@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from retina.student.listplan import ListLabels, load_pool
+from retina.student.listplan import CALIB_FILE, ListLabels, load_pool
 
 ROOT = Path(__file__).resolve().parents[2]
 MODEL_DIR = ROOT / "models" / "list_student"
@@ -40,7 +40,7 @@ FEATURES = ["price_log", "price_vs_list", "price_vs_budget", "deal", "off", "bou
             "n_ran_out", "n_candidates"]
 REAL_REPEAT = 0.60                     # Instacart reorder rate (PUBLIC_STATISTIC)
 REAL_LINES = 10.09                     # Instacart products per order (PUBLIC_STATISTIC, instacart_aisle_stats.csv)
-PLAN_FILL = 0.871                      # bought lines per planned item (stock-outs, budget): 1-month student run, 14 Oct
+PLAN_FILL = 0.904                      # bought lines per planned item (stock-outs, budget): 1-month student run, 14 Oct
 LIST_SIZE = round(REAL_LINES / PLAN_FILL, 2)   # ESTIMATED list size that gives real-size baskets (~11.6)
 
 
@@ -156,7 +156,7 @@ def fit_habit(probs, Xs, size, target):
 
 
 def train(labels=None, pool=None, out=MODEL_DIR, say=print, min_lists=60, seed=7, habit_target=REAL_REPEAT,
-          size_target=LIST_SIZE):
+          size_target=LIST_SIZE, calibration=None):
     import lightgbm as lgb
     from sklearn.metrics import f1_score, roc_auc_score
     labels = labels if labels is not None else ListLabels().rows()
@@ -182,9 +182,11 @@ def train(labels=None, pool=None, out=MODEL_DIR, say=print, min_lists=60, seed=7
     p_val = [buy.predict_proba(s["X"])[:, 1] for s in parts["val"]]
     raw_shift = fit_shift(p_val, [s["X"] for s in parts["val"]], teacher_size)
     size = size_target or teacher_size               # ESTIMATED: real basket size, not the teachers' list size
-    test_npcs = {s["npc"] for s in parts["test"]}    # tuned on ALL pool scenarios of non-test NPCs (days 14-91,
-    X_cal = [scenario_matrix(t, rebuy) for t in pool   # labelled or not): no teacher answer is used
-             if t["candidates"] and t["npc"] not in test_npcs and split_of(t["npc"]) != "test"]
+    if calibration is None:                          # scenarios from a STUDENT-run store if built, else the pool
+        calibration = load_pool(CALIB_FILE, say=say) if CALIB_FILE.exists() else pool
+    calibrated_on = "student-run scenarios" if calibration is not pool else "pool scenarios"
+    X_cal = [scenario_matrix(t, rebuy) for t in calibration   # non-test NPCs only; no teacher answer is used
+             if t["candidates"] and split_of(t["npc"]) != "test"]
     p_cal = [buy.predict_proba(X)[:, 1] for X in X_cal]
     habit, shift = fit_habit(p_cal, X_cal, size, habit_target) if habit_target is not None else         (0.0, fit_shift(p_cal, X_cal, size))
 
@@ -210,7 +212,7 @@ def train(labels=None, pool=None, out=MODEL_DIR, say=print, min_lists=60, seed=7
         say(f"  {who:27} items/list {r['items_per_list']}, usual share {r['usual_share']}, deals {r['deal_share']}, "
             f"ran out {r['ran_out_share']}")
     if size_target:
-        say(f"  list size (ESTIMATED): {size} items so baskets come to ~{REAL_LINES} products (Instacart)")
+        say(f"  list size (ESTIMATED, tuned on {len(X_cal):,} {calibrated_on}): {size} items so baskets come to ~{REAL_LINES} products (Instacart)")
     if habit:
         say(f"  habit correction (ESTIMATED): {habit} -> usual share on test {result['student']['usual_share']} "
             f"(target {habit_target}, real Instacart re-buy rate)")
@@ -222,7 +224,7 @@ def train(labels=None, pool=None, out=MODEL_DIR, say=print, min_lists=60, seed=7
             "habit_correction": {"coef": habit, "target": habit_target, "label": "ESTIMATED",
                                  "target_source": "Instacart reorder rate (PUBLIC_STATISTIC)"} if habit else None,
             "list_size_correction": {"items": size, "label": "ESTIMATED", "real_lines_per_basket": REAL_LINES,
-                                     "plan_fill": PLAN_FILL, "target_source": "Instacart products per order "
+                                     "plan_fill": PLAN_FILL, "tuned_on": calibrated_on, "target_source": "Instacart products per order "
                                      "(PUBLIC_STATISTIC) / bought-per-planned in a RETINA student run"}
             if size_target else None,
             "teacher_items_per_list": round(teacher_size, 2), "labels": len(sets), "teachers": teachers,
