@@ -1,0 +1,77 @@
+{
+ "version": "list-student-2026-10-14",
+ "features": [
+  "price_log",
+  "price_vs_list",
+  "price_vs_budget",
+  "deal",
+  "off",
+  "bought",
+  "times_log",
+  "times_rank",
+  "ran_out",
+  "days_left",
+  "aisle_rebuy",
+  "src_usual",
+  "src_goes_with",
+  "src_new_idea",
+  "src_deal",
+  "sensitivity",
+  "household",
+  "kids",
+  "income",
+  "budget_log",
+  "rebuy_rate",
+  "usual_items",
+  "since",
+  "n_ran_out",
+  "n_candidates"
+ ],
+ "bias_shift": 2.2336,
+ "habit_correction": {
+  "coef": 3.7371,
+  "target": 0.6,
+  "label": "ESTIMATED",
+  "target_source": "Instacart reorder rate (PUBLIC_STATISTIC)"
+ },
+ "teacher_items_per_list": 12.56,
+ "labels": 872,
+ "teachers": {
+  "gemini/gemini-3.5-flash-lite": 504,
+  "chatgpt/GPT-6": 268,
+  "groq/openai/gpt-oss-120b": 100
+ },
+ "prompt_versions": {
+  "1": 872
+ },
+ "sets": {
+  "train": 594,
+  "val": 128,
+  "test": 150
+ },
+ "test": {
+  "auc": 0.94,
+  "f1_with_teacher": 0.787,
+  "teacher": {
+   "items_per_list": 12.747,
+   "usual_share": 0.927,
+   "deal_share": 0.122,
+   "ran_out_share": 0.925
+  },
+  "student_without_correction": {
+   "items_per_list": 12.993,
+   "usual_share": 0.911,
+   "deal_share": 0.116,
+   "ran_out_share": 0.909
+  },
+  "student": {
+   "items_per_list": 13.06,
+   "usual_share": 0.585,
+   "deal_share": 0.227,
+   "ran_out_share": 0.582
+  },
+  "qty_mae": 0.061
+ },
+ "real_repeat_share": 0.6,
+ "policy": "draw each candidate with sigmoid(logit(p) + bias_shift - habit x bought_before); quantity = round(qty model), 1-6"
+}

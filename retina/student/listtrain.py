@@ -232,6 +232,11 @@ def export(model, path, classifier):
     conv = onnxmltools.convert_lightgbm(model, initial_types=[("x", FloatTensorType([None, n]))], target_opset=15,
                                         zipmap=False) if classifier else \
         onnxmltools.convert_lightgbm(model, initial_types=[("x", FloatTensorType([None, n]))], target_opset=15)
+    for o in conv.graph.output:                       # declare the real shapes ([N] not [1]): no run-time warnings
+        dims = o.type.tensor_type.shape.dim
+        if len(dims) == 1:
+            del dims[:]
+            dims.add().dim_param = "N"
     onnx.save(conv, path)
 
 
