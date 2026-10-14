@@ -43,6 +43,10 @@ def test_list_student_trains_exports_and_plans_npc_lists(pool, tmp_path):
     meta = train(labels.rows(), big, out=tmp_path / "model", say=lambda *a: None, min_lists=30)
     assert meta["test"]["auc"] > 0.9 and abs(meta["test"]["student"]["items_per_list"] -
                                               meta["test"]["teacher"]["items_per_list"]) < 3
+    h, s = meta["habit_correction"], meta["test"]["student"]                # fake teacher: rules, mostly usual items
+    assert h and h["label"] == "ESTIMATED" and abs(s["usual_share"] - h["target"]) < 0.12
+    assert s["usual_share"] < meta["test"]["student_without_correction"]["usual_share"]
+    assert "Habit correction (ESTIMATED)" in (tmp_path / "model" / "MODEL_CARD.md").read_text(encoding="utf-8")
     ls = ListStudent(tmp_path / "model")                               # ONNX: same choices for the same dice
     a = [(c["product"], q) for c, q in ls.plan(big[0], dice(1, 2, 3))]
     assert a == [(c["product"], q) for c, q in ls.plan(big[0], dice(1, 2, 3))] and all(1 <= q <= 6 for _, q in a)

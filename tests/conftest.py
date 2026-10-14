@@ -16,7 +16,19 @@ sys.path.insert(0, str(ROOT))          # works with or without `pip install -e .
 # its own and passes the folder. Set before any retina import (model.py reads it at import time).
 os.environ["RETINA_STUDENT_DIR"] = str(Path(tempfile.gettempdir()) / "retina-tests-no-student")
 
-DAYS = 10          # short runs keep the tests fast (about half a minute in total)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def own_llm_usage(tmp_path_factory):
+    """Tests never read or write the owner's real daily LLM quota (data/cache/llm_usage.json)."""
+    from retina.engine import llm
+    real = llm.PACER.file
+    llm.PACER.file = tmp_path_factory.mktemp("llm") / "llm_usage.json"
+    yield
+    llm.PACER.file = real
+
+
+DAYS = 10         # short runs keep the tests fast (about half a minute in total)
 
 
 @pytest.fixture(scope="session")

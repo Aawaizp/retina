@@ -44,12 +44,20 @@ MAX_CANDIDATES = 30
 PER_SOURCE = {"usual": 14, "goes with": 4, "new idea": 10, "deal": 4}
 PER_REQUEST = 4                           # NPCs per teacher request
 BUDGET_SHARE = 0.80                       # stop at 80% of the free daily limit (owner's rule)
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2                         # 2 (14 Oct): neutral - no hint about what "real shoppers" do
 STREAM_LIST, STREAM_LIST_ORDER = 31, 32
 
-SYSTEM = ("You plan grocery shopping lists for shoppers in a SIMULATED store (synthetic data). Stay in each "
-          "shopper's character. Use ONLY the numbered products given. Real shoppers mostly buy what has run out "
-          "and their usual items, add a few new things or deals, and keep to their budget. Reply with JSON only.")
+SYSTEMS = {
+    # v1 steered the teachers ("mostly buy what has run out and their usual items"): all three teachers
+    # then put ~90% usual products on their lists (real shoppers ~60%). Kept only to read old labels.
+    1: ("You plan grocery shopping lists for shoppers in a SIMULATED store (synthetic data). Stay in each "
+        "shopper's character. Use ONLY the numbered products given. Real shoppers mostly buy what has run out "
+        "and their usual items, add a few new things or deals, and keep to their budget. Reply with JSON only."),
+    2: ("You plan grocery shopping lists for shoppers in a SIMULATED store (synthetic data). Stay in each "
+        "shopper's character and decide as that person would today. Use ONLY the numbered products given. "
+        "Reply with JSON only."),
+}
+SYSTEM = SYSTEMS[PROMPT_VERSION]
 
 
 # ================================================================ scenarios
@@ -150,7 +158,7 @@ def load_pool(path=POOL_FILE, say=print):
 # ================================================================ the prompt
 def line(n, c):
     deal = f" (deal -{c['off']}%)" if c["deal"] and c["off"] else (" (deal)" if c["deal"] else "")
-    have = f"bought {c['times']}x, " + ("RAN OUT" if c["ran_out"] else f"{c['days_left']} days left at home") \
+    have = f"bought {c['times']}x, " + ("none left at home" if c["ran_out"] else f"{c['days_left']} days left at home") \
         if c["times"] else "never bought"
     return f"{n}) {c['name']} - ${c['price']:.2f}{deal} | {have}"
 
@@ -349,7 +357,7 @@ def paste_read(teacher, folder=PASTE_DIR, labels=None, pool=None, say=print):
         answers = parse_reply(text, group)
         for k, t in enumerate(group, 1):
             if k in answers:
-                rows.append(label_row(t, answers[k], teacher))
+                rows.append(label_row(t, answers[k], teacher, meta.get("prompt_version", 1)))
             else:
                 unread += 1
     labels.add(rows)

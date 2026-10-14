@@ -1,6 +1,6 @@
 """The list student at run time (ONNX Runtime): an NPC's scenario -> today's shopping list.
 
-Each candidate is DRAWN with probability sigmoid(logit(p) + bias_shift) (seeded dice: the same day and
+Each candidate is DRAWN with probability sigmoid(logit(p) + bias_shift - habit x bought_before) (seeded dice: the same day and
 NPC give the same list); its quantity comes from the quantity model (rounded, 1-6)."""
 
 import json
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from retina.student.listtrain import FEATURES, aisle_rebuy, scenario_matrix
+from retina.student.listtrain import FEATURES, aisle_rebuy, policy, scenario_matrix
 
 ROOT = Path(__file__).resolve().parents[2]
 MODEL_DIR = Path(os.environ["RETINA_LIST_DIR"]) if os.environ.get("RETINA_LIST_DIR") else ROOT / "models" / "list_student"
@@ -25,6 +25,7 @@ class ListStudent:
         self.buy = rt.InferenceSession(str(folder / "list_student.onnx"))
         self.qty = rt.InferenceSession(str(folder / "list_qty.onnx"))
         self.shift = float(self.meta["bias_shift"])
+        self.habit = float((self.meta.get("habit_correction") or {}).get("coef", 0.0))
         self.rebuy = aisle_rebuy()
 
     @staticmethod
@@ -43,8 +44,7 @@ class ListStudent:
         if not cands:
             return []
         X = scenario_matrix(scenario, self.rebuy)
-        p = np.clip(self.probabilities(X), 1e-6, 1 - 1e-6)
-        p = 1 / (1 + np.exp(-(np.log(p / (1 - p)) + self.shift)))
+        p = policy(self.probabilities(X), X, self.shift, self.habit)
         pick = rng.random(len(p)) < p
         if not pick.any():
             return []

@@ -12,7 +12,9 @@ Split by NPC (test NPCs never seen). Checks on the test NPCs, next to the teache
   share of deals, share of products that ran out, AUC and agreement (F1) with the teachers.
 Runtime policy: each candidate is DRAWN with its probability (seeded dice) - a real shopper does not
 write the same list every week - after a shift fitted on validation so the average list size matches
-the teachers' (bias_shift in list_student.json).
+the teachers' (bias_shift in list_student.json). ESTIMATED habit correction: the teachers' lists are ~90%
+usual products against a real ~60%, so one extra term lowers the logit of products bought before; it is
+tuned (with its own shift, list size kept) on training + validation NPCs and checked on the test NPCs.
 
   retina lists --train          -> models/list_student/ (list_student.onnx, list_qty.onnx, json, card)
 """
@@ -106,18 +108,50 @@ def list_stats(sets, picks):
     return {"items_per_list": m(size), "usual_share": m(usual), "deal_share": m(deal), "ran_out_share": m(ran)}
 
 
-def fit_shift(probs, sets, target):
-    """Logit shift so the EXPECTED list size (sum of drawn probabilities) matches the teachers' on validation."""
-    logit = [np.log(np.clip(p, 1e-6, 1 - 1e-6) / (1 - np.clip(p, 1e-6, 1 - 1e-6))) for p in probs]
-    lo, hi = -6.0, 6.0
+BOUGHT = FEATURES.index("bought")
+
+
+def policy(p, X, shift, habit=0.0):
+    """The runtime probability of each candidate: logit(p) + shift - habit x (bought before)."""
+    p = np.clip(p, 1e-6, 1 - 1e-6)
+    return 1 / (1 + np.exp(-(np.log(p / (1 - p)) + shift - habit * X[:, BOUGHT])))
+
+
+def fit_shift(probs, Xs, target, habit=0.0):
+    """The shift that makes the EXPECTED list size (sum of the drawn probabilities) = target."""
+    lo, hi = -8.0, 8.0
     for _ in range(40):
         mid = (lo + hi) / 2
-        size = np.mean([(1 / (1 + np.exp(-(l + mid)))).sum() for l in logit])
+        size = np.mean([policy(p, X, mid, habit).sum() for p, X in zip(probs, Xs)])
         lo, hi = (mid, hi) if size < target else (lo, mid)
     return round((lo + hi) / 2, 4)
 
 
-def train(labels=None, pool=None, out=MODEL_DIR, say=print, min_lists=60, seed=7):
+def usual_share(probs, Xs, shift, habit):
+    shares = []
+    for p, X in zip(probs, Xs):
+        q = policy(p, X, shift, habit)
+        if q.sum() > 0:
+            shares.append(float((q * X[:, BOUGHT]).sum() / q.sum()))
+    return float(np.mean(shares))
+
+
+def fit_habit(probs, Xs, size, target):
+    """ESTIMATED habit correction: the habit term (with its own size shift) that brings the EXPECTED share of
+    usual products on a list to `target` (the real re-buy rate) while the list size stays `size`.
+    Uses only the student's own probabilities - no teacher answer."""
+    if usual_share(probs, Xs, fit_shift(probs, Xs, size), 0.0) <= target:
+        return 0.0, fit_shift(probs, Xs, size)
+    lo, hi = 0.0, 12.0
+    for _ in range(30):
+        mid = (lo + hi) / 2
+        share = usual_share(probs, Xs, fit_shift(probs, Xs, size, mid), mid)
+        lo, hi = (mid, hi) if share > target else (lo, mid)
+    habit = round((lo + hi) / 2, 4)
+    return habit, fit_shift(probs, Xs, size, habit)
+
+
+def train(labels=None, pool=None, out=MODEL_DIR, say=print, min_lists=60, seed=7, habit_target=REAL_REPEAT):
     import lightgbm as lgb
     from sklearn.metrics import f1_score, roc_auc_score
     labels = labels if labels is not None else ListLabels().rows()
@@ -139,39 +173,51 @@ def train(labels=None, pool=None, out=MODEL_DIR, say=print, min_lists=60, seed=7
     qty = lgb.LGBMRegressor(n_estimators=200, learning_rate=0.05, num_leaves=15, min_child_samples=10,
                             random_state=seed, verbose=-1)
     qty.fit(Xtr[ytr > 0], qtr[ytr > 0])
-    p_val = [buy.predict_proba(s["X"])[:, 1] for s in parts["val"]]
     teacher_size = float(np.mean([s["y"].sum() for s in parts["train"] + parts["val"]]))
-    shift = fit_shift(p_val, parts["val"], teacher_size)
+    p_val = [buy.predict_proba(s["X"])[:, 1] for s in parts["val"]]
+    raw_shift = fit_shift(p_val, [s["X"] for s in parts["val"]], teacher_size)
+    habit, shift = 0.0, raw_shift
+    if habit_target is not None:                     # tuned on training + validation NPCs, no answers used
+        calib = parts["train"] + parts["val"]
+        habit, shift = fit_habit([buy.predict_proba(s["X"])[:, 1] for s in calib], [s["X"] for s in calib],
+                                 teacher_size, habit_target)
 
-    def drawn(p, rng):
-        logit = np.log(np.clip(p, 1e-6, 1 - 1e-6) / (1 - np.clip(p, 1e-6, 1 - 1e-6))) + shift
-        return (rng.random(len(p)) < 1 / (1 + np.exp(-logit))).astype(float)
+    def drawn(p, X, rng, sh, hb):
+        return (rng.random(len(p)) < policy(p, X, sh, hb)).astype(float)
 
     test = parts["test"]
     p_test = [buy.predict_proba(s["X"])[:, 1] for s in test]
-    rng = np.random.default_rng(seed)
-    student_picks = [drawn(p, rng) for p in p_test]
+    raw_picks = [drawn(p, s["X"], np.random.default_rng([seed, i]), raw_shift, 0.0) for i, (p, s) in enumerate(zip(p_test, test))]
+    student_picks = [drawn(p, s["X"], np.random.default_rng([seed, i]), shift, habit) for i, (p, s) in enumerate(zip(p_test, test))]
     _, yte, _ = stack(test)
     pte = np.concatenate(p_test)
     result = {"auc": round(float(roc_auc_score(yte, pte)), 3) if 0 < yte.mean() < 1 else None,
-              "f1_with_teacher": round(float(f1_score(yte, np.concatenate(student_picks))), 3),
+              "f1_with_teacher": round(float(f1_score(yte, np.concatenate(raw_picks))), 3),
               "teacher": list_stats(test, [s["y"] for s in test]),
+              "student_without_correction": list_stats(test, raw_picks),
               "student": list_stats(test, student_picks),
               "qty_mae": round(float(np.mean(np.abs(np.clip(np.round(qty.predict(stack(test)[0][yte > 0])), 1, 6)
                                                     - stack(test)[2][yte > 0]))), 3) if (yte > 0).any() else None}
     say(f"  test NPCs: AUC {result['auc']}, F1 with the teachers {result['f1_with_teacher']}")
-    for who in ("teacher", "student"):
+    for who in ("teacher", "student_without_correction", "student"):
         r = result[who]
-        say(f"  {who:8} items/list {r['items_per_list']}, usual share {r['usual_share']}, deals {r['deal_share']}, "
+        say(f"  {who:27} items/list {r['items_per_list']}, usual share {r['usual_share']}, deals {r['deal_share']}, "
             f"ran out {r['ran_out_share']}")
+    if habit:
+        say(f"  habit correction (ESTIMATED): {habit} -> usual share on test {result['student']['usual_share']} "
+            f"(target {habit_target}, real Instacart re-buy rate)")
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     export(buy, out / "list_student.onnx", classifier=True)
     export(qty, out / "list_qty.onnx", classifier=False)
     meta = {"version": f"list-student-{date.today().isoformat()}", "features": FEATURES, "bias_shift": shift,
+            "habit_correction": {"coef": habit, "target": habit_target, "label": "ESTIMATED",
+                                 "target_source": "Instacart reorder rate (PUBLIC_STATISTIC)"} if habit else None,
             "teacher_items_per_list": round(teacher_size, 2), "labels": len(sets), "teachers": teachers,
+            "prompt_versions": pd.Series([r.get("prompt_version", 1) for r in labels]).value_counts().to_dict(),
             "sets": {k: len(v) for k, v in parts.items()}, "test": result, "real_repeat_share": REAL_REPEAT,
-            "policy": "draw each candidate with sigmoid(logit(p) + bias_shift); quantity = round(qty model), 1-6"}
+            "policy": "draw each candidate with sigmoid(logit(p) + bias_shift - habit x bought_before); "
+                      "quantity = round(qty model), 1-6"}
     (out / "list_student.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     (out / "MODEL_CARD.md").write_text(card(meta), encoding="utf-8")
     say(f"List student -> {out}")
@@ -191,7 +237,15 @@ def export(model, path, classifier):
 
 def card(m):
     t, s = m["test"]["teacher"], m["test"]["student"]
+    r = m["test"].get("student_without_correction") or s
+    h = m.get("habit_correction")
     pct = lambda x: "-" if x is None else f"{x:.0%}"
+    row = lambda name, v: (f"| {name} | {v['items_per_list']} | {pct(v['usual_share'])} | {pct(v['deal_share'])} | "
+                           f"{pct(v['ran_out_share'])} |")
+    habit_lines = [f"Habit correction (ESTIMATED): the teachers put far more usual products on a list than real "
+                   f"shoppers re-buy, so at run time each usual product's logit is lowered by {h['coef']} (tuned on "
+                   f"training + validation NPCs, list size kept) to bring the usual share to ~{h['target']:.0%} "
+                   f"({h['target_source']}). Checked on the test NPCs above.", ""] if h else []
     return "\n".join([
         f"# RETINA list student - {m['version']}", "",
         "Plans an NPC's shopping list: from ~30 real candidate products of the RETINA Supercenter (their usual "
@@ -200,10 +254,9 @@ def card(m):
         f"- Lists: {m['labels']:,} from {', '.join(f'{k} {v}' for k, v in m['teachers'].items())}; split by NPC "
         f"(train {m['sets']['train']}, validation {m['sets']['val']}, test {m['sets']['test']}).", "",
         "| on test NPCs | items per list | usual products | deals | ran out at home |", "|---|---|---|---|---|",
-        f"| teachers | {t['items_per_list']} | {pct(t['usual_share'])} | {pct(t['deal_share'])} | {pct(t['ran_out_share'])} |",
-        f"| list student (drawn) | {s['items_per_list']} | {pct(s['usual_share'])} | {pct(s['deal_share'])} | "
-        f"{pct(s['ran_out_share'])} |", "",
+        row("teachers", t)] + ([row("list student, no correction", r)] if h else []) + [
+        row("list student (drawn, used in the store)", s), "",
         f"AUC {m['test']['auc']}, F1 with the teachers {m['test']['f1_with_teacher']}, quantity error (MAE) "
         f"{m['test']['qty_mae']}. Real re-buy share for comparison: ~{m['real_repeat_share']:.0%} (Instacart).", "",
         f"Policy: {m['policy']}; bias_shift {m['bias_shift']} makes the average list size match the teachers' "
-        f"({m['teacher_items_per_list']}).", ""])
+        f"({m['teacher_items_per_list']}).", ""] + habit_lines)
