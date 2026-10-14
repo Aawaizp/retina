@@ -68,6 +68,8 @@ def test_reply_is_checked(pool):
     got = L.parse_reply("Sure! " + reply, group)
     assert got == {1: {a[0]["product"]: 2}, 2: {b[1]["product"]: 6}}             # no number 99, no shopper 3, q <= 6
     assert L.parse_reply("no json here", group) == {}
+    gemini = '```json\n[{"s": "S1", "n": 1, "q": 1}, {"s": "s2", "n": "2", "q": 1}]\n```'   # real Gemini style
+    assert L.parse_reply(gemini, group) == {1: {a[0]["product"]: 1}, 2: {b[1]["product"]: 1}}
 
 
 def test_collect_and_paste_round_trip(pool, tmp_path):

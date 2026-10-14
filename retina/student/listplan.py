@@ -181,8 +181,9 @@ def parse_reply(text, group):
     for r in rows if isinstance(rows, list) else []:
         if not isinstance(r, dict):
             continue
-        try:
-            k, n = int(r.get("s", r.get("shopper"))), int(r.get("n", r.get("product")))
+        try:                                                    # "S1", "s1" or 1 all mean shopper 1
+            k = int(re.sub(r"\D", "", str(r.get("s", r.get("shopper", "")))))
+            n = int(re.sub(r"\D", "", str(r.get("n", r.get("product", "")))))
             q = int(round(float(r.get("q", r.get("qty", 1)))))
         except (TypeError, ValueError):
             continue
@@ -264,7 +265,7 @@ def collect(target=500, provider="gemini", model=None, labels=None, pool=None, s
     done = labels.done(name)
     todo = [t for t in pool if t["id"] not in done]
     say(f"List teacher {name}: {len(done):,} lists so far, target {target:,}, {len(todo):,} scenarios left")
-    got = len(done)
+    got, unreadable = len(done), 0
     for start in range(0, len(todo), PER_REQUEST):
         if got >= target:
             break
@@ -284,8 +285,16 @@ def collect(target=500, provider="gemini", model=None, labels=None, pool=None, s
                 say(f"  stopped: {str(error).splitlines()[0][:140]}")
                 break
             answers = parse_reply(reply, group)
-            if not answers:                                     # nothing readable: ask again another time
+            if not answers:                                     # nothing readable: keep it, never waste quota
+                unreadable += 1
+                with open(LIST_DIR / "unreadable_replies.txt", "a", encoding="utf-8") as f:
+                    f.write(f"--- {name} {datetime.now(timezone.utc).isoformat(timespec='seconds')}\n{reply}\n")
+                say(f"  could not read a reply ({unreadable} in a row) - saved in unreadable_replies.txt")
+                if unreadable >= 3:
+                    say("  stopped: 3 unreadable replies in a row - the reply format needs a fix (no more quota used)")
+                    break
                 continue
+            unreadable = 0
         rows = [label_row(t, answers.get(k), name) for k, t in enumerate(group, 1)]
         rows = [r for r in rows if r["valid"]]                  # a missing shopper is asked again later
         labels.add(rows)
