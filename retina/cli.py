@@ -293,13 +293,15 @@ def lists_main(argv):
     ap.add_argument("--paste-read", metavar="FOLDER", nargs="?", const="", help="read the reply_KK.txt files")
     ap.add_argument("--teacher", metavar="NAME/MODEL", help="--paste-read: who answered, e.g. chatgpt/gpt-5")
     ap.add_argument("--train", action="store_true", help="train the list student -> models/list_student/")
+    ap.add_argument("--share", type=float, default=0.8, metavar="0.1-1.0",
+                    help="--collect: stop at this share of the free daily limit (default 0.8; 1.0 = use it all)")
     args = ap.parse_args(argv)
     os.environ["RETINA_STORE"] = "retina_supercenter"           # scenarios come from the RETINA Supercenter
     from retina.student import listplan as L
     if args.pool:
         L.build_pool()
     if args.collect:
-        L.collect(args.collect, provider=args.provider)
+        L.collect(args.collect, provider=args.provider, share=min(max(args.share, 0.1), 1.0))
     if args.paste_pack:
         L.paste_pack(args.paste_pack)
     if args.paste_read is not None:

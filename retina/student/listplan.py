@@ -254,7 +254,8 @@ def room_today(provider, tokens, share=BUDGET_SHARE):
     return True, ""
 
 
-def collect(target=500, provider="gemini", model=None, labels=None, pool=None, say=print, teacher=None):
+def collect(target=500, provider="gemini", model=None, labels=None, pool=None, say=print, teacher=None,
+            share=BUDGET_SHARE):
     """Ask a teacher for lists until `target` valid lists from it (paced; stops at 80% of the free day)."""
     labels = labels or ListLabels()
     pool = pool if pool is not None else load_pool(say=say)
@@ -274,7 +275,7 @@ def collect(target=500, provider="gemini", model=None, labels=None, pool=None, s
             answers = teacher.plan(group)
         else:
             text = request_text(group)
-            ok, why = room_today(provider, llm.estimate_tokens([{"content": SYSTEM}, {"content": text}], 900))
+            ok, why = room_today(provider, llm.estimate_tokens([{"content": SYSTEM}, {"content": text}], 900), share)
             if not ok:
                 say(f"  stopped: {why} - run again tomorrow")
                 break
