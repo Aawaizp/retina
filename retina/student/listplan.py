@@ -168,7 +168,8 @@ def request_text(group):
     blocks = "\n\n".join(scenario_block(k, t) for k, t in enumerate(group, 1))
     return (f"{blocks}\n\nFor EACH shopper, write today's shopping list from their numbered products: what they buy "
             f"and how many. Reply ONE JSON list, one object per product bought: "
-            f'[{{"s": <shopper>, "n": <product number>, "q": <how many, 1-6>}}]. Products not bought: leave out.')
+            f'[{{"s": <shopper number 1-{len(group)}>, "n": <product number>, "q": <how many, 1-6>}}]. '
+            f"Products not bought: leave out.")
 
 
 def parse_reply(text, group):
@@ -178,11 +179,13 @@ def parse_reply(text, group):
     except ValueError:
         return {}
     out = {}
+    first = {str(t["card"]["facts"]["name"]).split()[0].lower(): k for k, t in enumerate(group, 1)}
     for r in rows if isinstance(rows, list) else []:
         if not isinstance(r, dict):
             continue
-        try:                                                    # "S1", "s1" or 1 all mean shopper 1
-            k = int(re.sub(r"\D", "", str(r.get("s", r.get("shopper", "")))))
+        try:                                                    # "S1", "s1", 1 or the first name "Alice"
+            who = str(r.get("s", r.get("shopper", ""))).strip()
+            k = first[who.split()[0].lower()] if who and who.split()[0].lower() in first else int(re.sub(r"\D", "", who))
             n = int(re.sub(r"\D", "", str(r.get("n", r.get("product", "")))))
             q = int(round(float(r.get("q", r.get("qty", 1)))))
         except (TypeError, ValueError):
@@ -289,7 +292,8 @@ def collect(target=500, provider="gemini", model=None, labels=None, pool=None, s
             if not answers:                                     # nothing readable: keep it, never waste quota
                 unreadable += 1
                 with open(LIST_DIR / "unreadable_replies.txt", "a", encoding="utf-8") as f:
-                    f.write(f"--- {name} {datetime.now(timezone.utc).isoformat(timespec='seconds')}\n{reply}\n")
+                    f.write(f"--- {name} {datetime.now(timezone.utc).isoformat(timespec='seconds')} "
+                            f"ids={','.join(t['id'] for t in group)}\n{reply}\n")
                 say(f"  could not read a reply ({unreadable} in a row) - saved in unreadable_replies.txt")
                 if unreadable >= 3:
                     say("  stopped: 3 unreadable replies in a row - the reply format needs a fix (no more quota used)")
