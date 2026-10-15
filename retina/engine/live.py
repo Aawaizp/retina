@@ -21,6 +21,7 @@ Every row is SIMULATED.
 """
 
 import argparse
+import json
 import os
 import pickle
 import shutil
@@ -162,7 +163,13 @@ def write_view(sim, day, events, first_time=False):
     data["live"] = True
     path = LIVE_DIR / "view.html"
     replay.write_page(data, path)
-    if first_time:
+    days = LIVE_DIR / "view"                               # the same day as data, for the 3D store page
+    days.mkdir(exist_ok=True)
+    (days / f"day_{day:03d}.json").write_text(json.dumps(data, separators=(",", ":"), default=replay.plain),
+                                              encoding="utf-8")
+    for old in sorted(days.glob("day_*.json"))[:-3]:       # keep the last 3 days (about 2 MB each)
+        old.unlink()
+    if first_time and not os.environ.get("RETINA_NO_BROWSER"):
         print(f"  NPCs walking: open {shown(path)} in your browser (it follows the days by itself)")
         try:
             import webbrowser

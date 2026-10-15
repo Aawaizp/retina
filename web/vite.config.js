@@ -8,7 +8,6 @@ const app = "http://127.0.0.1:8000";
 export default defineConfig({
   plugins: [react()],
   base: "./",
-  optimizeDeps: { exclude: ["@duckdb/duckdb-wasm", "onnxruntime-web"] },
   build: { chunkSizeWarningLimit: 1200 },
   server: { proxy: { "/health": app, "/stores": app, "/runs": app } },
 });

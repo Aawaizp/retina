@@ -1,19 +1,12 @@
 {
- "built": "2026-10-15T08:03:32+00:00",
- "commit": "6ab7753",
- "days": 91,
- "data_label": "SIMULATED",
+ "built": "2026-10-15T10:11:15+00:00",
+ "commit": "5a6e0b1",
+ "store": "RETINA Supercenter",
  "mind": "student",
- "stores": {
-  "retina_supercenter": {
-   "days": 91,
-   "trips": 33291,
-   "revenue": 2124942.58,
-   "items": 435124,
-   "deal_share": 0.1987,
-   "avg_basket": 63.83,
-   "minutes_in_store": 12.8
-  }
- },
- "note": "one store run by the student model; aggregates only; built without the private Instacart per-shopper profiles (like a fresh clone)"
+ "days": [
+  "day_001.json",
+  "day_002.json"
+ ],
+ "data_label": "SIMULATED",
+ "note": "recorded store days (NPC routes, choices, receipts); built without the private Instacart per-shopper profiles (like a fresh clone)"
 }

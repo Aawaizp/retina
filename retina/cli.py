@@ -319,14 +319,14 @@ def lists_main(argv):
 
 
 def web_data_main(argv):
-    ap = argparse.ArgumentParser(prog="retina web-data", description="Build the website's small data files "
-                                 "(aggregated, SIMULATED, without the private per-shopper profiles).")
-    ap.add_argument("--days", type=int, default=91, help="days of RETINA Supercenter (default 91)")
+    ap = argparse.ArgumentParser(prog="retina web-data", description="Record RETINA Supercenter days (NPC walks "
+                                 "and receipts, SIMULATED, without the private per-shopper profiles) for the website.")
+    ap.add_argument("--days", type=int, default=3, help="days to simulate (default 3; the last 2 are kept)")
     ap.add_argument("--out", help="folder (default web/public)")
     ap.add_argument("--no-student", action="store_true", help="engine only (no student models; a quick try)")
     args = ap.parse_args(argv)
     from retina.web_data import web_data, WEB
-    web_data(args.days, args.out or WEB, not args.no_student)
+    web_data(args.days, out=args.out or WEB, student=not args.no_student)
 
 
 def app_main(argv):

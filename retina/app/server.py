@@ -12,6 +12,7 @@ process - one run at a time. Endpoints:
                                      "mind": "fast"|"student"|"mix", "student": "auto"|"off"|"only"}
   GET  /runs/current                the run in progress (and its last output lines)
   GET  /runs/{name}/report          the thinking-run report (report.txt)
+  GET  /runs/{name}/view            days whose NPC walk can be watched (last 3); /view/{day} = that day
   GET  /runs/{name}/files/{file}    download receipts.csv, trips.csv, ... of a run
   GET  /runs/{name}/business/{file} download the business tables (sales_transactions.csv, ...)
   GET  /runs/{name}/zip             the business tables + DATA_DICTIONARY + DATASET_CARD in one ZIP,
@@ -63,6 +64,7 @@ class RunRequest(BaseModel):
     mind: Literal["fast", "student", "mix"] = "fast"
     student: Literal["auto", "off", "only"] = "auto"
     reset: bool = False
+    view: bool = True                     # record the NPCs' walk each day for the 3D store page
 
 
 class Runner:
@@ -81,11 +83,12 @@ class Runner:
                 raise HTTPException(409, "A run is already going - wait for it (GET /runs/current).")
             how_much = ["--period", req.period] if req.period else ["--days", str(req.days)]
             args = [sys.executable, "-u", "-m", "retina", "--store", req.store, *how_much, "--mind", req.mind,
-                    "--student", req.student, "--yes"] + (["--reset"] if req.reset else [])
+                    "--student", req.student, "--yes"] + (["--reset"] if req.reset else []) +                 (["--view"] if req.view else [])
             self.lines.clear()
             self.request = req.model_dump()
             self.process = subprocess.Popen(args, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                                            encoding="utf-8", errors="replace", env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+                                            encoding="utf-8", errors="replace",
+                                            env=dict(os.environ, PYTHONIOENCODING="utf-8", RETINA_NO_BROWSER="1"))
             threading.Thread(target=self._read, daemon=True).start()
 
     def _read(self):
@@ -172,6 +175,21 @@ def report(name: str):
     if not path.exists():
         raise HTTPException(404, "No report - only thinking runs (mind mix) have one.")
     return path.read_text(encoding="utf-8")
+
+
+@app.get("/runs/{name}/view")
+def view_days(name: str):
+    """The simulated days whose walk can be watched (the run keeps the last 3)."""
+    folder = run_dir(name) / "view"
+    return {"days": sorted(int(f.stem[4:]) for f in folder.glob("day_*.json")) if folder.is_dir() else []}
+
+
+@app.get("/runs/{name}/view/{day}")
+def view_day(name: str, day: int):
+    path = run_dir(name) / "view" / f"day_{day:03d}.json"
+    if not path.exists():
+        raise HTTPException(404, f"Day {day} is not (or no longer) kept for watching.")
+    return FileResponse(path, media_type="application/json")
 
 
 @app.get("/runs/{name}/files/{file}")

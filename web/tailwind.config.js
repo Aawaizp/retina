@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{js,jsx}"],
-  darkMode: "media",
+  darkMode: "class",                 // the 3D store page is always dark
   theme: {
     extend: {
       fontFamily: { sans: ["Inter", "system-ui", "sans-serif"] },

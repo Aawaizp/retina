@@ -91,8 +91,13 @@ def page_data(r, day, events, scenario):
             "events": events}
 
 
+def plain(o):
+    """numpy numbers -> plain JSON numbers."""
+    return o.item() if hasattr(o, "item") else str(o)
+
+
 def write_page(data, path):
-    payload = json.dumps(data, separators=(",", ":"), default=lambda o: o.item() if hasattr(o, "item") else str(o))
+    payload = json.dumps(data, separators=(",", ":"), default=plain)
     html = PAGE.replace("__DATA__", payload.replace("</", "<\\/"))
     path.write_text(html, encoding="utf-8")
 

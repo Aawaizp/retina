@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { url } from "../lib/json.js";
+import { url } from "./lib/json.js";
 
-// Generate data with the local RETINA app (`retina app` on your PC): the student model decides for every
-// shopper, Python runs the store, and the CSV files come back here to download.
+// Generate data with the local RETINA app (`retina app` on your PC): the student model runs every NPC in
+// RETINA Supercenter, each finished day is shown walking in the 3D store, and the CSV files come back here.
 const AMOUNTS = [
   ["1 week", 7], ["2 weeks", 14], ["1 month", 30], ["3 months", 91], ["6 months", 182], ["1 year", 365],
 ];
@@ -10,9 +10,8 @@ const AMOUNTS = [
 const MIND = "student";
 // ESTIMATED run time, MEASURED on the owner's PC (15 Oct 2026, RETINA Supercenter, student):
 // 7 days ~4 min, 30 days ~5.5 min, 91 days ~48 min. Days get slower as the shoppers' memory grows,
-// so beyond 91 days it grows with days squared. Other stores scale with their traffic.
+// so beyond 91 days it grows with days squared.
 const MEASURED = [[0, 180], [7, 240], [30, 330], [91, 2870]];
-const RETINA_TRAFFIC = 25700;
 function runSeconds(days) {
   if (days >= 91) return 2870 * (days / 91) ** 2;
   const k = MEASURED.findIndex(([d]) => d >= days);
@@ -54,10 +53,9 @@ const size = (b) => (b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.max(1, Mat
 const time = (s) => (s < 90 ? `${Math.max(5, Math.round(s / 5) * 5)} seconds`
   : s < 5400 ? `${Math.round(s / 60)} minutes` : `${Math.round(s / 3600)} hours`);
 
-export default function Generate() {
+export default function GeneratePanel({ onJob }) {
   const [app, setApp] = useState(null); // null = checking, false = not running, object = ok
-  const [stores, setStores] = useState([]);
-  const [store, setStore] = useState("retina");
+  const store = "retina";
   const [days, setDays] = useState(30);
   const [job, setJob] = useState(null);
   const [runs, setRuns] = useState([]);
@@ -70,7 +68,6 @@ export default function Generate() {
     api("health")
       .then((h) => {
         setApp(h);
-        api("stores").then(setStores);
         refreshRuns();
         api("runs/current").then((s) => s.running && follow());
       })
@@ -83,6 +80,7 @@ export default function Generate() {
     const tick = () =>
       api("runs/current").then((s) => {
         setJob(s);
+        onJob?.(s);
         if (!s.running) {
           clearInterval(timer.current);
           refreshRuns();
@@ -98,7 +96,7 @@ export default function Generate() {
       await api("runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ store, days, mind: MIND, reset: true }),
+        body: JSON.stringify({ store, days, mind: MIND, reset: true, view: true }),
       });
       follow();
     } catch (e) {
@@ -106,8 +104,7 @@ export default function Generate() {
     }
   }
 
-  const traffic = (stores.find((s) => s.name === store)?.shoppers_per_week || RETINA_TRAFFIC) / RETINA_TRAFFIC;
-  const estimate = runSeconds(Math.max(1, days)) * traffic;
+  const estimate = runSeconds(Math.max(1, days));
   const running = job?.running;
   const done = job && !job.running;
   const result = done ? runs.find((r) => r.name === job.run) : null;
@@ -115,12 +112,11 @@ export default function Generate() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Generate data</h1>
+        <h2 className="text-xl font-bold">Generate your own data</h2>
         <p className="text-sm muted">
-          Choose a store and how much data you want. The RETINA simulation runs on your PC: the student model decides
-          for every shopper, the store engine handles traffic, prices, stock and checkout. You get business-ready
-          sales data: transactions, daily sales per product, inventory, store KPIs, products, customers and
-          promotions - as CSV files with a data dictionary.
+          Choose how much data you want. The student model runs every shopper in RETINA Supercenter; each finished
+          day plays above in the 3D store. You get business-ready sales data: transactions, daily sales per product,
+          inventory, store KPIs, products, customers and promotions - as CSV files with a data dictionary.
           Every row is <span className="label">SIMULATED</span>.
         </p>
       </div>
@@ -140,21 +136,6 @@ export default function Generate() {
 
       {app && (
         <div className="card space-y-5">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block space-y-1 text-sm">
-              <span className="muted">Store</span>
-              <select className="input" value={store} onChange={(e) => setStore(e.target.value)} disabled={running}>
-                {stores.map((s) => <option key={s.name} value={s.name}>{s.title}</option>)}
-              </select>
-            </label>
-            <div className="space-y-1 text-sm">
-              <span className="muted">Shoppers</span>
-              <p className="rounded-xl border border-slate-300 px-3 py-2 dark:border-slate-700">
-                Every NPC is handled by the <b>student model</b>: it chooses each product they buy
-              </p>
-            </div>
-          </div>
-
           <div className="space-y-2 text-sm">
             <span className="muted">How much data</span>
             <div className="flex flex-wrap gap-2">

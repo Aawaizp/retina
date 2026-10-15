@@ -123,3 +123,16 @@ def test_app_accepts_every_store_it_lists():
     for name in STORES:
         assert RunRequest(store=name).store == name
     assert RunRequest().store == "retina"
+
+
+def test_app_serves_the_days_to_watch(client):
+    """The 3D store page fetches each simulated day the run kept (view/day_NNN.json)."""
+    c, live = client
+    view = live / "retina_supercenter_student" / "view"
+    view.mkdir(parents=True)
+    (view / "day_004.json").write_bytes(b'{"day": 4, "events": []}')
+    (view / "day_005.json").write_bytes(b'{"day": 5, "events": []}')
+    assert c.get("/runs/retina_supercenter_student/view").json() == {"days": [4, 5]}
+    assert c.get("/runs/retina_supercenter_student/view/5").json()["day"] == 5
+    assert c.get("/runs/retina_supercenter_student/view/1").status_code == 404
+    assert c.get("/runs/..%2F..%2Fpyproject.toml/view").status_code == 404
