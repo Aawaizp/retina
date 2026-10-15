@@ -1,5 +1,5 @@
 {
- "version": "list-student-2026-10-14",
+ "version": "list-student-2026-10-15",
  "features": [
   "price_log",
   "price_vs_list",
@@ -27,9 +27,9 @@
   "n_ran_out",
   "n_candidates"
  ],
- "bias_shift": 2.0244,
+ "bias_shift": 2.077,
  "habit_correction": {
-  "coef": 4.1943,
+  "coef": 3.7872,
   "target": 0.6,
   "label": "ESTIMATED",
   "target_source": "Instacart reorder rate (PUBLIC_STATISTIC)"
@@ -42,43 +42,44 @@
   "tuned_on": "student-run scenarios",
   "target_source": "Instacart products per order (PUBLIC_STATISTIC) / bought-per-planned in a RETINA student run"
  },
- "teacher_items_per_list": 12.56,
- "labels": 872,
+ "teacher_items_per_list": 11.6,
+ "labels": 2029,
  "teachers": {
-  "gemini/gemini-3.5-flash-lite": 504,
+  "gemini/gemini-3.5-flash-lite": 1500,
   "chatgpt/GPT-6": 268,
-  "groq/openai/gpt-oss-120b": 100
+  "groq/openai/gpt-oss-120b": 261
  },
  "prompt_versions": {
+  "2": 1157,
   "1": 872
  },
  "sets": {
-  "train": 594,
-  "val": 128,
-  "test": 150
+  "train": 1371,
+  "val": 294,
+  "test": 364
  },
  "test": {
-  "auc": 0.94,
-  "f1_with_teacher": 0.787,
+  "auc": 0.936,
+  "f1_with_teacher": 0.762,
   "teacher": {
-   "items_per_list": 12.747,
-   "usual_share": 0.927,
-   "deal_share": 0.122,
-   "ran_out_share": 0.925
+   "items_per_list": 12.08,
+   "usual_share": 0.889,
+   "deal_share": 0.174,
+   "ran_out_share": 0.887
   },
   "student_without_correction": {
-   "items_per_list": 12.993,
-   "usual_share": 0.911,
-   "deal_share": 0.116,
-   "ran_out_share": 0.909
+   "items_per_list": 12.173,
+   "usual_share": 0.9,
+   "deal_share": 0.139,
+   "ran_out_share": 0.897
   },
   "student": {
-   "items_per_list": 10.567,
-   "usual_share": 0.538,
-   "deal_share": 0.258,
-   "ran_out_share": 0.535
+   "items_per_list": 11.055,
+   "usual_share": 0.542,
+   "deal_share": 0.269,
+   "ran_out_share": 0.539
   },
-  "qty_mae": 0.061
+  "qty_mae": 0.113
  },
  "real_repeat_share": 0.6,
  "policy": "draw each candidate with sigmoid(logit(p) + bias_shift - habit x bought_before); quantity = round(qty model), 1-6"
