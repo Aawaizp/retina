@@ -57,7 +57,7 @@ def live_root():
 
 
 class RunRequest(BaseModel):
-    store: Literal["supermarket", "supercenter", "neighborhood", "convenience"] = "supermarket"
+    store: Literal["retina", "supermarket", "supercenter", "neighborhood", "convenience"] = "retina"
     days: int = Field(1, ge=1, le=365)
     period: Optional[Literal["1w", "2w", "1m", "3m", "6m", "1y"]] = None     # instead of days
     mind: Literal["fast", "student", "mix"] = "fast"

@@ -8,8 +8,17 @@ const AMOUNTS = [
 ];
 // Strict: the student model handles the NPCs - every shelf choice of every shopper.
 const MIND = "student";
-// ESTIMATED seconds per day for the supermarket (7-day runs on the owner's PC, 14 Oct 2026)
-const SECONDS_PER_DAY = { student: 2.3, fast: 0.7 };
+// ESTIMATED run time, MEASURED on the owner's PC (15 Oct 2026, RETINA Supercenter, student):
+// 7 days ~4 min, 30 days ~5.5 min, 91 days ~48 min. Days get slower as the shoppers' memory grows,
+// so beyond 91 days it grows with days squared. Other stores scale with their traffic.
+const MEASURED = [[0, 180], [7, 240], [30, 330], [91, 2870]];
+const RETINA_TRAFFIC = 25700;
+function runSeconds(days) {
+  if (days >= 91) return 2870 * (days / 91) ** 2;
+  const k = MEASURED.findIndex(([d]) => d >= days);
+  const [d0, s0] = MEASURED[k - 1], [d1, s1] = MEASURED[k];
+  return s0 + ((s1 - s0) * (days - d0)) / (d1 - d0);
+}
 const BUSINESS = {
   "sales_transactions.csv": "one row per product sold: price, discount, cost, profit",
   "baskets.csv": "one row per receipt: customer, times, items, total",
@@ -35,11 +44,15 @@ const FILES = {
 
 const api = (path, options) =>
   fetch(url(path), options).then(async (r) => {
-    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `${r.status}`);
+    if (!r.ok) {
+      const detail = (await r.json().catch(() => ({}))).detail;          // a text, or a list of checks (422)
+      throw new Error(Array.isArray(detail) ? detail.map((d) => d.msg).join("; ") : detail || `${r.status}`);
+    }
     return r.json();
   });
 const size = (b) => (b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1e3))} KB`);
-const time = (s) => (s < 90 ? `${Math.max(5, Math.round(s / 5) * 5)} seconds` : `${Math.round(s / 60)} minutes`);
+const time = (s) => (s < 90 ? `${Math.max(5, Math.round(s / 5) * 5)} seconds`
+  : s < 5400 ? `${Math.round(s / 60)} minutes` : `${Math.round(s / 3600)} hours`);
 
 export default function Generate() {
   const [app, setApp] = useState(null); // null = checking, false = not running, object = ok
@@ -93,8 +106,8 @@ export default function Generate() {
     }
   }
 
-  const traffic = (stores.find((s) => s.name === store)?.shoppers_per_week || 13583) / 13583;
-  const estimate = days * SECONDS_PER_DAY[MIND] * traffic;
+  const traffic = (stores.find((s) => s.name === store)?.shoppers_per_week || RETINA_TRAFFIC) / RETINA_TRAFFIC;
+  const estimate = runSeconds(Math.max(1, days)) * traffic;
   const running = job?.running;
   const done = job && !job.running;
   const result = done ? runs.find((r) => r.name === job.run) : null;

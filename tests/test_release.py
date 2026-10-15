@@ -115,3 +115,11 @@ def test_app_generates_student_data_for_a_period(client, monkeypatch, student_di
     assert {"receipts.csv", "trips.csv", "decisions.csv", "report.txt"} <= set(run["files"])
     receipts = c.get("/runs/convenience_student/files/receipts.csv").text
     assert ",student," in receipts and ",llm," not in receipts
+
+
+def test_app_accepts_every_store_it_lists():
+    """Every store GET /stores shows can be started with POST /runs (the request check knows them all)."""
+    from retina.app.server import STORES, RunRequest
+    for name in STORES:
+        assert RunRequest(store=name).store == name
+    assert RunRequest().store == "retina"
