@@ -208,8 +208,8 @@ def build_waste_log(waste, store, book):
     """Fresh units thrown away: a real store records this (it is part of 'shrink')."""
     p = store.products
     waste = pd.DataFrame(waste, columns=["day", "product_idx", "units"])
-    idx = waste["product_idx"].to_numpy()
-    day = waste["day"].to_numpy()
+    idx = waste["product_idx"].to_numpy(dtype=int)                  # int even when nothing was thrown away
+    day = waste["day"].to_numpy(dtype=int)
     cost = p["unit_cost"].to_numpy()[idx] * book.inflation[book.month_of_day[day], idx]
     return pd.DataFrame({
         "date": book.dates[day],

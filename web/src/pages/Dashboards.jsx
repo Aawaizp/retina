@@ -7,7 +7,7 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function Dashboards() {
   const [stores, setStores] = useState([]);
-  const [store, setStore] = useState("generic_supermarket");
+  const [store, setStore] = useState("retina_supercenter");
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("Starting the in-browser database...");
 
@@ -58,15 +58,18 @@ export default function Dashboards() {
       <div className="flex flex-wrap items-end gap-4">
         <div>
           <h1 className="text-2xl font-bold">Dashboards</h1>
-          <p className="text-sm muted">Read straight from Parquet files by DuckDB-WASM - nothing is sent to a server.</p>
+          <p className="text-sm muted">
+            {STORE_NAMES[store] || store}, every shopper run by the student model (SIMULATED). Read straight from
+            Parquet files by DuckDB-WASM - nothing is sent to a server.
+          </p>
         </div>
-        <select
+        {stores.length > 1 && <select
           className="ml-auto rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
           value={store}
           onChange={(e) => setStore(e.target.value)}
         >
           {stores.map((s) => <option key={s} value={s}>{STORE_NAMES[s] || s}</option>)}
-        </select>
+        </select>}
       </div>
 
       {!data ? (
@@ -116,7 +119,7 @@ export default function Dashboards() {
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {data.top.map((r) => (
                   <tr key={r.product_id}>
-                    <td className="py-2 pr-4">{r.product_name}<span className="muted"> {r.brand}</span></td>
+                    <td className="py-2 pr-4">{r.product_name}{r.brand && !r.product_name.toLowerCase().includes(r.brand.toLowerCase()) && <span className="muted"> {r.brand}</span>}</td>
                     <td className="pr-4 muted">{r.department}</td>
                     <td className="pr-4 text-right">{fmt(r.units)}</td>
                     <td className="pr-4 text-right">${fmt(r.revenue)}</td>

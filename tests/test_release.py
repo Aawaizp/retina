@@ -69,7 +69,7 @@ def test_app_reads_runs_and_blocks_other_paths(client):
     (run / "receipts.csv").write_bytes(b"a,b\n1,2\n")
     (run / "state.pkl").write_bytes(b"secret")
     assert c.get("/health").json()["status"] == "ok"
-    assert {s["name"] for s in c.get("/stores").json()} == {"supermarket", "supercenter", "neighborhood", "convenience"}
+    assert {s["name"] for s in c.get("/stores").json()} == {"retina", "supermarket", "supercenter", "neighborhood", "convenience"}
     listed = c.get("/runs").json()
     assert [(r["name"], r["days_done"], r["files"]) for r in listed] == [("convenience", 2, ["hourly.csv", "receipts.csv"])]
     assert listed[0]["sizes"] == {"hourly.csv": 36, "receipts.csv": 8}

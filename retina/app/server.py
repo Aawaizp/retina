@@ -41,7 +41,7 @@ from pydantic import BaseModel, Field
 from retina import __version__
 
 ROOT = Path(__file__).resolve().parents[2]
-STORES = {"supermarket": "generic_supermarket", "supercenter": "supercenter",
+STORES = {"retina": "retina_supercenter", "supermarket": "generic_supermarket", "supercenter": "supercenter",
           "neighborhood": "neighborhood_market", "convenience": "convenience"}
 PERIODS = {"1w": 7, "2w": 14, "1m": 30, "3m": 91, "6m": 182, "1y": 365}
 WEB_DIST = ROOT / "web" / "dist"

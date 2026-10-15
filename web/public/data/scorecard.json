@@ -1,0 +1,140 @@
+{
+ "data_label": "SIMULATED",
+ "days": 91,
+ "store": "RETINA Supercenter",
+ "baskets": 33291,
+ "lines": 342572,
+ "decided_by_student": 0.969,
+ "lists_by_list_student": 1.0,
+ "rows": [
+  {
+   "measure": "Products per basket",
+   "ours": 10.29,
+   "real": 10.09,
+   "source": "Instacart orders (online grocery, 2017)",
+   "label": "PUBLIC_STATISTIC"
+  },
+  {
+   "measure": "Re-buy share (product bought before)",
+   "ours": 0.66,
+   "real": 0.59,
+   "source": "Instacart reorder rate",
+   "label": "PUBLIC_STATISTIC",
+   "format": "pct"
+  },
+  {
+   "measure": "Units per receipt line",
+   "ours": 1.27,
+   "real": 1.176,
+   "source": "Open Prices receipts (US)",
+   "label": "REAL_OBSERVED"
+  },
+  {
+   "measure": "Units bought on promotion",
+   "ours": 0.261,
+   "real": "24-31%",
+   "source": "Nielsen 2019-2020, Bernstein 2022",
+   "label": "PUBLIC_STATISTIC",
+   "format": "pct"
+  },
+  {
+   "measure": "Own-price elasticity",
+   "ours": -2.91,
+   "real": -2.5,
+   "source": "grocery research (about -2.5)",
+   "label": "PUBLIC_STATISTIC"
+  },
+  {
+   "measure": "Trips: routine",
+   "ours": 0.7,
+   "real": 0.7204,
+   "source": "Instacart, basket vs own average",
+   "label": "PUBLIC_STATISTIC",
+   "format": "pct"
+  },
+  {
+   "measure": "Trips: stock-up",
+   "ours": 0.157,
+   "real": 0.1366,
+   "source": "Instacart, basket vs own average",
+   "label": "PUBLIC_STATISTIC",
+   "format": "pct"
+  },
+  {
+   "measure": "Trips: top-up",
+   "ours": 0.143,
+   "real": 0.143,
+   "source": "Instacart, basket vs own average",
+   "label": "PUBLIC_STATISTIC",
+   "format": "pct"
+  },
+  {
+   "measure": "Lines: produce",
+   "ours": 0.2709,
+   "real": 0.2923,
+   "source": "Instacart department shares",
+   "label": "PUBLIC_STATISTIC",
+   "format": "pct"
+  },
+  {
+   "measure": "Lines: dairy eggs",
+   "ours": 0.1728,
+   "real": 0.1669,
+   "source": "Instacart department shares",
+   "label": "PUBLIC_STATISTIC",
+   "format": "pct"
+  },
+  {
+   "measure": "Lines: snacks",
+   "ours": 0.1103,
+   "real": 0.089,
+   "source": "Instacart department shares",
+   "label": "PUBLIC_STATISTIC",
+   "format": "pct"
+  },
+  {
+   "measure": "Lines: beverages",
+   "ours": 0.0998,
+   "real": 0.0829,
+   "source": "Instacart department shares",
+   "label": "PUBLIC_STATISTIC",
+   "format": "pct"
+  },
+  {
+   "measure": "Lines: frozen",
+   "ours": 0.0861,
+   "real": 0.069,
+   "source": "Instacart department shares",
+   "label": "PUBLIC_STATISTIC",
+   "format": "pct"
+  },
+  {
+   "measure": "Lines: household",
+   "ours": 0.0136,
+   "real": 0.0228,
+   "source": "Instacart department shares",
+   "label": "PUBLIC_STATISTIC",
+   "format": "pct"
+  },
+  {
+   "measure": "Lines: personal care",
+   "ours": 0.0081,
+   "real": 0.0138,
+   "source": "Instacart department shares",
+   "label": "PUBLIC_STATISTIC",
+   "format": "pct"
+  },
+  {
+   "measure": "Lines: babies",
+   "ours": 0.007,
+   "real": 0.0131,
+   "source": "Instacart department shares",
+   "label": "PUBLIC_STATISTIC",
+   "format": "pct"
+  }
+ ],
+ "notes": [
+  "Re-buy share uses the second half of the run (on day 1 nobody has bought anything yet).",
+  "Household and personal care are a little low: a known limit (the list student has no department input; the gap is about 1 point of sales)."
+ ]
+}

@@ -1,5 +1,6 @@
 // Small helpers every page uses (no heavy libraries here, so the home page stays fast).
 export const STORE_NAMES = {
+  retina_supercenter: "RETINA Supercenter",
   generic_supermarket: "Supermarket",
   supercenter: "Supercenter",
   neighborhood_market: "Neighborhood market",

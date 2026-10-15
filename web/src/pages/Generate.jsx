@@ -44,7 +44,7 @@ const time = (s) => (s < 90 ? `${Math.max(5, Math.round(s / 5) * 5)} seconds` : 
 export default function Generate() {
   const [app, setApp] = useState(null); // null = checking, false = not running, object = ok
   const [stores, setStores] = useState([]);
-  const [store, setStore] = useState("supermarket");
+  const [store, setStore] = useState("retina");
   const [days, setDays] = useState(30);
   const [job, setJob] = useState(null);
   const [runs, setRuns] = useState([]);

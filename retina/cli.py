@@ -321,14 +321,12 @@ def lists_main(argv):
 def web_data_main(argv):
     ap = argparse.ArgumentParser(prog="retina web-data", description="Build the website's small data files "
                                  "(aggregated, SIMULATED, without the private per-shopper profiles).")
-    ap.add_argument("--days", type=int, default=90, help="days per store (default 90)")
-    ap.add_argument("--stores", help="comma list (default: all four)")
+    ap.add_argument("--days", type=int, default=91, help="days of RETINA Supercenter (default 91)")
     ap.add_argument("--out", help="folder (default web/public)")
-    ap.add_argument("--no-student", action="store_true", help="leave out the student panel and the what-if model")
+    ap.add_argument("--no-student", action="store_true", help="engine only (no student models; a quick try)")
     args = ap.parse_args(argv)
     from retina.web_data import web_data, WEB
-    stores = [resolve_store(s.strip()) for s in args.stores.split(",")] if args.stores else None
-    web_data(args.days, stores, args.out or WEB, not args.no_student)
+    web_data(args.days, args.out or WEB, not args.no_student)
 
 
 def app_main(argv):
