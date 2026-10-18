@@ -136,3 +136,41 @@ def test_app_serves_the_days_to_watch(client):
     assert c.get("/runs/retina_supercenter_student/view/5").json()["day"] == 5
     assert c.get("/runs/retina_supercenter_student/view/1").status_code == 404
     assert c.get("/runs/..%2F..%2Fpyproject.toml/view").status_code == 404
+
+
+def test_simulator_waits_for_the_3d_page(tmp_path, monkeypatch):
+    """--sync-view: the next day is made only after the page has played this one (or says: don't wait)."""
+    import threading
+    import time as t
+    from retina.engine import live
+    monkeypatch.setattr(live, "LIVE_DIR", tmp_path)
+    view = tmp_path / "view"
+    view.mkdir()
+    (view / "watched.txt").write_text("3", encoding="utf-8")
+    live.wait_until_watched(3)                                    # already watched: no wait
+    done = []
+    th = threading.Thread(target=lambda: (live.wait_until_watched(4), done.append(1)))
+    th.start()
+    t.sleep(1.2)
+    assert not done                                               # day 4 not played yet: still waiting
+    (view / "watched.txt").write_text("4", encoding="utf-8")
+    th.join(5)
+    assert done
+    (view / "nowait").touch()
+    live.wait_until_watched(99)                                   # "don't wait" -> goes on
+
+
+def test_app_passes_watching_notes_to_the_run(client):
+    import subprocess
+    import sys
+    from retina.app import server
+    c, live = client
+    assert c.post("/runs/current/watched", json={"day": 0}).status_code == 404      # no run yet
+    server.runner.process = subprocess.Popen([sys.executable, "-c", "pass"])
+    server.runner.request = server.RunRequest(store="retina", days=2, mind="student").model_dump()
+    server.runner.process.wait()
+    assert c.post("/runs/current/watched", json={"day": 1}).json() == {"watched": 1}
+    view = live / "retina_supercenter_student" / "view"
+    assert (view / "watched.txt").read_text(encoding="utf-8") == "1"
+    assert c.post("/runs/current/nowait").json() == {"waiting": False} and (view / "nowait").exists()
+    assert c.post("/runs/current/watched", json={"day": -1}).status_code == 422

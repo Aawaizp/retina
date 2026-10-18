@@ -11,6 +11,8 @@ process - one run at a time. Endpoints:
   POST /runs                        start: {"store": "supermarket", "days": 3 or "period": "1w"|"1m"|"3m"|"6m"|"1y",
                                      "mind": "fast"|"student"|"mix", "student": "auto"|"off"|"only"}
   GET  /runs/current                the run in progress (and its last output lines)
+  POST /runs/current/watched        {"day": n}: the 3D page has played day n (the next day may be made)
+  POST /runs/current/nowait         stop waiting for the 3D page (full speed)
   GET  /runs/{name}/report          the thinking-run report (report.txt)
   GET  /runs/{name}/view            days whose NPC walk can be watched (last 3); /view/{day} = that day
   GET  /runs/{name}/files/{file}    download receipts.csv, trips.csv, ... of a run
@@ -25,12 +27,13 @@ Every file it serves is SIMULATED data made on this PC.
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
 import zipfile
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -65,6 +68,7 @@ class RunRequest(BaseModel):
     student: Literal["auto", "off", "only"] = "auto"
     reset: bool = False
     view: bool = True                     # record the NPCs' walk each day for the 3D store page
+    wait_for_view: bool = False           # the 3D page asks for it: next day only after it played this one
 
 
 class Runner:
@@ -83,9 +87,13 @@ class Runner:
                 raise HTTPException(409, "A run is already going - wait for it (GET /runs/current).")
             how_much = ["--period", req.period] if req.period else ["--days", str(req.days)]
             args = [sys.executable, "-u", "-m", "retina", "--store", req.store, *how_much, "--mind", req.mind,
-                    "--student", req.student, "--yes"] + (["--reset"] if req.reset else []) +                 (["--view"] if req.view else [])
+                    "--student", req.student, "--yes"] + (["--reset"] if req.reset else []) +                 (["--view"] if req.view else []) + (["--sync-view"] if req.view and req.wait_for_view else [])
             self.lines.clear()
+            if req.reset:                    # a new run: the page must never play days left from an older one
+                name = STORES[req.store] + ("" if req.mind == "fast" else f"_{req.mind}")
+                shutil.rmtree(live_root() / name / "view", ignore_errors=True)
             self.request = req.model_dump()
+            self.started = datetime.now(timezone.utc).isoformat(timespec="seconds")
             self.process = subprocess.Popen(args, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                             encoding="utf-8", errors="replace",
                                             env=dict(os.environ, PYTHONIOENCODING="utf-8", RETINA_NO_BROWSER="1"))
@@ -103,6 +111,7 @@ class Runner:
         name = STORES[req["store"]] + ("" if req["mind"] == "fast" else f"_{req['mind']}")
         folder = live_root() / name
         return {"running": self.busy(), "request": req, "exit_code": self.process.poll(),
+                "started": getattr(self, "started", None),
                 "run": name, "days_wanted": PERIODS.get(req["period"], req["days"]),
                 "days_done": days_done(folder) if folder.exists() else 0, "output": list(self.lines)}
 
@@ -167,6 +176,33 @@ def start_run(req: RunRequest):
 @app.get("/runs/current")
 def current():
     return runner.state()
+
+
+class Watched(BaseModel):
+    day: int = Field(ge=0)
+
+
+def current_view():
+    state = runner.state()
+    if not state.get("run"):
+        raise HTTPException(404, "No run on this PC yet.")
+    folder = live_root() / state["run"] / "view"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+@app.post("/runs/current/watched")
+def watched(w: Watched):
+    """The 3D page has played day w.day: the simulator may make the next day."""
+    (current_view() / "watched.txt").write_text(str(w.day), encoding="utf-8")
+    return {"watched": w.day}
+
+
+@app.post("/runs/current/nowait")
+def nowait():
+    """Stop waiting for the 3D page: make the remaining days at full speed."""
+    (current_view() / "nowait").touch()
+    return {"waiting": False}
 
 
 @app.get("/runs/{name}/report", response_class=PlainTextResponse)

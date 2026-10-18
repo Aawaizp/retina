@@ -19,7 +19,7 @@
     ],
     "weekend_vs_weekday": 1.23,
     "hourly_counts": null,
-    "npc_scale": 0.1
+    "npc_scale": 1.0
   },
   "format": {
     "type": "supercenter",
@@ -180,7 +180,7 @@
     "traffic.weekend_vs_weekday": "PUBLIC_STATISTIC - USDA ERS from the American Time Use Survey 2014-17: 16% of people grocery shop on an average weekend day vs 13% on a weekday (16/13 = 1.23)",
     "traffic.hourly_curve": "PUBLIC_STATISTIC - Instacart order hours (ONLINE orders, 2017), cut to opening hours. Check: ATUS says in-store weekday peaks are 11am-1pm and 3-4pm. Put real door-counter numbers in hourly_counts (a typical weekday, e.g. {\"7\": 40, \"8\": 90, ...}) to use those instead (REAL_OBSERVED)",
     "traffic.open_hours": "ESTIMATED - 6:00 to 23:00, common supercenter hours",
-    "traffic.npc_scale": "SIMULATED - our choice: 0.1 = one NPC stands for 10 real shoppers (100 real at 10 am -> about 10 NPCs)",
+    "traffic.npc_scale": "SIMULATED - our choice (owner, 18 Oct 2026): 1.0 = one NPC per real shopper (368 real at 10 am -> 368 NPCs)",
     "shoppers.price_sensitivity_spread": "ESTIMATED - spread chosen by us, not measured",
     "shoppers.weekday_habit": "ESTIMATED - habit strength chosen by us",
     "shoppers.instacart_day0": "ESTIMATED - Instacart does not say which weekday day 0 is; we assume Sunday",

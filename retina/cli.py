@@ -96,6 +96,8 @@ def build_parser():
     ap.add_argument("--pace", type=float, default=0.4, help="seconds per hour with --watch")
     ap.add_argument("--view", action="store_true", help="write view.html: the NPCs walking, day by day")
     ap.add_argument("--wait", type=float, default=0, help="seconds to wait between days (to watch --view)")
+    ap.add_argument("--sync-view", action="store_true",
+                    help="with --view: make the next day only after the 3D page has played this one")
     ap.add_argument("--scale", type=float, help="new store only: NPCs per real shopper (0.1 = 1 in 10)")
     ap.add_argument("--per-week", type=int, help="new store only: real shoppers a week")
     ap.add_argument("--student", choices=("auto", "off", "only"), default="auto",
@@ -153,9 +155,9 @@ def live_args(args):
            "--panel", str(args.panel), "--provider", args.provider, "--student", args.student]
     if args.model:
         out += ["--model", args.model]
-    for flag in ("status", "reset", "watch", "view", "yes", "report"):
+    for flag in ("status", "reset", "watch", "view", "yes", "report", "sync_view"):
         if getattr(args, flag):
-            out.append(f"--{flag}")
+            out.append(f"--{flag.replace('_', '-')}")
     if args.scale:
         out += ["--scale", str(args.scale)]
     if args.per_week:
@@ -321,7 +323,7 @@ def lists_main(argv):
 def web_data_main(argv):
     ap = argparse.ArgumentParser(prog="retina web-data", description="Record RETINA Supercenter days (NPC walks "
                                  "and receipts, SIMULATED, without the private per-shopper profiles) for the website.")
-    ap.add_argument("--days", type=int, default=3, help="days to simulate (default 3; the last 2 are kept)")
+    ap.add_argument("--days", type=int, default=2, help="days to simulate (default 2; 10:00-13:00 of the last is kept)")
     ap.add_argument("--out", help="folder (default web/public)")
     ap.add_argument("--no-student", action="store_true", help="engine only (no student models; a quick try)")
     args = ap.parse_args(argv)

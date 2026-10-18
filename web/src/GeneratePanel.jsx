@@ -12,12 +12,15 @@ const MIND = "student";
 // 7 days ~4 min, 30 days ~5.5 min, 91 days ~48 min. Days get slower as the shoppers' memory grows,
 // so beyond 91 days it grows with days squared.
 const MEASURED = [[0, 180], [7, 240], [30, 330], [91, 2870]];
-function runSeconds(days) {
+function tenthScale(days) {
   if (days >= 91) return 2870 * (days / 91) ** 2;
   const k = MEASURED.findIndex(([d]) => d >= days);
   const [d0, s0] = MEASURED[k - 1], [d1, s1] = MEASURED[k];
   return s0 + ((s1 - s0) * (days - d0)) / (d1 - d0);
 }
+// Since 18 Oct 1 NPC = 1 real shopper (10x more): 2 days took 290 s (~70 s start + ~110 s a day, about
+// 12.7x the per-day time above). Longer runs: the curve above times 12.7 (ESTIMATED, not yet measured).
+const runSeconds = (days) => 70 + 12.7 * (tenthScale(days) - 180);
 const BUSINESS = {
   "sales_transactions.csv": "one row per product sold: price, discount, cost, profit",
   "baskets.csv": "one row per receipt: customer, times, items, total",
@@ -57,6 +60,7 @@ export default function GeneratePanel({ onJob }) {
   const [app, setApp] = useState(null); // null = checking, false = not running, object = ok
   const store = "retina";
   const [days, setDays] = useState(30);
+  const [watch, setWatch] = useState(true);    // the next day is made only after the 3D store played this one
   const [job, setJob] = useState(null);
   const [runs, setRuns] = useState([]);
   const [error, setError] = useState(null);
@@ -96,7 +100,7 @@ export default function GeneratePanel({ onJob }) {
       await api("runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ store, days, mind: MIND, reset: true, view: true }),
+        body: JSON.stringify({ store, days, mind: MIND, reset: true, view: true, wait_for_view: watch }),
       });
       follow();
     } catch (e) {
@@ -159,8 +163,18 @@ export default function GeneratePanel({ onJob }) {
               className="btn bg-brand-500 px-5 py-2 text-white hover:bg-brand-600 disabled:opacity-50">
               {running ? "Generating..." : `Generate ${days} day${days > 1 ? "s" : ""}`}
             </button>
-            <span className="text-sm muted">about {time(estimate)} on a normal PC (ESTIMATED)</span>
+            <span className="text-sm muted">
+              {watch ? `about 2 minutes per day while you watch, ${time(Math.max(estimate, 70 + days * 120))} in all`
+                : `about ${time(estimate)} on a normal PC`} (ESTIMATED)
+            </span>
           </div>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" checked={watch} disabled={running} onChange={(e) => setWatch(e.target.checked)} className="mt-1" />
+            <span>
+              <b>Make the data as I watch</b> - the next day is made only after the NPCs have finished this one in the
+              3D store, so the CSV files grow day by day with what you saw. Untick for big runs (faster, nothing to watch).
+            </span>
+          </label>
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
       )}
@@ -181,15 +195,19 @@ export default function GeneratePanel({ onJob }) {
             {(job.output || []).slice(-8).join("\n")}
           </pre>
           {done && job.exit_code !== 0 && <p className="text-sm text-red-600">The run stopped with an error - see the lines above.</p>}
+          {running && job.request?.wait_for_view && (
+            <button onClick={() => api("runs/current/nowait", { method: "POST" }).catch(() => {})}
+              className="btn border border-slate-700 text-sm">Stop waiting for the 3D store - make the rest at full speed</button>
+          )}
         </div>
       )}
 
       {result && <Downloads run={result} highlight />}
 
-      {app && runs.filter((r) => r.files.length && r.name !== result?.name).length > 0 && (
+      {app && runs.filter((r) => r.files.length && r.name !== result?.name && !(running && r.name === job?.run)).length > 0 && (
         <div className="space-y-3">
           <h2 className="font-semibold">Earlier generated data on this PC</h2>
-          {runs.filter((r) => r.files.length && r.name !== result?.name).map((r) => <Downloads key={r.name} run={r} />)}
+          {runs.filter((r) => r.files.length && r.name !== result?.name && !(running && r.name === job?.run)).map((r) => <Downloads key={r.name} run={r} />)}
         </div>
       )}
     </div>

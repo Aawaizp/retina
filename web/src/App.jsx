@@ -51,9 +51,9 @@ export default function App() {
   function onJob(s) {
     setJob(s);
     const src = S.current.source;
-    if (!s.run || (src?.kind === "run" && src.run === s.run && src.finished && !s.running)) return;
-    if (src?.kind !== "run" || src.run !== s.run) {
-      S.current.source = { kind: "run", run: s.run, shown: -1 };
+    if (!s.run || (src?.kind === "run" && src.started === s.started && src.finished && !s.running)) return;
+    if (src?.kind !== "run" || src.run !== s.run || src.started !== s.started) {   // a new run (same folder too)
+      S.current.source = { kind: "run", run: s.run, started: s.started, shown: -1 };
       setSource({ kind: "run", run: s.run });
     }
     S.current.source.running = s.running;
@@ -99,7 +99,11 @@ export default function App() {
           if (st.now > st.day.tMax) {
             st.now = st.day.tMax;
             const src = st.source;
-            if (src?.kind === "run") { st.waiting = true; nextRunDay(); }
+            if (src?.kind === "run") {                // this day was watched: the simulator may make the next
+              st.waiting = true;
+              fetch(url("runs/current/watched"), { method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ day: src.shown }) }).catch(() => {}).finally(nextRunDay);
+            }
             else if (src?.kind === "demo") {
               src.i = (src.i + 1) % src.days.length;
               load(`data/${src.days[src.i]}`, "playing");

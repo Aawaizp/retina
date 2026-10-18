@@ -165,6 +165,9 @@ def write_view(sim, day, events, first_time=False):
     replay.write_page(data, path)
     days = LIVE_DIR / "view"                               # the same day as data, for the 3D store page
     days.mkdir(exist_ok=True)
+    if first_time:                                         # a new run: older watching notes no longer count
+        for note in ("watched.txt", "nowait"):
+            (days / note).unlink(missing_ok=True)
     (days / f"day_{day:03d}.json").write_text(json.dumps(data, separators=(",", ":"), default=replay.plain),
                                               encoding="utf-8")
     for old in sorted(days.glob("day_*.json"))[:-3]:       # keep the last 3 days (about 2 MB each)
@@ -176,6 +179,32 @@ def write_view(sim, day, events, first_time=False):
             webbrowser.open(path.resolve().as_uri())
         except Exception:
             pass
+
+
+SYNC_PATIENCE = 15 * 60                     # seconds without any sign of the page before going on alone
+
+
+def wait_until_watched(day):
+    """--sync-view: the NPCs make the data as they are watched - wait until the 3D page reports that it
+    has played `day` (view/watched.txt), or says not to wait any more (view/nowait). If the page is
+    closed, go on after SYNC_PATIENCE seconds without news."""
+    folder = LIVE_DIR / "view"
+    watched, nowait = folder / "watched.txt", folder / "nowait"
+    last_news, seen = time.time(), None
+    while not nowait.exists():
+        try:
+            n = int(watched.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            n = -1
+        if n >= day:
+            return
+        if n != seen:
+            seen, last_news = n, time.time()
+        if time.time() - last_news > SYNC_PATIENCE:
+            print(f"  (no news from the 3D page for {SYNC_PATIENCE // 60} min - going on without waiting)")
+            nowait.touch()
+            return
+        time.sleep(0.5)
 
 
 def status(sim):
@@ -205,6 +234,8 @@ def main(argv=None):
     ap.add_argument("--per-week", type=int, help="new store only: real shoppers a week")
     ap.add_argument("--view", action="store_true", help="write view.html: the NPCs walking, day by day")
     ap.add_argument("--wait", type=float, default=0, help="seconds to wait between days (to watch --view)")
+    ap.add_argument("--sync-view", action="store_true",
+                    help="with --view: make the next day only after the 3D page has played this one")
     ap.add_argument("--mind", choices=("fast", "student", "mix", "llm"), default="fast",
                     help="fast = engine only; student = EVERY NPC decides with the trained student (no LLM); "
                          "mix = a panel of thinking NPCs; llm = every NPC asks the LLM (small runs)")
@@ -296,6 +327,8 @@ def main(argv=None):
         save_store(sim)                                   # after every day: safe to stop at any time
         if args.view:
             write_view(sim, day, events, first_time=(k == 0))
+            if args.sync_view:                              # the last day too: files are final once it was seen
+                wait_until_watched(day)
             if args.wait and k < days - 1:
                 print(f"  (watching day {day + 1} in the browser - next day in {args.wait:.0f}s; Ctrl+C stops safely)")
                 time.sleep(args.wait)
