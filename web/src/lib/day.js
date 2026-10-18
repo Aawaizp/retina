@@ -30,10 +30,19 @@ export function prepare(D) {
     t.events.sort((a, b) => a.t - b.t);
   });
   const all = D.events.filter((e) => e.t !== undefined).sort((a, b) => a.t - b.t);
+  // A basket holds each product ONCE (one receipt line, its quantity adds up) - like sales_transactions.
+  // Two list items can end up as the same product: the second PURCHASE adds to the first line.
+  const lines = new Map();
+  for (const e of all) {
+    if (e.event !== "PURCHASE") continue;
+    const key = `${e.shopper}|${e.product}`;
+    if (lines.has(key)) { e.merge = true; lines.get(key).push(e); } else lines.set(key, [e]);
+  }
+  const lineQty = (e, t) => lines.get(`${e.shopper}|${e.product}`).reduce((n, x) => n + (x.t <= t ? x.qty : 0), 0);
   const c = { trips: 0, units: 0, rev: 0, oos: 0, sub: 0, lines: 0, done: 0, mins: 0 };
   const cum = all.map((e) => {
     if (e.event === "SHOPPER_ENTER") c.trips++;
-    if (e.event === "PURCHASE") { c.units += e.qty; c.lines++; }
+    if (e.event === "PURCHASE") { c.units += e.qty; if (!e.merge) c.lines++; }
     if (e.event === "CHECKOUT") c.rev += e.total;
     if (e.event === "STOCKOUT") c.oos++;
     if (e.event === "SUBSTITUTE" || e.event === "SKIP") c.sub++;
@@ -52,7 +61,7 @@ export function prepare(D) {
     const who = `Shopper ${e.shopper}`;
     switch (e.event) {
       case "SHOPPER_ENTER": return `${who} came in (${TRIP[e.mission] || "trip"})`;
-      case "PURCHASE": return `${who} put ${short(pname(e.product))}${e.qty > 1 ? " ×" + e.qty : ""} in the basket – ${money(e.price)}${e.promo ? " (deal)" : ""}${WHY[e.route] ? ", " + WHY[e.route] : ""}`;
+      case "PURCHASE": return `${who} put ${e.merge ? "another " : ""}${short(pname(e.product))}${e.qty > 1 ? " ×" + e.qty : ""} in the basket – ${money(e.price)}${e.promo ? " (deal)" : ""}${WHY[e.route] ? ", " + WHY[e.route] : ""}`;
       case "STOCKOUT": return `${who} found ${short(pname(e.product))} out of stock`;
       case "SUBSTITUTE": return `${who} took ${short(pname(e.product), 26)} instead of ${short(pname(e.instead_of), 26)} (${REASON[e.reason] || e.reason})`;
       case "SKIP": return `${who} skipped ${e.product >= 0 ? short(pname(e.product)) : "an aisle"} (${REASON[e.reason] || e.reason})`;
@@ -61,7 +70,7 @@ export function prepare(D) {
       default: return e.event;
     }
   }
-  return { D, T, all, cum, idxAt, tMin, tMax, describe, pname };
+  return { D, T, all, cum, idxAt, tMin, tMax, describe, pname, lineQty };
 }
 
 export function posAt(tr, t) {

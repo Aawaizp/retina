@@ -41,7 +41,7 @@ export default function App() {
       .then((m) => {
         S.current.source = { kind: "demo", days: m.days, i: 0 };
         setSource({ kind: "demo" });
-        return load(`data/${m.days[0]}`, "recorded day");
+        return load(`data/${m.days[0]}`, "playing");
       })
       .catch((e) => setStatus(`No recorded day found (${e.message}). Build it with: retina web-data`));
     return () => store.current?.dispose();
@@ -102,7 +102,7 @@ export default function App() {
             if (src?.kind === "run") { st.waiting = true; nextRunDay(); }
             else if (src?.kind === "demo") {
               src.i = (src.i + 1) % src.days.length;
-              load(`data/${src.days[src.i]}`, "recorded day");
+              load(`data/${src.days[src.i]}`, "playing");
             }
           }
         }
@@ -113,7 +113,7 @@ export default function App() {
           const rows = [], feed = [];
           for (let j = i - 1; j >= 0 && (rows.length < 12 || feed.length < 8); j--) {
             const e = d.all[j];
-            if (e.event === "PURCHASE" && rows.length < 12) rows.push(e);
+            if (e.event === "PURCHASE" && !e.merge && rows.length < 12) rows.push({ ...e, qty: d.lineQty(e, st.now) });
             if (!["VIEW_PRODUCT", "MOVE_TO_DEPARTMENT", "LEAVE"].includes(e.event) && feed.length < 8) feed.push(e);
           }
           setView({ now: st.now, ...r, k, rows, feed });
@@ -144,8 +144,8 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-7xl gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <section className="space-y-3">
+      <main className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)] gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <section className="min-w-0 space-y-3">
           <div className="card relative overflow-hidden p-0">
             <div ref={box} className="h-[58vh] min-h-[360px] w-full cursor-grab" />
             <div className="pointer-events-none absolute left-3 top-3 rounded-xl bg-slate-950/80 px-3 py-2 text-3xl font-bold tabular-nums text-white">

@@ -46,7 +46,8 @@ export class Store3D {
     const w = container.clientWidth, h = container.clientHeight;
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    this.renderer.setSize(w, h);
+    this.renderer.setSize(w, h, false);                  // the canvas follows its box (CSS), never wider
+    Object.assign(this.renderer.domElement.style, { width: "100%", height: "100%", display: "block" });
     this.renderer.shadowMap.enabled = true;
     container.appendChild(this.renderer.domElement);
     this.scene = new THREE.Scene();
@@ -81,8 +82,8 @@ export class Store3D {
     this.raycaster = new THREE.Raycaster();
     this.onClick = (ev) => this.pick(ev);
     this.renderer.domElement.addEventListener("click", this.onClick);
-    this.onResize = () => this.resize();
-    window.addEventListener("resize", this.onResize);
+    this.observer = new ResizeObserver(() => this.resize());
+    this.observer.observe(container);
   }
 
   X(x) { return x - this.L.width / 2; }
@@ -253,11 +254,11 @@ export class Store3D {
     const w = this.container.clientWidth, h = this.container.clientHeight;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h);
+    this.renderer.setSize(w, h, false);
   }
 
   dispose() {
-    window.removeEventListener("resize", this.onResize);
+    this.observer.disconnect();
     this.renderer.domElement.removeEventListener("click", this.onClick);
     this.controls.dispose();
     this.renderer.dispose();
