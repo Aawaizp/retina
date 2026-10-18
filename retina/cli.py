@@ -98,6 +98,8 @@ def build_parser():
     ap.add_argument("--wait", type=float, default=0, help="seconds to wait between days (to watch --view)")
     ap.add_argument("--sync-view", action="store_true",
                     help="with --view: make the next day only after the 3D page has played this one")
+    ap.add_argument("--live", action="store_true",
+                    help="real-time stores: stream the NPCs' moves and sales as they happen, paced for watching")
     ap.add_argument("--scale", type=float, help="new store only: NPCs per real shopper (0.1 = 1 in 10)")
     ap.add_argument("--per-week", type=int, help="new store only: real shoppers a week")
     ap.add_argument("--student", choices=("auto", "off", "only"), default="auto",
@@ -155,7 +157,7 @@ def live_args(args):
            "--panel", str(args.panel), "--provider", args.provider, "--student", args.student]
     if args.model:
         out += ["--model", args.model]
-    for flag in ("status", "reset", "watch", "view", "yes", "report", "sync_view"):
+    for flag in ("status", "reset", "watch", "view", "yes", "report", "sync_view", "live"):
         if getattr(args, flag):
             out.append(f"--{flag.replace('_', '-')}")
     if args.scale:

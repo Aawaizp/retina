@@ -174,3 +174,21 @@ def test_app_passes_watching_notes_to_the_run(client):
     assert (view / "watched.txt").read_text(encoding="utf-8") == "1"
     assert c.post("/runs/current/nowait").json() == {"waiting": False} and (view / "nowait").exists()
     assert c.post("/runs/current/watched", json={"day": -1}).status_code == 422
+
+
+def test_app_streams_a_live_run(client):
+    """GET /runs/{name}/stream returns the whole lines written since an offset; layout waits for the store."""
+    c, live = client
+    view = live / "retina_supercenter_student" / "view"
+    view.mkdir(parents=True)
+    assert c.get("/runs/retina_supercenter_student/layout").json() == {"layout": None}
+    (view / "layout.json").write_bytes(b'{"store": "RETINA Supercenter", "layout": {"width": 80}}')
+    assert c.get("/runs/retina_supercenter_student/layout").json()["layout"]["width"] == 80
+    (view / "stream.ndjson").write_bytes(b'{"k":"enter","t":360}\n{"k":"pay","t":371}\n{"k":"lea')   # last line half written
+    first = c.get("/runs/retina_supercenter_student/stream?offset=0").json()
+    assert [e["k"] for e in first["events"]] == ["enter", "pay"]
+    with open(view / "stream.ndjson", "ab") as f:
+        f.write(b've","t":372}\n')
+    second = c.get(f"/runs/retina_supercenter_student/stream?offset={first['offset']}").json()
+    assert [e["k"] for e in second["events"]] == ["leave"]
+    assert c.get(f"/runs/retina_supercenter_student/stream?offset={second['offset']}").json()["events"] == []

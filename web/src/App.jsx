@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import GeneratePanel from "./GeneratePanel.jsx";
 import { clock, money, prepare, TRIP } from "./lib/day.js";
 import { getJSON, url } from "./lib/json.js";
+import { LiveDay } from "./lib/live.js";
 import { SHAPES, STATE_COLORS, STATE_NAMES, Store3D } from "./lib/store3d.js";
 
 // ONE page: RETINA Supercenter in 3D. NPC shoppers (run by the student model) walk the store and every
-// product they put in the basket becomes a sales row. On the owner's PC (retina app) it plays the run
-// being generated, day by day; on the public website it plays days recorded by `retina web-data`.
+// product they pay for becomes a sales row. On the owner's PC (retina app) a LIVE run streams what the
+// NPCs do as it happens (the simulator's clock follows this page's speed); the public website plays days
+// recorded by `retina web-data`.
 const SPEEDS = [["2 min / sec", 2], ["5 min / sec", 5], ["15 min / sec", 15], ["1 hour / sec", 60]];
 const EMPTY = { trips: 0, units: 0, rev: 0, oos: 0, sub: 0, lines: 0, done: 0, mins: 0 };
 
@@ -44,13 +46,75 @@ export default function App() {
         return load(`data/${m.days[0]}`, "playing");
       })
       .catch((e) => setStatus(`No recorded day found (${e.message}). Build it with: retina web-data`));
-    return () => store.current?.dispose();
+    return () => { store.current?.dispose(); clearInterval(S.current.poll); };
   }, []);
+
+  // live mode: the NPCs act now - read the simulator's stream as it is written
+  function startLive(s) {
+    clearInterval(S.current.poll);
+    S.current.source = { kind: "live", run: s.run, started: s.started, offset: 0, running: true, layout: null };
+    setSource({ kind: "live", run: s.run });
+    setStatus("opening the store...");
+    const poll = async () => {
+      const src = S.current.source;
+      if (src?.kind !== "live" || src.busy) return;
+      src.busy = true;
+      try {
+        if (!src.layout) {
+          const r = await fetch(url(`runs/${src.run}/layout`));
+          if (!r.ok) return;
+          src.layout = (await r.json()).layout;
+          if (!src.layout) return;                         // the store is still opening
+          if (!store.current) store.current = new Store3D(box.current, src.layout, { onPick: (tr) => { S.current.followed = tr; setFollowed(tr); } });
+        }
+        const { offset, events } = await fetch(url(`runs/${src.run}/stream?offset=${src.offset}`)).then((r) => r.json());
+        src.offset = offset;
+        for (const e of events) {
+          if (e.k === "day") {                             // the store opens: a new day
+            const d = new LiveDay(src.layout, e.date);
+            store.current.clearNpcs();
+            Object.assign(S.current, { day: d, now: 0, followed: null, waiting: false });
+            setFollowed(null);
+            setDay(d);
+            src.dayNo = e.day + 1;
+          } else S.current.day?.add(e);
+        }
+        if (S.current.day?.live && S.current.now === 0 && S.current.day.tMin !== null) S.current.now = S.current.day.tMin;
+        if (Date.now() - (src.told || 0) > 5000) {        // the simulator's clock always follows this page
+          src.told = Date.now();
+          postSpeed(S.current.playing ? S.current.speed : 0.5);
+        }
+        if (events.length) setStatus(`LIVE: day ${src.dayNo} - the NPCs are shopping now`);
+        else if (!src.running) {
+          setStatus("live run finished");
+          clearInterval(S.current.poll);
+        }
+      } catch (err) {
+        /* the app may be busy: try again */
+      } finally {
+        src.busy = false;
+      }
+    };
+    poll();
+    S.current.poll = setInterval(poll, 500);
+    postSpeed(S.current.playing ? S.current.speed : 0.5);
+  }
+
+  function postSpeed(v) {
+    if (S.current.source?.kind !== "live") return;
+    fetch(url("runs/current/speed"), { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ speed: v }) }).catch(() => {});
+  }
 
   // run mode: follow the days the local app is generating
   function onJob(s) {
     setJob(s);
     const src = S.current.source;
+    if (s.run && s.request?.wait_for_view && s.request?.store === "retina") {     // a live run
+      if (src?.kind !== "live" || src.started !== s.started) startLive(s);
+      S.current.source.running = s.running;
+      return;
+    }
     if (!s.run || (src?.kind === "run" && src.started === s.started && src.finished && !s.running)) return;
     if (src?.kind !== "run" || src.run !== s.run || src.started !== s.started) {   // a new run (same folder too)
       S.current.source = { kind: "run", run: s.run, started: s.started, shown: -1 };
@@ -94,7 +158,10 @@ export default function App() {
       const st = S.current, dt = Math.min((t - last) / 1000, 0.25);
       last = t;
       if (st.day && store.current) {
-        if (st.playing && !st.waiting) {
+        if (st.day.live) {                              // live: the clock follows what has happened
+          if (st.playing) st.now = Math.min(st.now + dt * Math.max(st.speed, 1), st.day.tMax);
+          if (st.day.tMax - st.now > 30) st.now = st.day.tMax - 5;   // far behind: catch up
+        } else if (st.playing && !st.waiting) {
           st.now += dt * st.speed;
           if (st.now > st.day.tMax) {
             st.now = st.day.tMax;
@@ -114,13 +181,7 @@ export default function App() {
         if (t - lastUi > 120) {                         // the side panels: a few times a second
           lastUi = t;
           const d = st.day, i = d.idxAt(st.now), k = i > 0 ? d.cum[i - 1] : EMPTY;
-          const rows = [], feed = [];
-          for (let j = i - 1; j >= 0 && (rows.length < 12 || feed.length < 8); j--) {
-            const e = d.all[j];
-            if (e.event === "PURCHASE" && !e.merge && rows.length < 12) rows.push({ ...e, qty: d.lineQty(e, st.now) });
-            if (!["VIEW_PRODUCT", "MOVE_TO_DEPARTMENT", "LEAVE"].includes(e.event) && feed.length < 8) feed.push(e);
-          }
-          setView({ now: st.now, ...r, k, rows, feed });
+          setView({ now: st.now, ...r, k, ...d.recent(i, st.now) });
         }
       }
       raf = requestAnimationFrame(tick);
@@ -129,8 +190,12 @@ export default function App() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  const toggle = () => { S.current.playing = !S.current.playing; setPlaying(S.current.playing); };
-  const changeSpeed = (v) => { S.current.speed = v; setSpeed(v); };
+  const toggle = () => {
+    S.current.playing = !S.current.playing;
+    setPlaying(S.current.playing);
+    postSpeed(S.current.playing ? S.current.speed : 0.5);     // live: paused = the store (almost) stops too
+  };
+  const changeSpeed = (v) => { S.current.speed = v; setSpeed(v); if (S.current.playing) postSpeed(v); };
   const seek = (v) => { S.current.now = v; };
   const D = day?.D;
   const k = view.k;
@@ -143,7 +208,7 @@ export default function App() {
           <h1 className="text-lg font-bold">RETINA Supercenter <span className="font-normal muted">· shoppers walk, sales data is created</span></h1>
           <span className="label">SIMULATED</span>
           <span className="ml-auto text-sm muted">
-            {D ? `${D.date} · ${source?.kind === "run" ? `your run ${source.run}` : "recorded day"} · ${status}` : status}
+            {D ? `${D.date} · ${source?.kind === "live" ? "your live run" : source?.kind === "run" ? `your run ${source.run}` : "recorded day"} · ${status}` : status}
           </span>
         </div>
       </header>
@@ -169,7 +234,7 @@ export default function App() {
               {SPEEDS.map(([l, v]) => <option key={v} value={v}>{l}</option>)}
             </select>
             {day && (
-              <input type="range" min={day.tMin} max={day.tMax} step={0.5} value={view.now}
+              <input type="range" min={day.tMin ?? 0} max={day.tMax} step={0.5} value={view.now}
                 onChange={(e) => seek(+e.target.value)} className="min-w-[160px] flex-1 accent-brand-500" aria-label="time of day" />
             )}
             <span className="text-xs muted">Drag to turn the store · scroll to zoom · click a shopper to follow them</span>

@@ -13,6 +13,9 @@ process - one run at a time. Endpoints:
   GET  /runs/current                the run in progress (and its last output lines)
   POST /runs/current/watched        {"day": n}: the 3D page has played day n (the next day may be made)
   POST /runs/current/nowait         stop waiting for the 3D page (full speed)
+  POST /runs/current/speed          {"speed": store minutes per second} for a live run
+  GET  /runs/{name}/layout          the store's floor plan (live runs)
+  GET  /runs/{name}/stream?offset=  live runs: what the NPCs did since offset (bytes), as it happens
   GET  /runs/{name}/report          the thinking-run report (report.txt)
   GET  /runs/{name}/view            days whose NPC walk can be watched (last 3); /view/{day} = that day
   GET  /runs/{name}/files/{file}    download receipts.csv, trips.csv, ... of a run
@@ -47,6 +50,7 @@ from retina import __version__
 ROOT = Path(__file__).resolve().parents[2]
 STORES = {"retina": "retina_supercenter", "supermarket": "generic_supermarket", "supercenter": "supercenter",
           "neighborhood": "neighborhood_market", "convenience": "convenience"}
+REALTIME = {"retina"}                     # stores on the real-time engine: --live streams them
 PERIODS = {"1w": 7, "2w": 14, "1m": 30, "3m": 91, "6m": 182, "1y": 365}
 WEB_DIST = ROOT / "web" / "dist"
 BUSINESS_FILES = ["sales_transactions.csv", "baskets.csv", "daily_product_sales.csv", "inventory_daily.csv",
@@ -87,7 +91,8 @@ class Runner:
                 raise HTTPException(409, "A run is already going - wait for it (GET /runs/current).")
             how_much = ["--period", req.period] if req.period else ["--days", str(req.days)]
             args = [sys.executable, "-u", "-m", "retina", "--store", req.store, *how_much, "--mind", req.mind,
-                    "--student", req.student, "--yes"] + (["--reset"] if req.reset else []) +                 (["--view"] if req.view else []) + (["--sync-view"] if req.view and req.wait_for_view else [])
+                    "--student", req.student, "--yes"] + (["--reset"] if req.reset else []) +                 (["--view"] if req.view else []) + \
+                ((["--live"] if req.store in REALTIME else ["--sync-view"]) if req.view and req.wait_for_view else [])
             self.lines.clear()
             if req.reset:                    # a new run: the page must never play days left from an older one
                 name = STORES[req.store] + ("" if req.mind == "fast" else f"_{req.mind}")
@@ -198,6 +203,17 @@ def watched(w: Watched):
     return {"watched": w.day}
 
 
+class Speed(BaseModel):
+    speed: float = Field(ge=0.5, le=600)
+
+
+@app.post("/runs/current/speed")
+def speed(v: Speed):
+    """Live runs: store minutes per real second (the simulator's clock follows it)."""
+    (current_view() / "speed.txt").write_text(str(v.speed), encoding="utf-8")
+    return {"speed": v.speed}
+
+
 @app.post("/runs/current/nowait")
 def nowait():
     """Stop waiting for the 3D page: make the remaining days at full speed."""
@@ -211,6 +227,32 @@ def report(name: str):
     if not path.exists():
         raise HTTPException(404, "No report - only thinking runs (mind mix) have one.")
     return path.read_text(encoding="utf-8")
+
+
+STREAM_CHUNK = 2_000_000                  # bytes per read of the live stream
+
+
+@app.get("/runs/{name}/layout")
+def layout(name: str):
+    path = run_dir(name) / "view" / "layout.json"
+    if not path.exists():                    # the store is still opening: ask again in a moment
+        return {"layout": None}
+    return FileResponse(path, media_type="application/json")
+
+
+@app.get("/runs/{name}/stream")
+def stream(name: str, offset: int = 0):
+    """Live runs: the events written since `offset` (bytes) - NPCs entering, at shelves, paying - and the
+    offset to ask from next time. Only whole lines are returned."""
+    path = run_dir(name) / "view" / "stream.ndjson"
+    if not path.exists():
+        return {"offset": 0, "events": []}
+    with open(path, "rb") as f:
+        f.seek(max(0, offset))
+        data = f.read(STREAM_CHUNK)
+    end = data.rfind(b"\n") + 1
+    events = [json.loads(line) for line in data[:end].splitlines() if line.strip()]
+    return {"offset": offset + end, "events": events}
 
 
 @app.get("/runs/{name}/view")

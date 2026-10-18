@@ -57,7 +57,22 @@ export function prepare(D) {
   const tMin = Math.floor(Math.min(...T.map((t) => t.start)) / 60) * 60;
   const tMax = Math.ceil(Math.max(...T.map((t) => t.end)) / 60) * 60;
 
-  function describe(e) {
+  const describe = describer(pname);
+  // the newest sales rows (one per receipt line, like sales_transactions) and events, up to index i
+  function recent(i, now, nRows = 12, nFeed = 8) {
+    const rows = [], feed = [];
+    for (let j = i - 1; j >= 0 && (rows.length < nRows || feed.length < nFeed); j--) {
+      const e = all[j];
+      if (e.event === "PURCHASE" && !e.merge && rows.length < nRows) rows.push({ ...e, qty: lineQty(e, now) });
+      if (!["VIEW_PRODUCT", "MOVE_TO_DEPARTMENT", "LEAVE"].includes(e.event) && feed.length < nFeed) feed.push(e);
+    }
+    return { rows, feed };
+  }
+  return { D, T, all, cum, idxAt, tMin, tMax, describe, pname, lineQty, recent };
+}
+
+export function describer(pname) {
+  return function describe(e) {
     const who = `Shopper ${e.shopper}`;
     switch (e.event) {
       case "SHOPPER_ENTER": return `${who} came in (${TRIP[e.mission] || "trip"})`;
@@ -69,8 +84,7 @@ export function prepare(D) {
       case "LEAVE": return `${who} left the store`;
       default: return e.event;
     }
-  }
-  return { D, T, all, cum, idxAt, tMin, tMax, describe, pname, lineQty };
+  };
 }
 
 export function posAt(tr, t) {

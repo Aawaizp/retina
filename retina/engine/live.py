@@ -181,6 +181,60 @@ def write_view(sim, day, events, first_time=False):
             pass
 
 
+class LiveStream:
+    """--live: the real-time engine's events, written as they happen to view/stream.ndjson (one JSON per
+    line) for the 3D store page; the store's floor plan goes to view/layout.json first. pace() holds the
+    clock so that store minutes pass at the page's speed (view/speed.txt), unless view/nowait exists."""
+    DEFAULT_SPEED = 15.0                          # store minutes per real second (a day ~ 70 s)
+
+    def __init__(self, folder, sim):
+        folder.mkdir(parents=True, exist_ok=True)
+        for old in ("stream.ndjson", "layout.json", "watched.txt", "nowait", "speed.txt"):
+            (folder / old).unlink(missing_ok=True)
+        self.sim, self.folder, self.file = sim, folder, open(folder / "stream.ndjson", "a", encoding="utf-8")
+        self.day, self.base, self.speed, self.checked = None, None, self.DEFAULT_SPEED, 0.0
+
+    def __call__(self, kind, minute, data):
+        from . import replay
+        if kind == "day" and not (self.folder / "layout.json").exists():   # lanes open per hour: known now
+            layout = replay.build_layout(self.sim.store)
+            (self.folder / "layout.json").write_text(json.dumps({"store": PROFILE["name"], "layout": layout},
+                                                                default=replay.plain), encoding="utf-8")
+        self.file.write(json.dumps({"k": kind, "t": round(float(minute), 2), **data}, separators=(",", ":"),
+                                   default=replay.plain) + "\n")
+        if kind in ("pay", "day"):
+            self.file.flush()
+
+    def pace(self, day, minute):
+        now = time.time()
+        if now - self.checked > 1.0:                           # the page may change the speed, or stop waiting
+            self.checked = now
+            self.file.flush()
+            if (self.folder / "nowait").exists():
+                self.speed = None
+            else:
+                try:
+                    self.speed = max(0.5, float((self.folder / "speed.txt").read_text(encoding="utf-8")))
+                except (OSError, ValueError):
+                    pass
+        if self.speed is None:
+            return
+        if day != self.day or self.base is None:               # a new day: the clock starts at opening
+            self.day, self.base = day, (now, minute)
+            return
+        due = self.base[0] + (minute - self.base[1]) / self.speed
+        if due - now > 2.0:                                    # the speed changed: start counting again
+            self.base, due = (now, minute), now
+        while due > time.time():
+            time.sleep(min(0.2, due - time.time()))
+            if time.time() - self.checked > 1.0:
+                break
+
+    def close(self):
+        self.file.flush()
+        self.file.close()
+
+
 SYNC_PATIENCE = 15 * 60                     # seconds without any sign of the page before going on alone
 
 
@@ -236,6 +290,9 @@ def main(argv=None):
     ap.add_argument("--wait", type=float, default=0, help="seconds to wait between days (to watch --view)")
     ap.add_argument("--sync-view", action="store_true",
                     help="with --view: make the next day only after the 3D page has played this one")
+    ap.add_argument("--live", action="store_true",
+                    help="real-time stores: stream every NPC's moves and sales as they happen (view/stream.ndjson), "
+                         "the clock paced for watching (view/speed.txt, store minutes per second; view/nowait = full speed)")
     ap.add_argument("--mind", choices=("fast", "student", "mix", "llm"), default="fast",
                     help="fast = engine only; student = EVERY NPC decides with the trained student (no LLM); "
                          "mix = a panel of thinking NPCs; llm = every NPC asks the LLM (small runs)")
@@ -268,6 +325,10 @@ def main(argv=None):
     if args.mind != "fast":
         from retina.mind import run as mind_run
         sim.mind = mind_run.attach(sim, args.mind, LIVE_DIR, args.panel, args.provider, args.model, args.student)
+    if args.live:
+        if config.ENGINE != "realtime":
+            raise SystemExit(f"--live needs a real-time store ({PROFILE['name']} uses the classic engine).")
+        sim.on_event = LiveStream(LIVE_DIR / "view", sim)
     if args.status:
         status(sim)
         return
@@ -327,7 +388,7 @@ def main(argv=None):
         save_store(sim)                                   # after every day: safe to stop at any time
         if args.view:
             write_view(sim, day, events, first_time=(k == 0))
-            if args.sync_view:                              # the last day too: files are final once it was seen
+            if args.sync_view and not args.live:             # (live: the clock itself was paced)
                 wait_until_watched(day)
             if args.wait and k < days - 1:
                 print(f"  (watching day {day + 1} in the browser - next day in {args.wait:.0f}s; Ctrl+C stops safely)")

@@ -171,8 +171,9 @@ export default function GeneratePanel({ onJob }) {
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" checked={watch} disabled={running} onChange={(e) => setWatch(e.target.checked)} className="mt-1" />
             <span>
-              <b>Make the data as I watch</b> - the next day is made only after the NPCs have finished this one in the
-              3D store, so the CSV files grow day by day with what you saw. Untick for big runs (faster, nothing to watch).
+              <b>Make the data as I watch (live)</b> - the NPCs shop NOW, on one store clock that runs at the speed
+              you watch: every sales row is written the moment its shopper pays. Untick for big runs: the same NPCs
+              and rules at full computer speed, nothing to watch.
             </span>
           </label>
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -197,7 +198,7 @@ export default function GeneratePanel({ onJob }) {
           {done && job.exit_code !== 0 && <p className="text-sm text-red-600">The run stopped with an error - see the lines above.</p>}
           {running && job.request?.wait_for_view && (
             <button onClick={() => api("runs/current/nowait", { method: "POST" }).catch(() => {})}
-              className="btn border border-slate-700 text-sm">Stop waiting for the 3D store - make the rest at full speed</button>
+              className="btn border border-slate-700 text-sm">Full speed - stop running the store at watching speed</button>
           )}
         </div>
       )}

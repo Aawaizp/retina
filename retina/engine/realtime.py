@@ -15,8 +15,14 @@ So shoppers compete for the last units on a shelf, empty shelves meet the next s
 sales rows appear in the order they are paid. The shopping rules themselves (lists, prices, empty-
 shelf reactions, deals, budgets) are the classic engine's own code (shopping.walk_steps), unchanged.
 
-on_event(kind, minute, data) is called as things happen ("enter", "shelf", "pay", "leave") - the live
-stream for the 3D store page.
+on_event(kind, minute, data) is called as things happen - the live stream for the 3D store page:
+  "day"      {day, date}                                        the store opens
+  "enter"    {shopper, mission, group, path: [[minute, x, y], ...] to the checkout area}
+  "shelf"    {shopper, events: [{event, product, name, qty, price, ...}]}   what they did there
+  "checkout" {shopper, lane, start, served}                     queue: starts paying at `start`
+  "pay"      {shopper, trip_id, customer, lines: [{product, name, qty, price, promo}], total}
+  "leave"    {shopper}
+If on_event has a pace(day, minute) method, the clock waits for it before each moment (watching live).
 """
 
 import heapq
@@ -41,8 +47,14 @@ def simulate_day_realtime(day, store, shoppers, params, prices_g, regular, promo
     settings = floor.settings
     per_metre = 1 / settings["walk_speed_m_per_s"] / 60
     per_item = settings["seconds_per_item"] / 60
+    streaming = on_event is not None
+    if streaming and RECORDER["day"] != day:                   # the stream tells what each shopper does
+        RECORDER.update(day=day, events=[])
     recording = RECORDER["day"] == day
     emit = on_event or (lambda kind, minute, data: None)
+    pace = getattr(on_event, "pace", None)
+    names = store.products["product_name"]
+    name = lambda p: str(names.iat[p]) if p >= 0 else ""
     if traffic.enabled():                                      # who comes today and when: as the classic engine
         visitors = traffic.choose_visitors(day, shoppers.next_visit_day, traffic.npcs_today(day))
         hours_table = traffic.hour_table()
@@ -88,6 +100,9 @@ def simulate_day_realtime(day, store, shoppers, params, prices_g, regular, promo
             pause = np.bincount(walk.stop_of_item, minlength=len(walk.stops)) * per_item
             a["reach"] = arrive[s] + walk.cum_m * per_metre + np.r_[0, np.cumsum(pause)]
             a["pause"] = pause
+            if streaming:
+                emit("enter", arrive[s], {"shopper": int(s), "mission": a["mission"], "group": int(a["group"]),
+                                          "path": route_path(floor, walk, a["reach"], pause, arrive[s], per_metre)})
             schedule(s, a, advance(a))
         elif kind == "stop":
             heapq.heappush(clock, (a["reach"][k], next(order), "shelf", s))
@@ -95,12 +110,15 @@ def simulate_day_realtime(day, store, shoppers, params, prices_g, regular, promo
             before = a["reach"][k - 1] + a["pause"][k - 1] if k > 0 else arrive[s]
             heapq.heappush(clock, ((before + a["reach"][k]) / 2, next(order), "shelf", s))
 
+    emit("day", 0, {"day": int(day), "date": str(pd.Timestamp(START_DATE) + pd.Timedelta(days=int(day)))[:10]})
     while clock:
         t, _, what, s = heapq.heappop(clock)
+        if pace is not None:
+            pace(day, t)
         if what == "enter":
             rng, g = dice[s], shoppers.sensitivity_group[s]
             prices, promo = prices_g[g], promo_g[g]
-            a = agents[s] = {"chunk": [], "prices": prices, "promo": promo}
+            a = agents[s] = {"chunk": [], "prices": prices, "promo": promo, "group": g}
             n = len(RECORDER["events"])
             record(day, s, "SHOPPER_ENTER", hour=int(arrive[s] // 60), group=int(g))
             trip = make_list(s, day, store, shoppers, tables, promo, rng, prices)
@@ -113,13 +131,23 @@ def simulate_day_realtime(day, store, shoppers, params, prices_g, regular, promo
             if recording:
                 a["chunk"].extend(RECORDER["events"][n:])
                 del RECORDER["events"][n:]
+            a["mission"] = trip["mission"]
             a["walk"] = walk_steps(s, day, store, shoppers, tables, inv, promo, rng, trip, recording, prices, decisions)
-            emit("enter", t, {"shopper": int(s), "mission": trip["mission"], "planned": trip["planned"]})
             schedule(s, a, advance(a))
         elif what == "shelf":
             a = agents[s]
+            n = len(a["chunk"])
             schedule(s, a, advance(a))
-            emit("shelf", t, {"shopper": int(s)})
+            if streaming:                                      # what they just did at this shelf
+                did = []
+                for e in a["chunk"][n:]:
+                    if e["event"] in ("MOVE_TO_DEPARTMENT", "VIEW_PRODUCT"):
+                        continue
+                    e = dict(e, name=name(e["product"]), instead_of_name=name(e.get("instead_of", -1)))
+                    if e["event"] == "PURCHASE":
+                        e["price"] = round(float(a["prices"][e["product"]]), 2)
+                    did.append(e)
+                emit("shelf", t, {"shopper": int(s), "events": did})
         elif what == "checkout":                               # first come, first served at the open lanes
             a = agents[s]
             basket = a["result"][0]
@@ -131,7 +159,8 @@ def simulate_day_realtime(day, store, shoppers, params, prices_g, regular, promo
             free[j] = served
             a.update(ready=t, lane=j, wait=start - t, leave=served)
             heapq.heappush(clock, (served, next(order), "pay", s))
-        else:                                                  # "pay": the receipt lines are written now
+            emit("checkout", t, {"shopper": int(s), "lane": j, "start": round(start, 2), "served": round(served, 2)})
+        elif what == "pay":                                    # the receipt lines are written now
             a = agents.pop(s)
             basket, missed, eff, walk, info = a["result"]
             prices, promo, rng = a["prices"], a["promo"], dice[s]
@@ -148,8 +177,8 @@ def simulate_day_realtime(day, store, shoppers, params, prices_g, regular, promo
                     d = info["minds"].get(product)
                     row += (d["mind"], d["why_type"], d["why"]) if d else ("engine", "", "")
                 rows.append(row)
-                paid.append({"product": int(product), "qty": int(qty), "price": round(float(prices[product]), 2),
-                             "promo": bool(promo[product])})
+                paid.append({"product": int(product), "name": name(product), "qty": int(qty),
+                             "price": round(float(prices[product]), 2), "promo": bool(promo[product])})
             if mind is not None:
                 mind.after_trip(day, s, int(arrive[s] // 60), basket, info, missed, prices, regular, promo)
             floor.traffic[walk.passed] += 1
@@ -171,8 +200,12 @@ def simulate_day_realtime(day, store, shoppers, params, prices_g, regular, promo
             add_favorites(store, shoppers, s, basket)
             gap = max(1, rng.poisson(shoppers.gap_mean[s]))    # plan the next trip
             shoppers.next_visit_day[s] = plan_visit(day + gap, day + 1, shoppers.favorite_weekday[s], rng)
-            emit("pay", t, {"shopper": int(s), "trip_id": trip_id, "lane": int(a["lane"]), "lines": paid,
+            emit("pay", t, {"shopper": int(s), "trip_id": trip_id, "customer": f"C{int(s):05d}",
+                            "lane": int(a["lane"]), "lines": paid,
                             "total": round(float(sum(x["qty"] * x["price"] for x in paid)), 2)})
+            heapq.heappush(clock, (t + 1.0, next(order), "leave", s))
+        elif what == "leave":
+            emit("leave", t, {"shopper": int(s)})
 
     trips = pd.DataFrame(trips, columns=["day", "trip_id", "shopper_id", "arrive_min", "ready_min", "walk_m",
                                          "shelves_visited", "aisles_seen", "items", "lines", "mission",
@@ -200,3 +233,24 @@ def simulate_day_realtime(day, store, shoppers, params, prices_g, regular, promo
     miss_columns = ["day", "hour", "shopper_id", "product_idx", "reaction", "substitute_idx"]
     return (pd.DataFrame(rows, columns=columns), pd.DataFrame(misses, columns=miss_columns), stock_today, effects,
             trips)
+
+
+def route_path(floor, walk, reach, pause, t0, per_metre):
+    """The planned walk as [[minute, x, y], ...]: corners in between, a pause at each shelf on the list,
+    ending in front of the checkouts (the lane is chosen there, live)."""
+    mid_x = float(floor.lanes_x.mean())
+    path, t, k = [[round(t0, 2), round(walk.points[0][0], 1), round(walk.points[0][1], 1)]], t0, 0
+    prev = walk.points[0]
+    for p in walk.points[1:]:
+        if k == len(walk.stops) and p[2] == -2:                   # the queue: decided at the checkout
+            break
+        t += (abs(p[0] - prev[0]) + abs(p[1] - prev[1])) * per_metre
+        if p[2] != -9 and k < len(walk.stops):                    # a shelf on the list
+            t = reach[k]
+            path.append([round(t, 2), round(p[0], 1), round(p[1], 1)])
+            t += pause[k]
+            k += 1
+        path.append([round(t, 2), round(p[0], 1), round(p[1], 1)])
+        prev = p
+    path.append([round(max(t, reach[-1]), 2), round(mid_x, 1), round(floor.lane_y - 3.5, 1)])
+    return path
