@@ -263,7 +263,22 @@ def make_list(s, day, store, shoppers, tables, promo, rng, prices=None):
 
 def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_points=False, prices=None,
                  decisions=None):
+    """Step 2 of a trip, in one go (the classic engine): every step of walk_steps, straight through."""
+    steps = walk_steps(s, day, store, shoppers, tables, inv, promo, rng, trip, with_points, prices, decisions)
+    try:
+        while True:
+            next(steps)
+    except StopIteration as done:
+        return done.value
+
+
+def walk_steps(s, day, store, shoppers, tables, inv, promo, rng, trip, with_points=False, prices=None,
+               decisions=None):
     """Step 2 of a trip: walk the store with the list from make_list, shelf by shelf.
+    A generator: it stops ("route", walk) once the route is known, ("leg", k) before the deals that catch
+    the eye on the way to shelf k, and ("stop", k) when the shopper reaches shelf k - so the real-time
+    engine (realtime.py) can run every shopper on one clock; the classic engine runs it straight through.
+    Returns (basket, misses, effects, walk, info) at the end.
     decisions = {list position: the mind's decision} for thinking NPCs (retina.mind), else None.
     A decision with mind "llm" or "student" replaces the engine's shelf choice (product, or skip =
     product -1); every other decision ("autopilot", "llm_fallback", "engine") leaves the engine's own
@@ -306,10 +321,13 @@ def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_po
                     break
             if promo[product]:
                 impulse.setdefault(leg_of[a], []).append(product)
+    yield ("route", walk)
 
     # 3) shelf by shelf
     picks = 0
     for k in range(n_stops + 1):
+        if impulse.get(k):
+            yield ("leg", k)
         for product in impulse.get(k, []):                    # on the way to the next shelf
             if inv.stock[product] > 0 and pantry.get(product, -1) <= day:
                 if prices is not None and spent + prices[product] > budget:
@@ -327,6 +345,7 @@ def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_po
         if k == n_stops:
             break
         stop = int(walk.stops[k])
+        yield ("stop", k)
         record(day, s, "MOVE_TO_DEPARTMENT", department=floor.aisle_dept[stop],
                aisle=floor.aisle_names[stop], stop=k)
         for i in items_at[k]:

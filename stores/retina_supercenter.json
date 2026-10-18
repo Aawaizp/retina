@@ -3,6 +3,7 @@
   "name": "RETINA Supercenter",
   "description": "A generic US supercenter (Walmart-like format, never a real retailer): real FMCG products of real brands - food, household, personal care, baby and pet - with published brand shares.",
   "catalog_file": "data/processed/catalog_fmcg.csv",
+  "engine": "realtime",
   "simulation": {
     "seed": 42,
     "start_date": "2025-09-01",
@@ -175,6 +176,7 @@
   },
   "labels": {
     "catalog_file": "REAL_OBSERVED products and prices (Open Food Facts, Open Prices) + PUBLIC_STATISTIC popularity (Instacart aisles) re-weighted by PUBLISHED brand shares (data/reference/brand_shares.csv) + ESTIMATED fields. Built by loaders/fmcg_catalog.py: retailer own-brands removed, brand in the product name",
+    "engine": "SIMULATED - our choice (owner, 18 Oct 2026): realtime = every shopper on one clock (retina/engine/realtime.py)",
     "simulation": "SIMULATED - run settings chosen by us; n_shoppers 'auto' = the NPC pool is sized so its trips match the traffic schedule",
     "traffic.real_shoppers_per_week": "PUBLIC_STATISTIC (derived) - Walmart 10-K FY2026: ~280 million customers a week over ~10,900 stores = ~25,700 per store; includes online visits, so an UPPER bound for one supercenter",
     "traffic.weekend_vs_weekday": "PUBLIC_STATISTIC - USDA ERS from the American Time Use Survey 2014-17: 16% of people grocery shop on an average weekend day vs 13% on a weekday (16/13 = 1.23)",

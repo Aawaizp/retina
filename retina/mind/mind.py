@@ -238,6 +238,51 @@ class Mind:
         self.today.setdefault("rows", []).extend(r for r, _, _ in rows)
         return out
 
+    # ------------------------------------------------- real time (realtime.py)
+    def start_trip(self, day, s, trip, ctx):
+        """The NPC walks in: the list student plans today's list (student runs) and the role card is read."""
+        if self.lister is not None:
+            self._plan_list(s, day, ctx, trip)
+        self.roles.setdefault(s, role_of(self.card(s, day)))
+        return trip
+
+    def at_shelf(self, day, s, trip, ctx):
+        """{list position: decision} that decides WHEN the shopper stands at the shelf - with the stock,
+        prices and options of that moment (student runs; the student never needs an LLM)."""
+        mind = self
+
+        class Shelf(dict):
+            def __bool__(self):                                # empty until the first shelf - still a brain
+                return True
+
+            def get(self, k, default=None):
+                if k not in self:
+                    self[k] = mind.decide_item(day, s, k, trip, ctx)
+                return dict.get(self, k, default)
+        return Shelf()
+
+    def decide_item(self, day, s, k, trip, ctx):
+        g = int(self.sim.shoppers.sensitivity_group[s])
+        prices, promo, table = ctx["prices_g"][g], ctx["promo_g"][g], ctx["tables"][g]
+        wanted, route = trip["plan"][k][:2]
+        aisle, options = self.options(s, k, day, int(wanted), table, prices, promo, ctx["regular"])
+        trigger = self.route(s, k, day, int(wanted), route, options, prices) if options else None
+        row = {"day": day, "hour": ctx["hour"][s], "npc": int(s), "item": k, "aisle": aisle,
+               "route": route, "trigger": trigger or "routine", "engine_product": int(wanted),
+               "options": [{x: o[x] for x in ("letter", "product", "price", "regular", "deal", "times",
+                                               "in_stock", "usual", "w", "pop")} for o in options],
+               "provider": None, "model": None, "cached": 0, "valid": 1, "problem": None}
+        d = None
+        if trigger is not None:
+            d = self._student_pick(s, route, trip["mission"], options, int(wanted), stream(STREAM_MIND_STUDENT, day, s, k))
+        if d is None:
+            d = {"mind": "autopilot" if trigger is None else "engine", "product": int(wanted),
+                 "why_type": "habit" if trigger is None else "", "why": "usual buy" if trigger is None else ""}
+        row.update(mind=d["mind"], product=d["product"], why_type=d["why_type"], why=d["why"])
+        self.memory.add_decisions([row])
+        self.today.setdefault("rows", []).append(row)
+        return d
+
     def _plan_list(self, s, day, ctx, trip):
         """Replace the habit-rule list by the list student's: products and quantities from the NPC's
         scenario (same candidates as the teachers saw). Routes keep the engine's meaning."""

@@ -80,6 +80,7 @@ START_DATE = _sim["start_date"]
 SIM_DAYS = _sim["days"]
 N_SHOPPERS = _sim["n_shoppers"]          # a number, or "auto" = sized from the traffic schedule
 TRAFFIC = PROFILE.get("traffic")         # real footfall -> NPCs per hour (traffic.py)
+ENGINE = PROFILE.get("engine", "classic")  # "realtime": every shopper on one clock (realtime.py)
 HOUSEHOLDS = PROFILE.get("households")   # household size, children, income, food budget (households.py)
 FORMAT = PROFILE.get("format", {})       # store format: assortment size, basket size, department mix
 ASSORTMENT_SHARE = FORMAT.get("assortment_share", 1.0)   # share of each aisle's products on the shelves

@@ -221,9 +221,15 @@ class Simulation:
         receive_deliveries(day, inv)
         for item in iv.active(day, "remove"):              # delisted: nothing left on the shelf
             inv.stock[item["idx"]] = 0
-        sales_today, misses_today, stock_today, effects_today, trips_today = simulate_day(
-            day, store, self.shoppers, self.params, prices_g, regular, promo_g, self.tables, inv,
-            getattr(self, "mind", None))
+        mind = getattr(self, "mind", None)
+        if ENGINE == "realtime" and (mind is None or mind.mode == "student"):   # every shopper on one clock
+            from .realtime import simulate_day_realtime
+            sales_today, misses_today, stock_today, effects_today, trips_today = simulate_day_realtime(
+                day, store, self.shoppers, self.params, prices_g, regular, promo_g, self.tables, inv, mind,
+                getattr(self, "on_event", None))
+        else:
+            sales_today, misses_today, stock_today, effects_today, trips_today = simulate_day(
+                day, store, self.shoppers, self.params, prices_g, regular, promo_g, self.tables, inv, mind)
         self.daily_trips.append(trips_today)
         self.effects.extend(effects_today)
         self.daily_sales.append(sales_today)
@@ -237,6 +243,7 @@ class Simulation:
         database files - it is not part of the saved store and is attached again after loading."""
         state = dict(self.__dict__)
         state.pop("mind", None)
+        state.pop("on_event", None)                        # the live stream belongs to this process only
         return state
 
     def results(self):
