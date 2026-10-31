@@ -28,9 +28,14 @@ The student model (copies the LLM teacher, so thinking NPCs need almost no LLM c
   retina collect --decisions 3000     labels from Groq openai/gpt-oss-120b only (stops at 80% of its free day)
   retina collect --repeat 100         teacher self-agreement (the ceiling)  |  retina collect --status
   retina train                        compare models, export models/student (ONNX + model card)
+  retina trip-end --train             train the local basket-completion model from Instacart orders
   retina --mind mix --student only    thinking NPCs without any LLM
 
 Other tools still run as modules, e.g.  python -m retina.engine.studio  or  python -m retina.engine.export
+
+Validate a completed live run (optional observed daily aggregates stay outside the dataset ZIP):
+  retina validate --run convenience
+  retina validate --run convenience --reference C:\\store_totals
 """
 
 import argparse
@@ -50,7 +55,8 @@ PERIODS = {"1w": 7, "2w": 14, "1m": 30, "3m": 91, "6m": 182, "1y": 365}
 
 
 def store_ids():
-    return sorted(p.stem for p in STORES_DIR.glob("*.json"))
+    from retina.app.custom_stores import custom_ids
+    return sorted({p.stem for p in STORES_DIR.glob("*.json")} | set(custom_ids()))
 
 
 def resolve_store(name):
@@ -64,10 +70,14 @@ def resolve_store(name):
 
 
 def list_stores():
+    from retina.app.custom_stores import profile_path
     short = {v: k for k, v in ALIASES.items()}
     print("Store formats (GENERIC formats, not real retailers; all data SIMULATED):\n")
     for s in store_ids():
-        p = json.loads((STORES_DIR / f"{s}.json").read_text(encoding="utf-8"))
+        path = STORES_DIR / f"{s}.json"
+        if not path.exists():
+            path = profile_path(s)
+        p = json.loads(path.read_text(encoding="utf-8"))
         per_week = p.get("traffic", {}).get("real_shoppers_per_week") or 0
         print(f"  {short.get(s, s):<14} {p['name']:<30} {per_week:>7,} shoppers/week")
 
@@ -77,11 +87,12 @@ def build_parser():
     ap.add_argument("--store", default=os.environ.get("RETINA_STORE", "generic_supermarket"),
                     help="supermarket (default), supercenter, neighborhood, convenience (or a full id)")
     ap.add_argument("--days", type=int, default=1, help="how many days to simulate now (default 1)")
+    ap.add_argument("--seed", type=int, help="new store only: random seed for repeatable results")
     ap.add_argument("--period", choices=tuple(PERIODS), help="how much data: " + ", ".join(
         f"{k} = {v} days" for k, v in PERIODS.items()) + " (instead of --days)")
-    ap.add_argument("--mind", choices=MINDS, default="fast",
-                    help="fast = engine only (default); student = EVERY NPC decides with the trained student "
-                         "(no LLM); mix = panel of thinking NPCs; llm = every NPC asks the LLM (small runs)")
+    ap.add_argument("--mind", choices=MINDS, default="student",
+                    help="student = EVERY NPC uses the local trained brain (default, no LLM); fast = rule brain; "
+                         "mix = panel of thinking NPCs; llm = every NPC asks the LLM (small runs)")
     ap.add_argument("--panel", type=int, default=50, help="new mix run only: how many NPCs think (default 50)")
     ap.add_argument("--provider", default="auto",
                     help="LLM teacher: auto (Groq -> Gemini -> Ollama), groq, gemini, ollama, cerebras, "
@@ -100,8 +111,15 @@ def build_parser():
                     help="with --view: make the next day only after the 3D page has played this one")
     ap.add_argument("--live", action="store_true",
                     help="real-time stores: stream the NPCs' moves and sales as they happen, paced for watching")
+    ap.add_argument("--payments", action="store_true",
+                    help="real-time stores: append paid sales to checkout_events.csv at full speed")
+    ap.add_argument("--realtime", action="store_true",
+                    help="run engine-only or student NPCs together on one store clock, for any store format")
     ap.add_argument("--scale", type=float, help="new store only: NPCs per real shopper (0.1 = 1 in 10)")
+    ap.add_argument("--clock-rate", type=float, default=5.0, help="store minutes per real second in live mode")
     ap.add_argument("--per-week", type=int, help="new store only: real shoppers a week")
+    ap.add_argument("--npc-limit", type=int, help="new store only: maximum NPCs per day")
+    ap.add_argument("--start-time", help="first store time each day (HH:MM)")
     ap.add_argument("--student", choices=("auto", "off", "only"), default="auto",
                     help="mix runs: auto = the trained student decides when sure (default); off; only = no LLM")
     ap.add_argument("--products", metavar="CSV", help="your own products (see: retina products --template)")
@@ -153,17 +171,24 @@ def use_products(path, mode, skip_bad_rows):
 
 def live_args(args):
     """The same run, as arguments for retina.engine.live."""
-    out = ["--days", str(args.days), "--pace", str(args.pace), "--wait", str(args.wait), "--mind", args.mind,
+    out = ["--days", str(args.days), "--pace", str(args.pace), "--wait", str(args.wait),
+           "--clock-rate", str(args.clock_rate), "--mind", args.mind,
            "--panel", str(args.panel), "--provider", args.provider, "--student", args.student]
     if args.model:
         out += ["--model", args.model]
-    for flag in ("status", "reset", "watch", "view", "yes", "report", "sync_view", "live"):
+    for flag in ("status", "reset", "watch", "view", "yes", "report", "sync_view", "live", "payments"):
         if getattr(args, flag):
             out.append(f"--{flag.replace('_', '-')}")
     if args.scale:
         out += ["--scale", str(args.scale)]
     if args.per_week:
         out += ["--per-week", str(args.per_week)]
+    if args.npc_limit:
+        out += ["--npc-limit", str(args.npc_limit)]
+    if args.start_time:
+        out += ["--start-time", args.start_time]
+    if args.seed is not None:
+        out += ["--seed", str(args.seed)]
     return out
 
 
@@ -322,6 +347,20 @@ def lists_main(argv):
         L.status()
 
 
+def trip_end_main(argv):
+    ap = argparse.ArgumentParser(prog="retina trip-end", description="Train a local checkout-choice student "
+                                 "from real Instacart order sizes.")
+    ap.add_argument("--train", action="store_true", help="train and export models/trip_end_student/")
+    ap.add_argument("--max-orders", type=int, default=80_000, help="sampled prior orders (default 80,000)")
+    args = ap.parse_args(argv)
+    from retina.student.tripend import TripEndStudent, MODEL_DIR, train
+    if args.train:
+        train(max_orders=args.max_orders)
+    else:
+        print(f"Trip-end student: {'ready' if TripEndStudent.available() else 'missing'} ({MODEL_DIR})")
+        print("Train from local Instacart files: retina trip-end --train")
+
+
 def web_data_main(argv):
     ap = argparse.ArgumentParser(prog="retina web-data", description="Record RETINA Supercenter days (NPC walks "
                                  "and receipts, SIMULATED, without the private per-shopper profiles) for the website.")
@@ -345,11 +384,34 @@ def app_main(argv):
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 
 
+def validate_main(argv):
+    ap = argparse.ArgumentParser(prog="retina validate", description="Check a completed live dataset and "
+                                 "optionally compare it with observed daily store totals.")
+    ap.add_argument("--run", required=True, help="run name in data/live or an explicit run folder")
+    ap.add_argument("--reference", help="folder containing daily_store_kpis.csv and/or daily_product_sales.csv")
+    args = ap.parse_args(argv)
+    live_root = Path(os.environ["RETINA_LIVE_ROOT"]) if os.environ.get("RETINA_LIVE_ROOT") else ROOT / "data" / "live"
+    run = Path(args.run)
+    if not run.is_dir():
+        run = live_root / args.run
+    if not run.is_dir():
+        ap.error(f"Run folder not found: {args.run}")
+    from retina.engine.validation import generate_report
+
+    try:
+        report = generate_report(run / "business", args.reference)
+    except ValueError as exc:
+        ap.error(str(exc))
+    print(f"Validation: integrity {report['integrity']['status']}; "
+          f"real-store comparison {report['realism']['status']}")
+    print(run / "business" / "VALIDATION.md")
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     commands = {"products": products_main, "export": export_main, "collect": collect_main, "train": train_main,
                 "release": release_main, "app": app_main, "web-data": web_data_main,
-                "lists": lists_main}
+                "lists": lists_main, "trip-end": trip_end_main, "validate": validate_main}
     if argv[:1] and argv[0] in commands:
         commands[argv[0]](argv[1:])
         return
@@ -365,6 +427,8 @@ def main(argv=None):
     if args.panel < 1:
         sys.exit("--panel must be 1 or more.")
     os.environ["RETINA_STORE"] = store                 # must be set BEFORE the engine is imported
+    if args.realtime:
+        os.environ["RETINA_ENGINE"] = "realtime"
     if args.products:
         use_products(args.products, args.products_mode, args.skip_bad_rows)
     from retina.engine import live

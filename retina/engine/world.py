@@ -661,8 +661,19 @@ def take_from_shelf(wanted, store, inv, u_reaction, u_substitute):
     """Shopper reaches for `wanted`. In stock: take one. Empty shelf: react like real shoppers
     (Gruen 2002) - switch to another product of the same or another brand (first in the SAME
     AISLE, else the department), or leave without it. Returns (product taken or -1, reaction)."""
+    product, reaction = choose_from_shelf(wanted, store, inv, u_reaction, u_substitute)
+    if product >= 0:
+        take_unit(product, inv)
+    return product, reaction
+
+
+def choose_from_shelf(wanted, store, inv, u_reaction, u_substitute):
+    """Choose a response to the shelf as seen now, without changing inventory.
+
+    The NPC brain uses this observation to decide; the store removes stock only
+    after the chosen action has been accepted.
+    """
     if inv.stock[wanted] > 0:
-        take_unit(wanted, inv)
         return wanted, None
     reaction = OOS_NAMES[pick_index(OOS_CUM, u_reaction)]
     if reaction not in ("same_brand", "other_brand"):
@@ -679,5 +690,4 @@ def take_from_shelf(wanted, store, inv, u_reaction, u_substitute):
     else:
         return -1, reaction                                   # nothing to switch to
     product = idx[pick_index(np.cumsum(group.pick_prob * ok), u_substitute)]
-    take_unit(product, inv)
     return product, reaction

@@ -155,7 +155,9 @@ class Floor:
         self._spots = [(float(x), float(y), int(c)) for x, y, c in zip(self.ax, self.ay, self.ac)]
         self._corridor_lists = [list(zip(a.tolist(), y0.tolist(), y1.tolist())) for a, y0, y1 in self.corridor_segs]
         self._back_list = list(zip(*(v.tolist() for v in self.back_segs)))
-        self._checkout = (float(self.lanes_x.mean()), float(self.lane_y), -2)
+        # Shoppers approach checkout from the front cross-aisle. Lane assignment
+        # happens later, when the live queue knows which register is available.
+        self._checkout = (float(self.lanes_x.mean()), float(self.y_front), -2)
 
     # ------------------------------------------------------------ checkout
     def lanes_open(self, hour):

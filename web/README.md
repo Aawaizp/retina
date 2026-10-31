@@ -1,25 +1,44 @@
-# web/ - the RETINA website (v2, Phase 6)
+# RETINA website
 
-A static site: React + Vite + Tailwind + ECharts. No server: the dashboards query Parquet files with
-**DuckDB-WASM** and the what-if page runs the **student model (ONNX)** with onnxruntime-web, both in
-the visitor's browser. Their engines load from the jsDelivr CDN at exact versions (too big for free
-static hosting: 25 MB per file) and are cached by the browser after the first visit.
+The React/Vite site has two pages. The landing page runs a slow, repeating 3D shopper demo in
+the browser. It is illustrative, needs no backend data run, and writes no CSVs. **Data studio**
+opens a live store through the local app (`retina app`). Its 3D floor follows NPC actions from
+the running simulator; the store clock advances automatically. Choose the first store time
+each day and a daily NPC limit before opening the store.
+
+The local **Add a store** form creates a US/USD store from user-supplied operating details and a
+first simulated date. A checked product CSV and typical weekday hourly visitor counts are optional;
+missing inputs use labelled generic estimates. The Python API creates an isolated profile under
+`data/custom_stores/`. The single NPC system uses local student models for goals and shelf
+choices, with store rules for walking, stock and payment. It makes no LLM call for each action.
+`npc_actions.csv` records aisle and shelf decisions as they happen; `sales.csv` and `visits.csv`
+are appended only when the NPC pays.
+During a run, the local list student can add a browse stop at a visible aisle, the shelf student
+chooses there, and the checkout student can end a trip early. Browsing conversion is an estimate;
+the input data does not observe physical aisle browsing.
+Store data supplied by the user is labelled `USER_PROVIDED`; defaults are `ESTIMATED`; all sales
+remain `SIMULATED`.
+
+After a run, the business export has a row for every carried product on every completed day,
+including days with zero sales. Raw receipts, inventory and unprefixed sales are at the simulated
+NPC scale. `sample_weight` describes how many expected shoppers one NPC represents;
+`estimated_store_*` totals expand the sample. Those estimates are blank on days when the NPC
+arrival limit may have clipped traffic. `VALIDATION.json` and `VALIDATION.md` check table links,
+accounting totals, SKU-day coverage and inventory balances. They make no realism claim without
+observed store data.
+
+Data Studio can compare a completed run with full-store daily totals. Upload UTF-8
+`daily_store_kpis.csv` (`date,transactions[,net_sales]`) or `daily_product_sales.csv`
+(`date,product_id,units_sold[,net_sales]`), up to 10 MB per file. Use `YYYY-MM-DD` dates and
+product IDs from the run. Comparisons show exact-key coverage and errors against the expanded
+estimates. The observed CSVs are stored outside the downloadable synthetic-data ZIP. For larger
+reference files, run `retina validate --run <run-name> --reference <folder>` from the command line.
 
 ```powershell
-retina web-data              # (in the repo root) build web/public/data + web/public/model
 cd web
-npm install                  # once
-npm run dev                  # http://localhost:5173
-npm run build                # static files in web/dist (any static host)
+npm install
+npm run dev          # frontend development at http://localhost:5173
+npm run build        # build web/dist for `retina app`
+cd ..
+retina app           # local app at http://localhost:8000
 ```
-
-Pages: **Home** (what RETINA is, student panel vs engine crowd vs real statistics), **Dashboards**
-(per store format: revenue and trips per day, weekday x hour traffic, departments, baskets, best
-sellers), **What-if** (one shopper at one shelf: change the shopper, the trip or a price and see the
-student's choice probabilities and a price curve).
-
-Data rules: `web/public/data` holds only aggregated, SIMULATED tables built WITHOUT the private
-Instacart per-shopper profiles (`RETINA_NO_PROFILES=1`, like a fresh clone) - checked by
-tests/test_web_data.py. `src/lib/student.js` `features()` is a copy of `retina/student/features.py`:
-change both together (the browser and Python gave identical probabilities, 78/5/2/5/11%, on the
-same shelf).

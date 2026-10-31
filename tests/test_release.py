@@ -5,6 +5,8 @@ import io
 import json
 import time
 import zipfile
+import csv
+from collections import Counter
 
 import pytest
 from fastapi.testclient import TestClient
@@ -87,15 +89,22 @@ def test_app_reads_runs_and_blocks_other_paths(client):
 
 def test_app_starts_one_run_at_a_time(client):
     c, live = client
-    assert c.post("/runs", json={"store": "convenience", "days": 1}).status_code == 202
-    assert c.post("/runs", json={"store": "convenience", "days": 1}).status_code in (409, 202)
+    assert c.post("/runs", json={"store": "convenience", "days": 1, "mind": "fast"}).status_code == 202
+    assert c.post("/runs", json={"store": "convenience", "days": 1, "mind": "fast"}).status_code in (409, 202)
     for _ in range(240):
         state = c.get("/runs/current").json()
         if not state["running"]:
             break
         time.sleep(0.5)
     assert state["exit_code"] == 0, state["output"][-5:]
-    assert (live / "convenience" / "receipts.csv").exists()
+    assert state["realtime"]
+    with open(live / "convenience" / "receipts.csv", encoding="utf-8", newline="") as f:
+        receipts = list(csv.DictReader(f))
+    with open(live / "convenience" / "checkout_events.csv", encoding="utf-8", newline="") as f:
+        paid = list(csv.DictReader(f))
+    key = lambda row: (row["trip_id"], row["product_id"], int(row["quantity"]))
+    assert receipts and Counter(map(key, receipts)) == Counter(map(key, paid))
+    assert all(row["data_label"] == "SIMULATED" for row in paid)
     assert c.get("/runs").json()[0]["days_done"] >= 1
 
 
@@ -110,11 +119,15 @@ def test_app_generates_student_data_for_a_period(client, monkeypatch, student_di
             break
         time.sleep(0.5)
     assert state["exit_code"] == 0, state["output"][-5:]
-    assert state["run"] == "convenience_student" and state["days_wanted"] == 7 and state["days_done"] == 7
+    assert state["realtime"] and state["run"] == "convenience_student"
+    assert state["days_wanted"] == 7 and state["days_done"] == 7
     run = next(r for r in c.get("/runs").json() if r["name"] == "convenience_student")
     assert {"receipts.csv", "trips.csv", "decisions.csv", "report.txt"} <= set(run["files"])
     receipts = c.get("/runs/convenience_student/files/receipts.csv").text
     assert ",student," in receipts and ",llm," not in receipts
+    with open(live / "convenience_student" / "checkout_events.csv", encoding="utf-8", newline="") as f:
+        paid = list(csv.DictReader(f))
+    assert len(paid) == len(list(csv.DictReader(io.StringIO(receipts))))
 
 
 def test_app_accepts_every_store_it_lists():
@@ -123,6 +136,7 @@ def test_app_accepts_every_store_it_lists():
     for name in STORES:
         assert RunRequest(store=name).store == name
     assert RunRequest().store == "retina"
+    assert RunRequest().mind == "student"
 
 
 def test_app_serves_the_days_to_watch(client):
@@ -192,3 +206,43 @@ def test_app_streams_a_live_run(client):
     second = c.get(f"/runs/retina_supercenter_student/stream?offset={first['offset']}").json()
     assert [e["k"] for e in second["events"]] == ["leave"]
     assert c.get(f"/runs/retina_supercenter_student/stream?offset={second['offset']}").json()["events"] == []
+
+
+def test_live_clock_controls_are_shared_with_the_run(tmp_path, monkeypatch):
+    from retina.app import server
+    from pydantic import ValidationError
+
+    view = tmp_path / "convenience" / "view"
+    view.mkdir(parents=True)
+    monkeypatch.setattr(server.runner, "busy", lambda: True)
+    monkeypatch.setattr(server, "current_view", lambda: view)
+    monkeypatch.setattr(server, "live_root", lambda: tmp_path)
+    assert server.control(server.ClockControl(rate=20, paused=True)) == {"rate": 20, "paused": True}
+    assert json.loads((view / "control.json").read_text(encoding="utf-8")) == {"rate": 20, "paused": True}
+    with pytest.raises(ValidationError):
+        server.ClockControl(rate=99, paused=False)
+    (view / "clock.json").write_text(json.dumps({"day": 0, "minute": 600, "rate": 20, "paused": True}))
+    assert server.run_clock("convenience")["minute"] == 600
+    (view / "clock.json").write_text("{", encoding="utf-8")
+    assert server.run_clock("convenience")["minute"] is None
+
+
+def test_saved_run_removal_stays_inside_live_data(tmp_path, monkeypatch):
+    from fastapi import HTTPException
+    from retina.app import server
+
+    root = tmp_path / "live"
+    folder = root / "old_run"
+    folder.mkdir(parents=True)
+    (folder / "sales.csv").write_text("sale\n", encoding="utf-8")
+    monkeypatch.setattr(server, "live_root", lambda: root)
+    monkeypatch.setattr(server.runner, "state", lambda: {"running": True, "run": "old_run"})
+    with pytest.raises(HTTPException) as active:
+        server.remove_run("old_run")
+    assert active.value.status_code == 409 and folder.exists()
+    monkeypatch.setattr(server.runner, "state", lambda: {"running": False, "run": "old_run"})
+    assert server.remove_run("old_run") == {"removed": "old_run"}
+    assert not folder.exists()
+    with pytest.raises(HTTPException) as missing:
+        server.remove_run("../outside")
+    assert missing.value.status_code == 404

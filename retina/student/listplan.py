@@ -80,7 +80,7 @@ def candidates(sim, s, day, prices, regular, promo, rng):
                 >= PER_SOURCE[source]:
             return
         times = int(counts.get(product, 0))
-        left = min(home.get(product, -1), pantry.get(product, -1))
+        left = max(home.get(product, -1), pantry.get(product, -1))
         price, reg = float(prices[product]), float(regular[product])
         out[product] = {"product": product, "name": clean(p["product_name"].iat[product]),
                         "brand": str(p["brand"].iat[product] or ""), "aisle": str(store.aisle_of[product]),
@@ -90,7 +90,10 @@ def candidates(sim, s, day, prices, regular, promo, rng):
                         "times": times, "ran_out": bool(times and left <= day),
                         "days_left": int(max(0, left - day)) if times else 0, "source": source}
 
-    habits = sorted(counts, key=lambda x: (-counts[x], x))
+    # Give depleted household staples a place in the candidate set even when the
+    # shopper has more than PER_SOURCE["usual"] products in their history.
+    habits = sorted(counts, key=lambda x: (not (home.get(x, -1) <= day and pantry.get(x, -1) <= day),
+                                          -counts[x], x))
     for x in habits:
         add(x, "usual")
     for x in habits[:8]:

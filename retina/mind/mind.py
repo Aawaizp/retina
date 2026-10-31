@@ -94,7 +94,7 @@ def role_of(card):
 class Mind:
     def __init__(self, sim, mode, run_dir, panel_size=PANEL, provider="auto", model=None,
                  cache_file=CACHE_FILE, say=print, student="auto", student_dir=None, labels_file=None,
-                 list_dir=None):
+                 list_dir=None, shelf_action_dir=None):
         if mode not in ("mix", "llm", "student"):
             raise ValueError(f"unknown mind '{mode}'")
         if student not in ("auto", "off", "only"):
@@ -112,10 +112,29 @@ class Mind:
                 raise SystemExit("--student only / --mind student need a trained student: retina collect, "
                                  "then retina train.")
         self.lister = None                                     # the list student plans lists (student runs)
+        self.ender = None                                      # local basket-completion model at each shelf
+        self.shelf_action = None                              # qualified local buy/skip shelf policy
+        self.trip_size = None
         if mode == "student":
             from retina.student.listmodel import ListStudent, MODEL_DIR as LIST_DIR
+            from retina.student.tripend import TripEndStudent
+            from retina.student.shelf_action import ShelfActionPolicy, MODEL_DIR as ACTION_DIR
             if ListStudent.available(list_dir or LIST_DIR):
                 self.lister = ListStudent(list_dir or LIST_DIR)
+            else:
+                say("List student unavailable: NPC lists use the rule brain; shelf choices still use the student.")
+            if os.environ.get("RETINA_TRIP_SIZE_CALIBRATION") == "1" and PROFILE["id"] in {"retina_supercenter", "supercenter"}:
+                from retina.student.trip_size import TripSizePrior
+                self.trip_size = TripSizePrior()
+            if TripEndStudent.available():
+                self.ender = TripEndStudent()
+            action_folder = shelf_action_dir or ACTION_DIR
+            experimental = os.environ.get("RETINA_SHELF_ACTION_EXPERIMENTAL") == "1"
+            if ShelfActionPolicy.available(action_folder) or (
+                    experimental and ShelfActionPolicy.experimental_available(action_folder)):
+                self.shelf_action = ShelfActionPolicy(action_folder, product_model=self.student)
+                if experimental and not ShelfActionPolicy.available(action_folder):
+                    say("Experimental shelf action model enabled; its skip behavior is not yet qualified.")
         self.labels_file, self.labels = labels_file, None
         self.memory = MemoryStore(run_dir / "memory.sqlite")
         settings = self.memory.get("settings")
@@ -259,6 +278,9 @@ class Mind:
                 if k not in self:
                     self[k] = mind.decide_item(day, s, k, trip, ctx)
                 return dict.get(self, k, default)
+
+            def act(self, k, spent, budget):
+                return mind.decide_shelf_action(day, s, k, trip, ctx, spent, budget)
         return Shelf()
 
     def decide_item(self, day, s, k, trip, ctx):
@@ -272,9 +294,12 @@ class Mind:
                "options": [{x: o[x] for x in ("letter", "product", "price", "regular", "deal", "times",
                                                "in_stock", "usual", "w", "pop")} for o in options],
                "provider": None, "model": None, "cached": 0, "valid": 1, "problem": None}
+        if s in ctx.get("minute", {}):
+            row["minute"] = ctx["minute"][s]
         d = None
         if trigger is not None:
-            d = self._student_pick(s, route, trip["mission"], options, int(wanted), stream(STREAM_MIND_STUDENT, day, s, k))
+            d = self._student_pick(s, "new" if route == "impulse" else route, trip["mission"], options,
+                                   int(wanted), stream(STREAM_MIND_STUDENT, day, s, k))
         if d is None:
             d = {"mind": "autopilot" if trigger is None else "engine", "product": int(wanted),
                  "why_type": "habit" if trigger is None else "", "why": "usual buy" if trigger is None else ""}
@@ -282,6 +307,54 @@ class Mind:
         self.memory.add_decisions([row])
         self.today.setdefault("rows", []).append(row)
         return d
+
+    def decide_shelf_action(self, day, s, k, trip, ctx, spent, budget):
+        """Let the qualified local policy act on the shelf as it exists this minute.
+
+        Its proposal is logged separately from the store's final stock and budget
+        checks. This path is used only when a qualified action model is installed.
+        """
+        if self.shelf_action is None:
+            raise RuntimeError("no shelf action policy is installed")
+        from retina.student.features import npc_numbers
+
+        g = int(self.sim.shoppers.sensitivity_group[s])
+        prices, promo, table = ctx["prices_g"][g], ctx["promo_g"][g], ctx["tables"][g]
+        entry = trip["plan"][k]
+        wanted, route = int(entry[0]), entry[1]
+        desired_qty = int(entry[5]) if len(entry) > 5 else 1
+        aisle, options = self.options(s, k, day, wanted, table, prices, promo, ctx["regular"])
+        remaining_budget = max(0.0, float(budget - spent)) if np.isfinite(budget) else None
+        decision = self.shelf_action.choose(
+            npc_numbers(self.sim.shoppers, s), "new" if route == "impulse" else route,
+            trip["mission"], options, wanted, remaining_budget, desired_qty,
+            stream(STREAM_MIND_STUDENT, day, s, k),
+        )
+        if decision["action"] not in ("buy", "skip"):
+            raise ValueError("the NPC shelf policy returned an unknown action")
+        product = int(decision["product"])
+        if decision["action"] == "buy" and not any(
+                int(o["product"]) == product and o["in_stock"] for o in options):
+            raise ValueError("the NPC shelf policy chose a product unavailable at this shelf")
+        if decision["action"] == "skip" and product != -1:
+            raise ValueError("a skip action must not select a product")
+        if decision["action"] == "buy" and int(decision["qty"]) < 1:
+            raise ValueError("a buy action must request at least one unit")
+        row = {"day": day, "hour": ctx["hour"][s], "npc": int(s), "item": k, "aisle": aisle,
+               "route": route, "trigger": "shelf_action", "engine_product": wanted,
+               "options": [{x: o[x] for x in ("letter", "product", "price", "regular", "deal", "times",
+                                               "in_stock", "usual", "w", "pop")} for o in options],
+               "provider": "local", "model": self.shelf_action.meta.get("version", "shelf_action"),
+               "cached": 0, "valid": 1, "problem": None,
+               "mind": "student", "product": product, "why_type": decision["action"],
+               "why": decision.get("reason", "local NPC shelf action"),
+               "qty": int(decision["qty"]),
+               "skip_probability": float(decision.get("skip_probability", 0.0))}
+        if s in ctx.get("minute", {}):
+            row["minute"] = ctx["minute"][s]
+        self.memory.add_decisions([row])
+        self.today.setdefault("rows", []).append(row)
+        return decision
 
     def _plan_list(self, s, day, ctx, trip):
         """Replace the habit-rule list by the list student's: products and quantities from the NPC's
@@ -296,12 +369,135 @@ class Mind:
         budget = trip["budget"] if np.isfinite(trip["budget"]) else None
         scenario = {"candidates": cands, "npc_x": npc_numbers(sh, s), "usual_items": float(sh.basket_mean[s]),
                     "since": int(day - last) if last >= 0 else None, "budget": budget}
-        plan = []
-        for k, (c, qty) in enumerate(self.lister.plan(scenario, stream(STREAM_MIND_LIST, day, s))):
+        prior = getattr(self, "trip_size", None)
+        target = prior.sample(stream(STREAM_MIND_LIST, day, s, 1), len(cands)) if prior and cands else None
+        requirements = trip.get("requirements")
+        if requirements is None:
+            from retina.engine.requirements import NPCRequirements
+            from retina.engine.shopping import trip_mission
+            planned = max(1, int(round(sh.basket_mean[s])))
+            requirements = NPCRequirements.for_trip(
+                sh, s, day, planned, trip_mission(planned, sh.basket_mean[s]), trip["budget"])
+            trip["requirements"] = requirements
+        if target is not None:
+            from dataclasses import replace
+            from retina.engine.shopping import trip_mission
+            mission = trip_mission(target, sh.basket_mean[s])
+            trip["mission"] = mission
+            essential_count = min(len(requirements.due_products), max(1, min(3, (target + 4) // 5)), target)
+            trip["requirements"] = requirements = replace(
+                requirements, mission=mission, target_items=target,
+                essential_products=requirements.due_products[:essential_count])
+        chosen = list(self.lister.plan(scenario, stream(STREAM_MIND_LIST, day, s), target_lines=target,
+                                       required_products=requirements.essential_products if target is not None else ()))
+        picked = {int(c["product"]) for c, _ in chosen}
+        available = {int(c["product"]): c for c in cands}
+        for product in reversed(requirements.essential_products if target is None else ()):
+            if product not in picked and product in available:
+                chosen.insert(0, (available[product], 1))
+                picked.add(product)
+        plan, intent_candidates = [], {}
+        for k, (c, qty) in enumerate(chosen):
             route = ("need" if c["ran_out"] else "repeat") if c["source"] == "usual" else                 "partner" if c["source"] == "goes with" else "new"
             plan.append((c["product"], route, False, route == "partner",
                          stream(STREAM_MIND_LIST_ITEM, day, s, k).random(11), qty))
-        trip.update(plan=plan, planned=len(plan), list_by="list student")
+            intent_candidates[k] = c
+        trip.update(plan=plan, planned=len(plan), list_by="list student",
+                    intent_candidates=intent_candidates, browse_candidates=cands)
+
+    def next_aisle(self, s, trip, aisles, pos, spent, prices, promo):
+        """Reconsider remaining aisles in the store using the local list model and current state."""
+        floor = self.sim.store.floor
+        candidates = trip.get("intent_candidates") or {}
+        if self.lister is None or not candidates:
+            return min(aisles, key=lambda a: floor._dist(pos, a))
+        from retina.student.features import npc_numbers
+        from retina.student.listtrain import scenario_matrix, policy
+
+        available = set(aisles)
+        indices = [k for k, c in candidates.items()
+                   if int(floor.product_aisle[int(c["product"])]) in available]
+        if not indices:
+            return min(aisles, key=lambda a: floor._dist(pos, a))
+        cands = []
+        for k in indices:
+            c = dict(candidates[k])
+            product = int(c["product"])
+            c["price"] = float(prices[product])
+            c["deal"] = bool(promo[product])
+            c["off"] = max(0.0, (1 - c["price"] / max(float(c["regular"]), 0.01)) * 100)
+            cands.append(c)
+        last = self.sim.shoppers.last_trip_day[s]
+        budget = trip["budget"] - spent if np.isfinite(trip["budget"]) else None
+        scenario = {"candidates": cands, "npc_x": npc_numbers(self.sim.shoppers, s),
+                    "usual_items": float(self.sim.shoppers.basket_mean[s]),
+                    "since": int(self.sim.day - last) if last >= 0 else None, "budget": budget}
+        X = scenario_matrix(scenario, self.lister.rebuy)
+        chance = policy(self.lister.probabilities(X), X, self.lister.shift, self.lister.habit)
+        scores = {}
+        for c, p in zip(cands, chance):
+            aisle = int(floor.product_aisle[int(c["product"])])
+            in_stock = self.sim.inv.stock[int(c["product"])] > 0
+            scores[aisle] = scores.get(aisle, 0.0) + float(p) * (1.0 if in_stock else 0.35)
+        return max(aisles, key=lambda a: (scores.get(a, 0.0) / (1 + floor._dist(pos, a) / 30), -a))
+
+    def checkout_chance(self, s, day, lines):
+        """Local inference after a shelf. No LLM request or look-ahead to unvisited stock."""
+        if self.ender is None:
+            return 0.0
+        shoppers = self.sim.shoppers
+        last = int(shoppers.last_trip_day[s])
+        since = day - last if last >= 0 else shoppers.gap_mean[s]
+        return float(self.ender.meta["in_store_scale"]) * self.ender.probability(
+            lines, shoppers.basket_mean[s], since)
+
+    def browse_offer(self, s, day, trip, visible, spent, prices, promo, in_basket):
+        """Rescore previously declined products when their aisle comes into view."""
+        from retina.engine.config import IMPULSE_RATE
+        if self.lister is None or IMPULSE_RATE <= 0 or not visible:
+            return None
+        from retina.student.features import npc_numbers
+        from retina.student.listtrain import scenario_matrix, policy
+
+        store, shoppers = self.sim.store, self.sim.shoppers
+        floor = store.floor
+        planned = {int(entry[0]) for entry in trip["plan"]}
+        candidates = trip.get("browse_candidates") or []
+        visible = set(visible)
+        eligible = {int(c["product"]) for c in candidates
+                    if int(c["product"]) not in planned and int(c["product"]) not in in_basket
+                    and int(floor.product_aisle[int(c["product"])]) in visible
+                    and self.sim.inv.stock[int(c["product"])] > 0
+                    and shoppers.pantry[s].get(int(c["product"]), -1) <= day}
+        if not eligible:
+            return None
+        current = []
+        for old in candidates:
+            c = dict(old)
+            product = int(c["product"])
+            c["price"] = float(prices[product])
+            c["deal"] = bool(promo[product])
+            c["off"] = max(0.0, (1 - c["price"] / max(float(c["regular"]), 0.01)) * 100)
+            current.append(c)
+        last = int(shoppers.last_trip_day[s])
+        budget = trip["budget"] - spent if np.isfinite(trip["budget"]) else None
+        scenario = {"candidates": current, "npc_x": npc_numbers(shoppers, s),
+                    "usual_items": float(shoppers.basket_mean[s]),
+                    "since": day - last if last >= 0 else None, "budget": budget}
+        X = scenario_matrix(scenario, self.lister.rebuy)
+        chance = policy(self.lister.probabilities(X), X, self.lister.shift, self.lister.habit)
+        choices = [(c, float(p)) for c, p in zip(current, chance)
+                   if int(c["product"]) in eligible and (budget is None or c["price"] <= budget)]
+        if not choices:
+            return None
+        chosen, p = max(choices, key=lambda item: (item[1] * (1.5 if item[0]["deal"] else 1.0),
+                                                   -int(item[0]["product"])))
+        # ESTIMATED: interest is learned from the list student; seeing a shelf turns that
+        # interest into a new stop at a rate controlled by the store's impulse_rate.
+        browse_probability = min(0.4, IMPULSE_RATE * 0.4 * p * (1.5 if chosen["deal"] else 1.0))
+        return {"aisle": int(floor.product_aisle[int(chosen["product"])]),
+                "product": int(chosen["product"]), "probability": browse_probability,
+                "deal": bool(chosen["deal"])}
 
     def _student_pick(self, s, route, mission, options, wanted, rng=None):
         """The student's decision when it is sure enough (or always with --student only), else None."""

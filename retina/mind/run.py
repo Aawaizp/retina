@@ -15,7 +15,6 @@ from retina.mind.teacher import MAX_REQUEST_TOKENS
 # ESTIMATED prompt sizes (tokens) from the prompt layout in teacher.py; first real Groq run (12 Oct 2026):
 # 2 requests, 70 items, 14,349 tokens = ~205 per item - these give ~205 per item, so they agree
 TOKENS = {"fixed": 230, "per_npc": 110, "per_item": 30, "per_option": 28, "reply_per_item": 35}
-SECONDS_PER_TRIP = 0.013      # --mind student: 7 supermarket days, 1,327 trips in ~16 s (14 Oct 2026, ESTIMATED)
 TEACH_SHARE_PRIOR = 0.8       # share of a thinking NPC's items sent to the teacher in mix mode
                               # (ESTIMATED from a 3-day supermarket run: 111 of 138; "new on the list" dominates)
 
@@ -25,8 +24,9 @@ def attach(sim, mode, run_dir, panel, provider, model, student="auto"):
     who = f"panel of {len(mind.panel)} thinking NPCs" if mind.mode == "mix" else "every NPC thinks"
     if mind.mode == "student":
         m = mind.student.meta
-        print(f"Mind: student (every NPC decides with the student model {m['model']}, {m['version']}; "
-              f"routine buys on autopilot; no LLM at all)")
+        list_brain = "list student" if mind.lister is not None else "rule brain (list model unavailable)"
+        print(f"Mind: student (every NPC uses {list_brain} for goals and student {m['model']} "
+              f"{m['version']} for shelf choices; no LLM calls)")
         return mind
     if mind.student is not None:
         m = mind.student.meta
@@ -96,8 +96,7 @@ def check_estimate(sim, days, yes):
     print(f"  ~{e['calls']:,} LLM requests (up to {BATCH} NPCs each), ~{e['tokens']:,} tokens. "
           f"Cached answers (reruns) cost nothing.")
     if mind.mode == "student":
-        print(f"  No LLM. Time ESTIMATED from a 7-day supermarket run (~{SECONDS_PER_TRIP * 1000:.1f} s per 1,000 "
-              f"trips): ~{max(1, round(e['trips'] * SECONDS_PER_TRIP / 60))} min.")
+        print("  No LLM. Run time depends on shoppers, products and the local computer.")
         return True
     if mind.mode == "llm":
         print("  WARNING: --mind llm sends EVERY choice of EVERY NPC to the LLM. Meant for small runs only "

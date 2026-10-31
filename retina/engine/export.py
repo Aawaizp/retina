@@ -65,6 +65,8 @@ DICTIONARY = {
         "shelves_visited": ("shelf stops on their route", S), "aisles_seen": ("aisles walked past", S),
         "items": ("units bought", S), "lines": ("different products bought", S),
         "planned_items": ("items on their list before skips and stockouts", S),
+        "essential_items": ("depleted usual products this shopper prioritized today", S),
+        "essential_items_bought": ("prioritized products bought by exact product id", S),
         "mission": ("trip type: top_up / routine / stock_up", S),
         "trip_budget": ("food money available for this trip (household weekly budget based)", S),
         "spend": ("amount paid", S), "lane": ("checkout lane", S), "wait_min": ("minutes waiting at checkout", S),
@@ -146,7 +148,7 @@ def build_tables(run):
         "minutes_in_store": t["minutes_in_store"].round(1), "walk_m": t["walk_m"].round(1),
         "shelves_visited": t["shelves_visited"], "aisles_seen": t["aisles_seen"], "items": t["items"],
         "lines": t["lines"]})
-    for col in ("planned_items", "mission", "trip_budget"):
+    for col in ("planned_items", "mission", "trip_budget", "essential_items", "essential_items_bought"):
         if col in t:
             trips[col] = t[col]
     trips["spend"] = trips["trip_id"].map(spend).fillna(0.0)

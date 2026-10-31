@@ -10,6 +10,7 @@ from .config import *
 from .world import *
 from .floor import STREAM_WALK
 from . import traffic
+from .requirements import NPCRequirements
 
 # ============================================================ trip needs
 # Real Instacart trips (loaders/trip_needs.py): the longer since the last trip, the bigger the
@@ -145,8 +146,31 @@ def fill_basket(s, day, store, shoppers, tables, inv, promo, rng, with_points=Fa
     return walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_points, prices)
 
 
+def make_trip_context(s, day, shoppers, rng, prices=None):
+    """Give an NPC its household requirements without choosing any products.
+
+    The student brain starts here. The rule brain may then fill in a shopping list.
+    """
+    last_trip = shoppers.last_trip_day[s]
+    since = day - last_trip if last_trip >= 0 else shoppers.gap_mean[s]
+    if NEEDS_ON:
+        mean = shoppers.basket_mean[s] * gap_factor(since)
+        v = TRIP["basket_extra_variance"]
+        mean *= rng.gamma(1 / v, v)
+        n_items = max(1, rng.poisson(mean))
+    else:
+        n_items = max(1, rng.poisson(shoppers.basket_mean[s]))
+    trip_type = trip_mission(n_items, shoppers.basket_mean[s])
+    budget = np.inf
+    if BUDGET_ON and shoppers.weekly_budget is not None and prices is not None:
+        budget = shoppers.weekly_budget[s] * max(since, 7) / 7
+    requirements = NPCRequirements.for_trip(shoppers, s, day, n_items, trip_type, budget, NEEDS_ON)
+    return {"plan": [], "effects": [], "log": [], "budget": budget, "mission": trip_type,
+            "planned": n_items, "not_sold": [], "requirements": requirements}
+
+
 def make_list(s, day, store, shoppers, tables, promo, rng, prices=None):
-    """Step 1 of a trip (see walk_shelves for step 2).
+    """Rule brain: Step 1 of a trip (see walk_shelves for step 2).
     1) The shopping list (in their head): each item is a repeat (favorites), a partner of the
        previous item (real 'bought together' pairs) or a new pick: department (real share) ->
        aisle (fixed share) -> product (popularity x price). Items still at home are skipped.
@@ -163,31 +187,22 @@ def make_list(s, day, store, shoppers, tables, promo, rng, prices=None):
     tables - never on the shelves - so lists can be made ahead (the mind batches NPCs this way).
     Events go into trip["log"] (the caller records them when the shopper really comes in).
     Returns the trip: the list (plan), effects so far, budget, mission and planned size."""
-    last_trip = shoppers.last_trip_day[s]
-    since = day - last_trip if last_trip >= 0 else shoppers.gap_mean[s]
-    if NEEDS_ON:
-        mean = shoppers.basket_mean[s] * gap_factor(since)
-        v = TRIP["basket_extra_variance"]
-        mean *= rng.gamma(1 / v, v)                            # trips swing like real ones
-        n_items = max(1, rng.poisson(mean))
-    else:
-        n_items = max(1, rng.poisson(shoppers.basket_mean[s]))
-    trip_type = trip_mission(n_items, shoppers.basket_mean[s])
+    trip = make_trip_context(s, day, shoppers, rng, prices)
+    n_items, requirements = trip["planned"], trip["requirements"]
     favorites, pantry, home = shoppers.favorites[s], shoppers.pantry[s], shoppers.home[s]
     group = tables[shoppers.sensitivity_group[s]]
-    effects, log, not_sold = [], [], []
-    budget = np.inf
-    if BUDGET_ON and shoppers.weekly_budget is not None and prices is not None:
-        budget = shoppers.weekly_budget[s] * max(since, 7) / 7   # a week's food money (more if longer)
+    effects, log, not_sold = trip["effects"], trip["log"], trip["not_sold"]
 
     # 1) the shopping list
     plan, last, plan_aisles = [], -1, []                       # last = previous item on the list
     on_list = set()
-    for u in rng.random((n_items, 11)):                        # 11 fixed dice per item
+    for slot, u in enumerate(rng.random((n_items, 11))):       # 11 fixed dice per item
         switched = together = False
         pair = store.partners.get(last)
         wanted = None
-        if favorites and u[1] < shoppers.reorder_prob[s] * REPEAT_BOOST:
+        if NEEDS_ON and slot < len(requirements.essential_products):
+            wanted, route = requirements.essential_products[slot], "need"
+        elif favorites and u[1] < shoppers.reorder_prob[s] * REPEAT_BOOST:
             # Re-buy something bought before: staples (milk, eggs, water) far more than one-offs
             # (spices) - weighted by how often real shoppers re-buy that aisle. With needs on, only
             # something that has run out at home (they look through a few usual items)
@@ -257,8 +272,8 @@ def make_list(s, day, store, shoppers, tables, promo, rng, prices=None):
         on_list.add(wanted)
         plan_aisles.append(store.aisle_of[wanted])
         last = wanted
-    return {"plan": plan, "effects": effects, "log": log, "budget": budget,
-            "mission": trip_type, "planned": n_items, "not_sold": not_sold}
+    trip["plan"] = plan
+    return trip
 
 
 def walk_shelves(s, day, store, shoppers, tables, inv, promo, rng, trip, with_points=False, prices=None,
@@ -443,7 +458,8 @@ def walk_steps(s, day, store, shoppers, tables, inv, promo, rng, trip, with_poin
             lasts = HOME_FACTOR * store.product_cycle[product] * gap * qty * (0.5 + j)
             home[product] = max(home.get(product, -1), day + int(lasts))
     info = {"mission": trip_type, "routes": routes, "budget": budget, "spent": spent, "planned": n_items,
-            "minds": minds, "not_sold": trip.get("not_sold", []), "list_by": trip.get("list_by")}
+            "minds": minds, "not_sold": trip.get("not_sold", []), "list_by": trip.get("list_by"),
+            "requirements": trip["requirements"]}
     return basket, misses, effects, walk, info
 
 
@@ -532,7 +548,8 @@ def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, table
         items = int(sum(basket.values()))
         trips.append([day, trip_id, s, arrive[s], reach[-1], walk.cum_m[-1], len(walk.stops),
                       len(walk.passed), items, len(basket), info["mission"], info["planned"],
-                      round(min(info["budget"], 1e6), 2), round(info["spent"], 2)])
+                      round(min(info["budget"], 1e6), 2), round(info["spent"], 2),
+                      len(info["requirements"].essential_products), info["requirements"].bought_count(basket)])
         not_sold_trips.append(info["not_sold"])
         list_by.append(info.get("list_by"))
         if recording:
@@ -551,7 +568,8 @@ def simulate_day(day, store, shoppers, params, prices_g, regular, promo_g, table
     # Checkout: first come, first served at the lanes the store has open that hour
     trips = pd.DataFrame(trips, columns=["day", "trip_id", "shopper_id", "arrive_min", "ready_min",
                                          "walk_m", "shelves_visited", "aisles_seen", "items", "lines",
-                                         "mission", "planned_items", "trip_budget", "spent"])
+                                         "mission", "planned_items", "trip_budget", "spent",
+                                         "essential_items", "essential_items_bought"])
     lane, wait, leave = floor.checkout_queue(trips["ready_min"].to_numpy(), trips["items"].to_numpy())
     trips["lane"], trips["wait_min"], trips["leave_min"] = lane, wait, leave
     trips["minutes_in_store"] = trips["leave_min"] - trips["arrive_min"]
@@ -620,7 +638,7 @@ def add_trip_events(day, floor, trips, chunks):
                 before = reach[e["leg"] - 1] + pause[e["leg"] - 1] if e["leg"] > 0 else t0
                 e.update(t=round((before + reach[e["leg"]]) / 2, 2), x=round(floor.ax[a], 1), y=round(floor.ay[a], 1))
             else:
-                e.update(t=round(t0, 2))
+                e.setdefault("t", round(t0, 2))
         chunk.append({"shopper": int(row.shopper_id), "event": "CHECKOUT", "product": -1,
                       "items": int(row.items), "total": round(float(sum(
                           e["qty"] * e["price"] for e in chunk if e["event"] == "PURCHASE")), 2),

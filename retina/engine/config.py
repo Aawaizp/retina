@@ -41,8 +41,11 @@ def load_profile(store_id):
     """Read stores/<store_id>.json and check that every required section is there."""
     path = STORES_DIR / f"{store_id}.json"
     if not path.exists():
-        available = ", ".join(p.stem for p in STORES_DIR.glob("*.json"))
-        raise FileNotFoundError(f"No store profile '{store_id}'. Available: {available}")
+        from retina.app.custom_stores import profile_path
+        path = profile_path(store_id)
+        if path is None or not path.is_file():
+            available = ", ".join(p.stem for p in STORES_DIR.glob("*.json"))
+            raise FileNotFoundError(f"No store profile '{store_id}'. Built-in stores: {available}")
     with open(path, encoding="utf-8") as f:
         profile = json.load(f)
     required = ["id", "name", "catalog_file", "simulation", "shoppers", "pricing",
@@ -60,10 +63,10 @@ if PROFILE.get("departments_file"):                             # a store with i
 # Uploaded products (retina --products my.csv; retina/products/): the command converts the upload and
 # sets these BEFORE the engine is imported. builtin = the US catalog; only = just the uploaded products;
 # add = the US catalog plus the uploaded ones.
-CATALOG_KIND = os.environ.get("RETINA_CATALOG_KIND", "builtin")
+CATALOG_KIND = os.environ.get("RETINA_CATALOG_KIND", PROFILE.get("catalog_kind", "builtin"))
 if CATALOG_KIND not in ("builtin", "only", "add"):
     raise ValueError(f"RETINA_CATALOG_KIND must be builtin, only or add (not '{CATALOG_KIND}')")
-CATALOG_FILE = Path(os.environ["RETINA_CATALOG"]) if CATALOG_KIND != "builtin" else BUILTIN_CATALOG_FILE
+CATALOG_FILE = Path(os.environ["RETINA_CATALOG"]) if os.environ.get("RETINA_CATALOG") else BUILTIN_CATALOG_FILE
 CATALOG_TAG = os.environ.get("RETINA_CATALOG_TAG", "") if CATALOG_KIND != "builtin" else ""
 # Custom stores: NPCs still WANT what real shoppers want (all aisles of the US catalog); a want in an
 # aisle the store does not sell is recorded as "not sold here" (lost demand), never swapped.
@@ -76,6 +79,7 @@ _sim, _shop, _price = PROFILE["simulation"], PROFILE["shoppers"], PROFILE["prici
 _promo, _ops = PROFILE["promotion_response"], PROFILE["operations"]
 
 SEED = _sim["seed"]                        # same seed = same simulation every run
+LIVE_START_MINUTE = 0                      # local live runs may begin later in each store day
 START_DATE = _sim["start_date"]
 SIM_DAYS = _sim["days"]
 N_SHOPPERS = _sim["n_shoppers"]          # a number, or "auto" = sized from the traffic schedule

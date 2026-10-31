@@ -1,0 +1,346 @@
+{
+  "benchmark": "USDA FoodAPS paid super-store food acquisitions with observed itemized receipts and item records",
+  "source": {
+    "foodaps_url": "https://www.ers.usda.gov/media/5594/csv-data-files.zip?v=20317",
+    "foodaps_sha256": "3cf2450b6190065d844b8a9e53faa9dd97cbdc67f3b70cf75bc6829be26487ba",
+    "foodaps_codebook_url": "https://www.ers.usda.gov/sites/default/files/images/3_fah-events-codebook-puf.pdf",
+    "foodaps_item_codebook_url": "https://www.ers.usda.gov/sites/default/files/images/4_fah-items-codebook-puf.pdf",
+    "bls_url": "https://download.bls.gov/pub/time.series/cu/cu.data.0.Current",
+    "bls_file_sha256": "70b9070ba38ebfd4cdf434aabd1be798cf2841e77fa940e99da37368950746c2",
+    "bls_series": "CUUR0000SAF11 (CPI-U food at home, US city average, not seasonally adjusted)",
+    "target_month": "2025-09",
+    "target_index": 316.042,
+    "synthetic_run": "data/live/retina_supercenter_student"
+  },
+  "method": {
+    "observed_filters": "PLACETYPE=121 primary (122 sensitivity); FREE=0; RECEIPTOBSERVED=1; TOTALPAID>0; valid household weight and at least one item row",
+    "observed_weight": "HHWGT applied to each acquisition event and its item lines",
+    "observed_line_definition": "same-event barcode, or normalized description where barcode absent; approximation of distinct SKU receipt lines",
+    "observed_raw_row_sensitivity": "ungrouped item record counts are reported for sensitivity; repeated units may appear on separate rows",
+    "observed_units_definition": "sum of USDA item QUANTITY, including repeated records",
+    "observed_spend_definition": "sum of food-item TOTITEMEXP for complete-price events; scaled by monthly BLS food-at-home CPI to 2025-09 USD",
+    "synthetic_filter": "all paid NPC baskets; count only listed food categories for items and spend",
+    "synthetic_spend_definition": "sum of food line NET_SALES, scaled from each basket month by BLS food-at-home CPI to 2025-09 USD",
+    "synthetic_food_categories": [
+      "bakery",
+      "beverages",
+      "breakfast",
+      "canned goods",
+      "dairy eggs",
+      "deli",
+      "dry goods pasta",
+      "frozen",
+      "international",
+      "meat seafood",
+      "pantry",
+      "produce",
+      "snacks"
+    ],
+    "sampling_note": "1 NPC=10 real people is a traffic scale; per-receipt comparisons use unexpanded NPC baskets",
+    "limitations": [
+      "FoodAPS is a 2012-13 household survey, not a transaction feed from the simulated store or Walmart.",
+      "The observed-receipt filter selects a subset; household weights alone do not supply survey-design confidence intervals or make this event subset nationally representative.",
+      "USDA strips nonfood items; synthetic nonfood categories are excluded. Generic receipt descriptions can merge distinct observed products.",
+      "FoodAPS food item expenditure may miss some items; spend is based only on complete-price events and CPI scaling is approximate.",
+      "FoodAPS has no within-store walking path, shelf offers, stockouts, or rejected items; those NPC decisions cannot be validated here.",
+      "One 301-NPC saved run has sampling variation; these errors are diagnostics, not certified realism or a calibration target for a specific store."
+    ]
+  },
+  "observed": {
+    "all_events": 15998,
+    "by_place": {
+      "122": {
+        "place_type": "supermarket",
+        "all_place_events": 4968,
+        "selected_events": 4413,
+        "events_with_item_rows": 4412,
+        "unique_households": 2311,
+        "item_rows": 52348,
+        "item_rows_without_barcode": 13669,
+        "events_missing_item_rows": 1,
+        "item_rows_missing_expense": 28,
+        "item_rows_negative_expense": 7,
+        "complete_expense_events": 4391,
+        "lines_per_basket": {
+          "n": 4412,
+          "mean": 9.91,
+          "p10": 2,
+          "p25": 3,
+          "p50": 6,
+          "p75": 13,
+          "p90": 23
+        },
+        "raw_item_rows_per_basket": {
+          "n": 4412,
+          "mean": 11.69,
+          "p10": 2,
+          "p25": 3,
+          "p50": 7,
+          "p75": 15,
+          "p90": 28
+        },
+        "units_per_basket": {
+          "n": 4412,
+          "mean": 12.5,
+          "p10": 2.0,
+          "p25": 3.0,
+          "p50": 8.0,
+          "p75": 16.0,
+          "p90": 29.0
+        },
+        "one_to_three_line_basket_share_pct": 29.62,
+        "one_to_three_raw_item_row_basket_share_pct": 26.41,
+        "one_to_three_unit_basket_share_pct": 25.39,
+        "twenty_five_plus_unit_basket_share_pct": 13.83,
+        "food_spend_target_month_usd": {
+          "n": 4391,
+          "mean": 44.99,
+          "p10": 6.23,
+          "p25": 12.6,
+          "p50": 27.96,
+          "p75": 55.49,
+          "p90": 104.47
+        },
+        "single_unit_line_share_pct": 83.45
+      },
+      "121": {
+        "place_type": "super store",
+        "all_place_events": 5489,
+        "selected_events": 4926,
+        "events_with_item_rows": 4926,
+        "unique_households": 2613,
+        "item_rows": 59690,
+        "item_rows_without_barcode": 10695,
+        "events_missing_item_rows": 0,
+        "item_rows_missing_expense": 22,
+        "item_rows_negative_expense": 16,
+        "complete_expense_events": 4918,
+        "lines_per_basket": {
+          "n": 4926,
+          "mean": 10.21,
+          "p10": 2,
+          "p25": 3,
+          "p50": 7,
+          "p75": 14,
+          "p90": 24
+        },
+        "raw_item_rows_per_basket": {
+          "n": 4926,
+          "mean": 12.05,
+          "p10": 2,
+          "p25": 4,
+          "p50": 8,
+          "p75": 16,
+          "p90": 28
+        },
+        "units_per_basket": {
+          "n": 4926,
+          "mean": 12.74,
+          "p10": 2.0,
+          "p25": 4.0,
+          "p50": 8.0,
+          "p75": 17.0,
+          "p90": 29.0
+        },
+        "one_to_three_line_basket_share_pct": 27.22,
+        "one_to_three_raw_item_row_basket_share_pct": 23.73,
+        "one_to_three_unit_basket_share_pct": 22.43,
+        "twenty_five_plus_unit_basket_share_pct": 14.69,
+        "food_spend_target_month_usd": {
+          "n": 4918,
+          "mean": 44.68,
+          "p10": 5.84,
+          "p25": 13.08,
+          "p50": 27.76,
+          "p75": 59.18,
+          "p90": 108.11
+        },
+        "single_unit_line_share_pct": 84.67
+      }
+    }
+  },
+  "synthetic": {
+    "paid_npc_baskets": 301,
+    "basket_months": [
+      "2025-09"
+    ],
+    "basket_days": 1,
+    "all_pos_lines": 3147,
+    "food_pos_lines": 3045,
+    "excluded_pos_lines_by_category": {
+      "alcohol": 15,
+      "babies": 25,
+      "household": 39,
+      "personal care": 17,
+      "pets": 6
+    },
+    "baskets_without_food": 0,
+    "lines_per_basket": {
+      "n": 301,
+      "mean": 10.12,
+      "p10": 5,
+      "p25": 7,
+      "p50": 10,
+      "p75": 13,
+      "p90": 16
+    },
+    "units_per_basket": {
+      "n": 301,
+      "mean": 12.96,
+      "p10": 5.0,
+      "p25": 8.0,
+      "p50": 13.0,
+      "p75": 17.0,
+      "p90": 21.0
+    },
+    "one_to_three_line_basket_share_pct": 4.98,
+    "one_to_three_unit_basket_share_pct": 4.32,
+    "twenty_five_plus_unit_basket_share_pct": 3.65,
+    "food_spend_target_month_usd": {
+      "n": 301,
+      "mean": 61.93,
+      "p10": 24.21,
+      "p25": 39.28,
+      "p50": 57.84,
+      "p75": 81.88,
+      "p90": 102.93
+    },
+    "single_unit_line_share_pct": 78.65
+  },
+  "primary_comparison": {
+    "lines_per_basket": {
+      "mean": {
+        "observed": 10.21,
+        "synthetic": 10.12,
+        "difference": -0.09,
+        "relative_error_pct": -0.9
+      },
+      "p10": {
+        "observed": 2,
+        "synthetic": 5,
+        "difference": 3,
+        "relative_error_pct": 150.0
+      },
+      "p25": {
+        "observed": 3,
+        "synthetic": 7,
+        "difference": 4,
+        "relative_error_pct": 133.3
+      },
+      "p50": {
+        "observed": 7,
+        "synthetic": 10,
+        "difference": 3,
+        "relative_error_pct": 42.9
+      },
+      "p75": {
+        "observed": 14,
+        "synthetic": 13,
+        "difference": -1,
+        "relative_error_pct": -7.1
+      },
+      "p90": {
+        "observed": 24,
+        "synthetic": 16,
+        "difference": -8,
+        "relative_error_pct": -33.3
+      }
+    },
+    "units_per_basket": {
+      "mean": {
+        "observed": 12.74,
+        "synthetic": 12.96,
+        "difference": 0.22,
+        "relative_error_pct": 1.7
+      },
+      "p10": {
+        "observed": 2.0,
+        "synthetic": 5.0,
+        "difference": 3.0,
+        "relative_error_pct": 150.0
+      },
+      "p25": {
+        "observed": 4.0,
+        "synthetic": 8.0,
+        "difference": 4.0,
+        "relative_error_pct": 100.0
+      },
+      "p50": {
+        "observed": 8.0,
+        "synthetic": 13.0,
+        "difference": 5.0,
+        "relative_error_pct": 62.5
+      },
+      "p75": {
+        "observed": 17.0,
+        "synthetic": 17.0,
+        "difference": 0.0,
+        "relative_error_pct": 0.0
+      },
+      "p90": {
+        "observed": 29.0,
+        "synthetic": 21.0,
+        "difference": -8.0,
+        "relative_error_pct": -27.6
+      }
+    },
+    "food_spend_target_month_usd": {
+      "mean": {
+        "observed": 44.68,
+        "synthetic": 61.93,
+        "difference": 17.25,
+        "relative_error_pct": 38.6
+      },
+      "p10": {
+        "observed": 5.84,
+        "synthetic": 24.21,
+        "difference": 18.37,
+        "relative_error_pct": 314.6
+      },
+      "p25": {
+        "observed": 13.08,
+        "synthetic": 39.28,
+        "difference": 26.2,
+        "relative_error_pct": 200.3
+      },
+      "p50": {
+        "observed": 27.76,
+        "synthetic": 57.84,
+        "difference": 30.08,
+        "relative_error_pct": 108.4
+      },
+      "p75": {
+        "observed": 59.18,
+        "synthetic": 81.88,
+        "difference": 22.7,
+        "relative_error_pct": 38.4
+      },
+      "p90": {
+        "observed": 108.11,
+        "synthetic": 102.93,
+        "difference": -5.18,
+        "relative_error_pct": -4.8
+      }
+    },
+    "single_unit_line_share_pct": {
+      "observed": 84.67,
+      "synthetic": 78.65,
+      "difference_percentage_points": -6.02
+    },
+    "one_to_three_line_basket_share_pct": {
+      "observed": 27.22,
+      "synthetic": 4.98,
+      "difference_percentage_points": -22.24
+    },
+    "one_to_three_unit_basket_share_pct": {
+      "observed": 22.43,
+      "synthetic": 4.32,
+      "difference_percentage_points": -18.11
+    },
+    "twenty_five_plus_unit_basket_share_pct": {
+      "observed": 14.69,
+      "synthetic": 3.65,
+      "difference_percentage_points": -11.04
+    }
+  }
+}

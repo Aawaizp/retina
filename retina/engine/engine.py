@@ -222,7 +222,9 @@ class Simulation:
         for item in iv.active(day, "remove"):              # delisted: nothing left on the shelf
             inv.stock[item["idx"]] = 0
         mind = getattr(self, "mind", None)
-        if ENGINE == "realtime" and (mind is None or mind.mode == "student"):   # every shopper on one clock
+        if (ENGINE == "realtime" and mind is None) or (mind is not None and mind.mode == "student"):
+            # Student NPCs always act on the shared store clock, including stores
+            # whose rule-only profile still defaults to the classic engine.
             from .realtime import simulate_day_realtime
             sales_today, misses_today, stock_today, effects_today, trips_today = simulate_day_realtime(
                 day, store, self.shoppers, self.params, prices_g, regular, promo_g, self.tables, inv, mind,

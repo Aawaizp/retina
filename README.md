@@ -1,7 +1,7 @@
 # RETINA — Retail Intelligence & Agent Simulation
 
-**A synthetic retail data factory.** Thousands of NPC shoppers with *real* habits walk a virtual
-supermarket stocked with *real* products and *real* shelf prices, and every decision they make
+**A synthetic retail data factory.** NPC shoppers with modeled habits walk a virtual
+supermarket stocked with public or user-supplied product inputs, and every decision they make
 becomes product-level data: receipts, trips, stockouts, promotions, waste, profit.
 
 > Every row RETINA produces is **SIMULATED**. No real customer is in the data. Every input carries
@@ -18,8 +18,26 @@ be checked against the right answer.
 
 ## Results at a glance
 
-**Scorecard: 17 / 18 checks pass** against real data (Instacart orders, Open Prices receipts,
-retail research). The one FAIL is shown on purpose — it is the next thing to improve.
+**Current live-studio diagnostic:** We compared 301 paid NPC baskets with 4,926 paid,
+receipt-observed super-store food purchases in the [USDA FoodAPS public-use survey](https://www.ers.usda.gov/data-products/foodaps-national-household-food-acquisition-and-purchase-survey).
+FoodAPS household weights are applied to observed purchase events. The NPCs have a similar
+*mean* food basket size (10.12 vs 10.21 product lines), but far too few small and large trips:
+1–3 food-line baskets are 4.98% vs 27.22% observed, and 25+ food-unit baskets are 3.65% vs
+14.69%. Median food spend is $57.84 vs roughly $27.76 after a broad food CPI adjustment.
+This 2012–13 survey is not Walmart data; the comparison does not measure walking or rejected
+shelf offers, and it does not establish store-specific realism. See the
+[locally reproducible comparison](data/reference/foodaps/retina_supercenter_benchmark.md).
+
+An optional FoodAPS trip-size prior is now being tested for the generic supercenter. In a
+separate two-day checkout trial, 1–3-line food baskets rose from 8.05% to 27.42% (comparison
+households: 28.50%), while 25+-line baskets rose from 0% to only 1.64% (comparison households:
+10.75%). The mean fell below the comparison mean. This prior remains off by default; see the
+[calibration trial](data/reference/foodaps/trip_size_evaluation.md).
+
+**Historical engine scorecard (non-commercial portfolio research): 17 / 18 checks pass**
+against Instacart orders, Open Prices receipts and retail research. It predates the current
+student-driven live studio and its 1:10 shopper sample; it is not a validation of current
+live output or of any particular store.
 
 **Realism against real baskets the simulator never saw** (held-out Instacart half, aisle level):
 
@@ -40,8 +58,8 @@ retail research). The one FAIL is shown on purpose — it is the next thing to i
 | Picks a deal when offered | 34% | 23% | 3% |
 
 LLM shoppers react to price realistically but are less loyal and more deal-driven than real
-shoppers, so **the statistical engine makes the dataset** and LLMs are used as a focus-group and
-explanation layer.
+shoppers. The live studio uses local student models for shopper decisions and store rules for
+movement, inventory and checkout; it does not call an LLM for every NPC action.
 
 ---
 
@@ -69,16 +87,66 @@ plays each day and then loads the next one by itself.
 
 ---
 
+## Live data studio
+
+Run `retina app` and open `http://localhost:8000`. The **Demo** page loops a few illustrative
+shoppers without writing data. **Data studio** runs the actual store simulation: NPCs arrive,
+walk, decide at shelves and pay on an accelerated store clock. Choose slow, normal or fast speed,
+and pause or resume the run at any time. The demo and studio use the same animated human shopper
+renderer. The floor draws at most 14 concurrent characters for readability; that display limit
+does not remove shoppers or actions from the simulation.
+
+The website starts fresh runs with `--scale 0.1`: one simulated NPC represents ten expected
+shoppers. Raw sales and visit CSV rows describe individual simulated NPCs. Their `sample_weight`
+is 10. `estimated_store_*` columns in the aggregate business tables expand sample totals; they
+are estimates, not ten independently observed receipts. Rare product estimates can still be
+noisy and need validation against store data when available. Inventory and unprefixed sales
+columns stay at the simulated NPC scale. If the daily NPC arrival limit is reached, full-store
+estimates for that day are blank because arrivals may have been clipped.
+
+Store profiles supply the product range, opening hours, visitor volume, checkout lanes and floor
+layout. Add your store and upload its product CSV for store-specific inputs; the example profiles
+are generic formats. Missing details remain estimates. No retailer website scraping is required.
+
 ## Thinking NPCs (v2)
 
-**Make data with the student model** - every NPC is handled by the trained student: it chooses every
-product they take from the shelf (~96% of sales lines; the rest are impulse buys of deals and empty
-shelves, marked in `decided_by`). The shopping list comes from habits calibrated on public data, and the
-store itself - traffic, prices, stock, checkout - is the engine. No LLM, no key, no cost; choose how
-much data:
+**Make data with the student models.** In a real-time store, the list model gives each NPC goals on
+entry. The student receives household requirements without a rule-generated product list. After every shelf, it scores the remaining goals again using the remaining budget,
+prices and stock; walking distance helps select the next aisle. At the shelf, the product model
+chooses from what is available at that moment. A local basket-completion model can choose checkout
+before the remaining aisles. The store engine enforces stock, the trip budget for optional items,
+and payment.
+When a local student cannot answer, store rules provide a fallback in the same in-store action
+loop. Each NPC chooses its next aisle after a shelf; its entire walk is not fixed on entry.
+Each trip also has explicit **NPC requirements** built from household size, time since the last trip,
+items depleted at home, basket goal and budget. A few depleted usual products become essentials.
+The rule brain puts them on the list; the student brain includes them among its candidate goals and
+visits their aisles before considering early checkout or browsing. The followed shopper panel shows
+these requirements, and exported `trips.csv` records `essential_items` and `essential_items_bought`.
+The Data studio page selects Student NPCs when both local list and shelf models are available.
+`checkout_events.csv` records the list and shelf brain for each paid item. Python advances the
+clock, checks stock and money, and writes the NPC's paid actions to CSV.
+As they walk, NPCs can also notice an unplanned product in a visible aisle. The list student
+rescores products it left off the entry list using current prices, stock and budget; the shelf
+student chooses what to buy when the NPC reaches that aisle. The chance that seeing a shelf
+creates a new stop is ESTIMATED from the store profile's `impulse_rate`.
+The live feed shows aisle, browse, product and early checkout choices. Student runs make no LLM calls.
+
+Train the checkout model once from local Instacart prior orders:
 
 ```powershell
-retina --mind student --period 1m        # 1w, 2w, 1m, 3m, 6m or 1y (a year: ~15 min for the supermarket)
+retina trip-end --train
+```
+
+The model uses one ONNX inference after each eligible shelf. Its labels are online order lengths;
+they do not directly observe physical aisles or abandoned shopping intentions. See
+`models/trip_end_student/MODEL_CARD.md` for validation, the estimated in-store calibration, and limits.
+
+Visit timing is still rule driven. Browsing and early checkout use local model scores with estimated
+in-store calibration; physical trip labels would improve them. All output is simulated data.
+
+```powershell
+retina --mind student --period 1m        # 1w, 2w, 1m, 3m, 6m or 1y
 retina --mind student --period 1y --store convenience --reset
 retina --mind student --report           # what the student shoppers did
 ```
@@ -181,27 +249,65 @@ retina release --version test --days 7 --stores convenience     # -> dist/test/
 
 ```powershell
 cd web; npm install; npm run build; cd ..     # once: build the website
-retina app                                    # then open http://localhost:8000 -> Generate
+retina app                                    # then open http://localhost:8000
 ```
 
-Choose the store, the shoppers (every NPC decided by the student model, or engine only) and how much
-data - 1 week, 1 month, 3 months, 6 months, 1 year or any number of days (1-365) - press Generate,
-watch the progress (day 12 of 30), then download **business-ready sales data** (every run, also from
+The landing page shows a slow, repeating 3D demo of NPCs walking, shopping and checking out.
+It is illustrative and saves no data. Choose **Data studio** for the live student NPC run that
+generates downloadable CSVs.
+
+**Configure a US store in the local app.** Open **Add a store**, enter its type, opening hours,
+weekly shoppers, checkout lanes and first simulated date. Set that date to match any observed
+store totals you plan to compare. A product CSV is optional: without one, the app uses a generic
+US catalog and labels the store assortment as estimated. With a CSV, the uploaded products are the
+entire assortment and missing aisles become recorded lost demand. The template's product columns
+are `name, brand, category` (or `aisle`), `price, pack_size`; prices are USD. Optional
+`hour,shoppers` counts for a typical weekday control when NPCs arrive. Without those counts, the
+app estimates an hourly pattern. The app checks the file, creates a separate store profile, and
+lets you select it for a run. No retailer website scrape is required.
+
+In the local app, one live NPC system uses local student models for lists, aisles and shelves.
+Store rules handle walking time, stock, budgets and checkout; no per-action LLM call is needed.
+Set the first store time each day and a daily NPC limit. The clock then advances automatically
+while the 3D store follows decisions as they occur. `npc_actions.csv` records each live aisle
+move and shelf choice. `sales.csv` and `visits.csv` gain rows only when an NPC pays.
+The business tables are assembled from the completed day's receipts.
+The profile and dataset card identify user-provided facts and estimated settings. Sales are always
+synthetic, even when the store details came from a real store.
+
+From the command line, `retina --store convenience --mind fast --realtime --payments --days 1`
+does the same rule-driven run at full speed. Use `--mind student` for local model decisions or
+`--live --view` to pace the store while watching it.
+
+Choose the store, start time, NPC limit and how much data - 1 week, 1 month, 3 months, 6 months,
+1 year or any number of days (1-365) - open the live store, watch the clock and paid rows, then
+download **business-ready sales data** (every run, also from
 the command line, writes them to `data/live/<run>/business/`):
 
 | file | one row per | for |
 |---|---|---|
 | `sales_transactions.csv` | product line sold | sales, discounts, cost, gross profit, basket analysis |
 | `baskets.csv` | receipt | customer, arrival / checkout time, items, total |
-| `daily_product_sales.csv` | product x day | demand forecasting: units, sales, promotion, lost sales |
+| `daily_product_sales.csv` | every carried product x completed day, including zero-sale rows | demand forecasting: units, sales, shelf price, promotion, lost sales |
 | `inventory_daily.csv` | product x day with a stock movement | opening, delivered, wasted, sold, closing, out of stock |
 | `daily_store_kpis.csv` | day | customers, sales, margin, basket, stock-outs, waste, whole-store stock value |
 | `products.csv` / `customers.csv` / `promotions.csv` | product / customer / promotion | masters and the promotion calendar |
 
-Plus `DATA_DICTIONARY.md` and `DATASET_CARD.md`; the simulation logs come in `extra/`. All tables agree
-to the cent (tested): the same net sales in transactions, baskets, daily sales, KPIs and customers, and
-every stock row balances (opening - waste + delivered - sold = closing). A year of the supermarket takes ~15 minutes; CSV zips
-about 10x (25 days: 56 MB of CSV -> 6 MB ZIP). The API is at http://localhost:8000/docs.
+Plus `DATA_DICTIONARY.md`, `DATASET_CARD.md`, `VALIDATION.json` and `VALIDATION.md`; the simulation
+logs come in `extra/`. The validation report checks receipt totals, product and customer links,
+the complete product-by-day panel, and stock movement balances. It says **unverified** for realism
+until observed store totals are supplied. A long run with a large assortment can produce a large
+product-by-day CSV. The API is at http://localhost:8000/docs.
+
+**Compare with observed store totals.** After a run, Data Studio accepts one or both UTF-8 CSVs:
+`daily_store_kpis.csv` with `date,transactions` and optional `net_sales`, and
+`daily_product_sales.csv` with `date,product_id,units_sold` and optional `net_sales`. Dates use
+`YYYY-MM-DD`; product IDs must match the run's product IDs. These inputs are full-store daily
+totals. The report compares them with `estimated_store_*` columns on exact matching dates and
+product IDs and shows error and coverage. Uploaded reference files stay outside the downloadable
+synthetic-data ZIP. For files larger than the website's 10 MB upload limit, place the CSVs in a
+folder and run `retina validate --run <run-name> --reference <folder>`. The report describes
+agreement with supplied totals, not proof that individual NPC behavior matches real people.
 
 **Docker:**
 ```powershell
@@ -397,6 +503,7 @@ web/          the website (v2, later)
 | Open Prices (Open Food Facts) | US shelf prices, promotions, receipts | ODbL 1.0 |
 | Open Food Facts family | product names, brands, categories, pack sizes | ODbL 1.0 |
 | Instacart Online Grocery Shopping Dataset 2017 | shopper habits, aisle shares, pairs (statistics only) | non-commercial use; raw files not redistributed |
+| USDA FoodAPS public-use survey | basket and spending diagnostic; optional generic-supercenter trip-size prior | public-use files; cite USDA ERS |
 | U.S. BLS (CPI, Consumer Expenditure), EIA (RECS 2024) | price changes, food budgets, household sizes | public domain |
 | FMI, USDA ERS (ATUS) | store footfall, weekday pattern | published statistics |
 | Gruen, Corsten & Bharadwaj 2002; Van Heerde et al. 2004; Bijmolt et al. 2005 | stockout reactions, promotion effects, elasticity | research |
@@ -410,6 +517,8 @@ never presented as any real retailer.
 ## Honest limits
 
 - Shopper habits come from online grocery orders (Instacart, 2017); a physical store may differ.
+- The saved live supercenter has too few small and large food baskets relative to FoodAPS. The optional trip-size trial improves small baskets but still misses large ones.
+- The experimental local shelf SKIP model is disabled by default: only 57 of 4,608 LLM teacher labels were SKIPs, and its held-out skip probabilities were less well calibrated than a constant-rate baseline. Receipts do not show viewed and rejected shelf offers.
 - 59% of products have estimated popularity; the assortment mixes retailers and years.
 - No seasonality or holidays yet; walking and checkout times are estimated.
 - Re-buying the same product on the very next trip is too weak (13% vs real 28%).

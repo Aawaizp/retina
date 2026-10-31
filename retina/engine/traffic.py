@@ -76,6 +76,13 @@ def expected_npcs(day):
 def npcs_today(day):
     """How many NPCs walk in today: the schedule plus normal day-to-day luck. Its own dice, so a
     what-if experiment never changes how many people come."""
+    count = uncapped_npcs_today(day)
+    limit = TRAFFIC.get("npc_limit")
+    return min(count, int(limit)) if limit else count
+
+
+def uncapped_npcs_today(day):
+    """The reproducible draw before an optional NPC cap and start-time filter."""
     return int(stream(STREAM_TRAFFIC, day).poisson(expected_npcs(day)))
 
 

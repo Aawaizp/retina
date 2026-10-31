@@ -38,14 +38,27 @@ class ListStudent:
         prob = np.asarray(outs[1])                                 # [n, 2] class probabilities (no zipmap)
         return prob[:, 1] if prob.ndim == 2 else prob
 
-    def plan(self, scenario, rng):
+    def plan(self, scenario, rng, target_lines=None, required_products=()):
         """[(candidate, qty)] for today's list."""
         cands = scenario["candidates"]
         if not cands:
             return []
         X = scenario_matrix(scenario, self.rebuy)
         p = policy(self.probabilities(X), X, self.shift, self.habit)
-        pick = rng.random(len(p)) < p
+        if target_lines is None:
+            pick = rng.random(len(p)) < p
+        else:
+            # The observed trip need supplies only basket size. The trained
+            # student still ranks which of this NPC's products belong in it.
+            count = min(max(1, int(target_lines)), len(p))
+            scores = np.log(np.clip(p, 1e-6, 1 - 1e-6) / np.clip(1 - p, 1e-6, 1))
+            scores += rng.gumbel(size=len(p))
+            # A household staple that has run out is part of the need, not an
+            # extra line added after the model has filled the basket.
+            must_buy = set(required_products)
+            scores += np.asarray([100.0 if c["product"] in must_buy else 0.0 for c in cands])
+            pick = np.zeros(len(p), dtype=bool)
+            pick[np.argpartition(scores, -count)[-count:]] = True
         if not pick.any():
             return []
         q = np.asarray(self.qty.run(None, {self.qty.get_inputs()[0].name: X[pick]})[0]).ravel()

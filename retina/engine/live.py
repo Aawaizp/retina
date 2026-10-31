@@ -21,6 +21,7 @@ Every row is SIMULATED.
 """
 
 import argparse
+import csv
 import json
 import os
 import pickle
@@ -66,16 +67,20 @@ def clock(minutes):
     return [f"{int(x // 60):02d}:{int(x % 60):02d}" for x in m]
 
 
-def open_store(scale, per_week):
+def open_store(scale, per_week, npc_limit=None, seed=None):
     """A new store with its NPC pool. Traffic settings are saved with it."""
     if not traffic.enabled():
         raise SystemExit("This store profile has no 'traffic' section - live mode needs one.")
-    if scale:
-        TRAFFIC["npc_scale"] = scale
     if per_week:
         TRAFFIC["real_shoppers_per_week"] = per_week
+    if npc_limit:
+        # Keep the regular-customer pool small too, then cap unusually busy days.
+        TRAFFIC["npc_scale"] = min(1.0, npc_limit / max(traffic.real_per_day(0), 1.0))
+        TRAFFIC["npc_limit"] = npc_limit
+    elif scale:
+        TRAFFIC["npc_scale"] = scale
     print(f"Opening a new store: {PROFILE['name']} (building shelves, floor and NPCs)...")
-    sim = Simulation(verbose=False)
+    sim = Simulation(seed=seed, verbose=False)
     sim.traffic_settings = dict(TRAFFIC)
     traffic.summarize_traffic(len(sim.shoppers.shopper_id))
     return sim
@@ -181,58 +186,225 @@ def write_view(sim, day, events, first_time=False):
             pass
 
 
-class LiveStream:
-    """--live: the real-time engine's events, written as they happen to view/stream.ndjson (one JSON per
-    line) for the 3D store page; the store's floor plan goes to view/layout.json first. pace() holds the
-    clock so that store minutes pass at the page's speed (view/speed.txt), unless view/nowait exists."""
-    DEFAULT_SPEED = 15.0                          # store minutes per real second (a day ~ 70 s)
+class CheckoutCSV:
+    """Append a product line at the moment a shopper pays, including in full-speed runs."""
+    payments_only = True
 
-    def __init__(self, folder, sim):
+    def __init__(self, folder):
         folder.mkdir(parents=True, exist_ok=True)
-        for old in ("stream.ndjson", "layout.json", "watched.txt", "nowait", "speed.txt"):
+        checkout_path = folder / "checkout_events.csv"
+        fresh = not checkout_path.exists()
+        self.checkout = open(checkout_path, "a", encoding="utf-8", newline="")
+        self.checkout_writer = csv.writer(self.checkout)
+        if fresh:
+            self.checkout_writer.writerow(["date", "pay_minute", "trip_id", "customer_id", "shopper_id",
+                                           "product_id", "product_name", "quantity", "unit_price", "line_total",
+                                           "on_promo", "list_brain", "shelf_brain", "data_label"])
+            self.provenance_columns = True
+        else:
+            with open(checkout_path, encoding="utf-8", newline="") as existing:
+                self.provenance_columns = "list_brain" in next(csv.reader(existing), [])
+        self.date = ""
+
+    def __call__(self, kind, minute, data):
+        if kind == "day":
+            self.date = data["date"]
+        if kind == "pay":
+            for line in data["lines"]:
+                row = [self.date, round(float(minute), 2), data["trip_id"], data["customer"],
+                       data["shopper"], csvsafe.neutralise_text(line.get("product_id", "")),
+                       csvsafe.neutralise_text(line["name"]), line["qty"], line["price"],
+                       round(line["qty"] * line["price"], 2), int(line["promo"])]
+                if self.provenance_columns:
+                    row.extend([data.get("list_brain", "rule"), line.get("mind", "rule")])
+                self.checkout_writer.writerow([*row, "SIMULATED"])
+            self.checkout.flush()
+
+    def close(self):
+        self.checkout.flush()
+        self.checkout.close()
+
+
+class LiveStream(CheckoutCSV):
+    """--live: stream actions as they occur on a fixed, automatically advancing store clock."""
+    payments_only = False
+    MINUTES_PER_SECOND = 5.0
+
+    def __init__(self, folder, sim, clock_rate=None):
+        folder.mkdir(parents=True, exist_ok=True)
+        for old in ("stream.ndjson", "layout.json", "watched.txt", "nowait"):
             (folder / old).unlink(missing_ok=True)
+        run_folder = folder.parent if folder.name == "view" else folder
+        super().__init__(run_folder)
         self.sim, self.folder, self.file = sim, folder, open(folder / "stream.ndjson", "a", encoding="utf-8")
-        self.day, self.base, self.speed, self.checked = None, None, self.DEFAULT_SPEED, 0.0
+        self.day, self.base, self.wall_started_at = None, None, None
+        self.rate = float(clock_rate or self.MINUTES_PER_SECOND)
+        self.clock_minute = 0.0
+        self.wall_last = None
+        self.paused = False
+        self.clock_written_at = 0.0
+        self.event_day = 0
+        self.entered = {}
+        self.sales, self.sales_writer = self._open_csv(run_folder / "sales.csv", [
+            "date", "paid_at", "transaction_id", "customer_id", "product_id", "product_name",
+            "quantity", "unit_price_usd", "line_total_usd", "on_promo", "brain", "sample_weight", "data_label"])
+        self.visits, self.visits_writer = self._open_csv(run_folder / "visits.csv", [
+            "date", "transaction_id", "customer_id", "entered_at", "paid_at", "checkout_lane",
+            "items", "product_lines", "total_usd", "brain", "sample_weight", "data_label"])
+        self.actions, self.actions_writer = self._open_csv(run_folder / "npc_actions.csv", [
+            "date", "store_time", "transaction_id", "customer_id", "action", "aisle",
+            "wanted_product_id", "wanted_product_name", "chosen_product_id", "chosen_product_name", "brain",
+            "reason", "stock_seen", "data_label"])
+
+    @staticmethod
+    def _open_csv(path, header):
+        fresh = not path.exists()
+        handle = open(path, "a", encoding="utf-8", newline="")
+        writer = csv.writer(handle)
+        if fresh:
+            writer.writerow(header)
+            handle.flush()
+        return handle, writer
+
+    @staticmethod
+    def _time(minute):
+        seconds = int(round(float(minute) * 60))
+        return f"{seconds // 3600:02d}:{seconds // 60 % 60:02d}:{seconds % 60:02d}"
+
+    @staticmethod
+    def _trip(day, shopper):
+        return f"D{int(day):03d}-S{shopper:04d}"
+
+    def _product_id(self, index):
+        if index is None or int(index) < 0:
+            return ""
+        products = getattr(getattr(self.sim, "store", None), "products", None)
+        if products is None:
+            return str(index)
+        return csvsafe.neutralise_text(str(products["product_id"].iat[int(index)]))
+
+    def _product_name(self, index):
+        if index is None or int(index) < 0:
+            return ""
+        products = getattr(getattr(self.sim, "store", None), "products", None)
+        return csvsafe.neutralise_text(str(products["product_name"].iat[int(index)])) if products is not None else ""
 
     def __call__(self, kind, minute, data):
         from . import replay
+        super().__call__(kind, minute, data)
+        if kind == "day":
+            self.event_day = int(data["day"])
+        if kind == "enter":
+            self.entered[data["shopper"]] = minute
+        elif kind == "move":
+            self.actions_writer.writerow([self.date, self._time(minute),
+                self._trip(self.event_day, data["shopper"]), f"C{data['shopper']:05d}", "move",
+                csvsafe.neutralise_text(data["to_name"]), "", "", "", "", data["brain"],
+                "choose next aisle", "", "SIMULATED"])
+            self.actions.flush()
+        elif kind == "shelf":
+            for choice in data["decisions"]:
+                product = int(choice.get("product", -1))
+                self.actions_writer.writerow([self.date, self._time(minute),
+                    self._trip(self.event_day, data["shopper"]), f"C{data['shopper']:05d}",
+                    choice.get("action", "pick" if product >= 0 else "skip"),
+                    csvsafe.neutralise_text(data.get("aisle_name", "")),
+                    self._product_id(choice.get("wanted", product)),
+                    self._product_name(choice.get("wanted", product)),
+                    self._product_id(product),
+                    csvsafe.neutralise_text(choice.get("name", "")) if product >= 0 else "",
+                    choice.get("mind", "rule"), csvsafe.neutralise_text(choice.get("why", "")),
+                    choice.get("stock_before", ""),
+                    "SIMULATED"])
+            self.actions.flush()
+        elif kind == "pay":
+            items = sum(int(line["qty"]) for line in data["lines"])
+            brains = sorted({line.get("mind", "rule") for line in data["lines"]})
+            self.visits_writer.writerow([self.date, data.get("trip_id", self._trip(self.event_day, data["shopper"])),
+                data.get("customer", f"C{data['shopper']:05d}"),
+                self._time(self.entered.pop(data["shopper"], minute)), self._time(minute), data.get("lane", ""),
+                items, len(data["lines"]), data.get("total", 0),
+                "+".join(brains) or data.get("list_brain", "rule"),
+                round(1 / float(TRAFFIC["npc_scale"]), 4), "SIMULATED"])
+            for line in data["lines"]:
+                self.sales_writer.writerow([self.date, self._time(minute), data["trip_id"], data["customer"],
+                    csvsafe.neutralise_text(line.get("product_id", "")), csvsafe.neutralise_text(line["name"]),
+                    line["qty"], line["price"], round(line["qty"] * line["price"], 2),
+                    int(line["promo"]), line.get("mind", "rule"),
+                    round(1 / float(TRAFFIC["npc_scale"]), 4), "SIMULATED"])
+            self.sales.flush()
+            self.visits.flush()
         if kind == "day" and not (self.folder / "layout.json").exists():   # lanes open per hour: known now
             layout = replay.build_layout(self.sim.store)
             (self.folder / "layout.json").write_text(json.dumps({"store": PROFILE["name"], "layout": layout},
                                                                 default=replay.plain), encoding="utf-8")
         self.file.write(json.dumps({"k": kind, "t": round(float(minute), 2), **data}, separators=(",", ":"),
                                    default=replay.plain) + "\n")
-        if kind in ("pay", "day"):
-            self.file.flush()
+        self.file.flush()
+
+    def _clock(self, force=False):
+        now = time.time()
+        if not force and now - self.clock_written_at < 0.25:
+            return
+        value = {"day": self.day, "minute": round(self.clock_minute, 4),
+                 "rate": self.rate, "paused": self.paused, "wall_at": now}
+        path = self.folder / "clock.json"
+        tmp = self.folder / "clock.tmp"
+        payload = json.dumps(value)
+        try:
+            tmp.write_text(payload, encoding="utf-8")
+            try:
+                tmp.replace(path)
+            except OSError:
+                # Some Windows sync/sandbox folders permit writes but deny an atomic rename.
+                path.write_text(payload, encoding="utf-8")
+            self.clock_written_at = now
+        except OSError:
+            # Cloud sync or a reader can briefly lock a file on Windows. The next tick retries.
+            pass
 
     def pace(self, day, minute):
-        now = time.time()
-        if now - self.checked > 1.0:                           # the page may change the speed, or stop waiting
-            self.checked = now
-            self.file.flush()
+        if day != self.day or self.base is None:
+            self.day, self.base = day, (time.monotonic(), minute)
+            self.wall_started_at = time.time()
+            self.clock_minute = float(minute)
+            self.wall_last = time.monotonic()
+            self._clock(force=True)
+            return
+        if self.wall_last is None:
+            self.wall_last = self.base[0]
+            self.rate = float(self.MINUTES_PER_SECOND)
+        target = float(minute)
+        while self.clock_minute < target:
+            now = time.monotonic()
+            elapsed = max(0.0, now - self.wall_last)
+            self.wall_last = now
+            if not self.paused:
+                self.clock_minute = min(target, self.clock_minute + elapsed * self.rate)
+            try:
+                control = json.loads((self.folder / "control.json").read_text(encoding="utf-8"))
+                candidate = float(control.get("rate", self.rate))
+                if 0 < candidate <= 120:
+                    self.rate = candidate
+                self.paused = bool(control.get("paused", False))
+            except (OSError, ValueError, TypeError):
+                pass
             if (self.folder / "nowait").exists():
-                self.speed = None
-            else:
-                try:
-                    self.speed = max(0.5, float((self.folder / "speed.txt").read_text(encoding="utf-8")))
-                except (OSError, ValueError):
-                    pass
-        if self.speed is None:
-            return
-        if day != self.day or self.base is None:               # a new day: the clock starts at opening
-            self.day, self.base = day, (now, minute)
-            return
-        due = self.base[0] + (minute - self.base[1]) / self.speed
-        if due - now > 2.0:                                    # the speed changed: start counting again
-            self.base, due = (now, minute), now
-        while due > time.time():
-            time.sleep(min(0.2, due - time.time()))
-            if time.time() - self.checked > 1.0:
-                break
+                self.clock_minute = target
+                self.paused = False
+            self._clock()
+            if self.clock_minute >= target:
+                return
+            remaining = (target - self.clock_minute) / self.rate if not self.paused else 0.1
+            time.sleep(max(0.0, min(0.1, remaining)))
 
     def close(self):
         self.file.flush()
         self.file.close()
+        for handle in (self.sales, self.visits, self.actions):
+            handle.flush()
+            handle.close()
+        super().close()
 
 
 SYNC_PATIENCE = 15 * 60                     # seconds without any sign of the page before going on alone
@@ -280,19 +452,24 @@ def status(sim):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Run the RETINA store day by day.")
     ap.add_argument("--days", type=int, default=1, help="how many days to simulate now (default 1)")
+    ap.add_argument("--seed", type=int, help="new store only: random seed for repeatable results")
     ap.add_argument("--watch", action="store_true", help="print each hour slowly, as it happens")
     ap.add_argument("--pace", type=float, default=0.4, help="seconds per hour with --watch")
     ap.add_argument("--status", action="store_true", help="show where the store is and stop")
     ap.add_argument("--reset", action="store_true", help="close the saved store and open a new one")
     ap.add_argument("--scale", type=float, help="new store only: NPCs per real shopper (0.1 = 1 in 10)")
     ap.add_argument("--per-week", type=int, help="new store only: real shoppers a week")
+    ap.add_argument("--npc-limit", type=int, help="new store only: maximum simulated NPCs per day (changes sample weight)")
+    ap.add_argument("--start-time", help="first store time each day, HH:MM; earlier arrivals are excluded")
+    ap.add_argument("--clock-rate", type=float, default=5.0, help="store minutes per real second in live mode")
     ap.add_argument("--view", action="store_true", help="write view.html: the NPCs walking, day by day")
     ap.add_argument("--wait", type=float, default=0, help="seconds to wait between days (to watch --view)")
     ap.add_argument("--sync-view", action="store_true",
                     help="with --view: make the next day only after the 3D page has played this one")
     ap.add_argument("--live", action="store_true",
-                    help="real-time stores: stream every NPC's moves and sales as they happen (view/stream.ndjson), "
-                         "the clock paced for watching (view/speed.txt, store minutes per second; view/nowait = full speed)")
+                    help="real-time stores: stream every NPC move and decision on an automatically paced store clock")
+    ap.add_argument("--payments", action="store_true",
+                    help="real-time stores: append each paid product line immediately without pacing the clock")
     ap.add_argument("--mind", choices=("fast", "student", "mix", "llm"), default="fast",
                     help="fast = engine only; student = EVERY NPC decides with the trained student (no LLM); "
                          "mix = a panel of thinking NPCs; llm = every NPC asks the LLM (small runs)")
@@ -307,8 +484,20 @@ def main(argv=None):
     ap.add_argument("--student", choices=("auto", "off", "only"), default="auto",
                     help="mix runs: auto = a trained student decides when sure; off; only = student, no LLM")
     args = ap.parse_args(argv)
+    if not 0 < args.clock_rate <= 120:
+        raise SystemExit("--clock-rate must be between 0 and 120 store minutes per real second")
     if args.period:
         args.days = PERIODS[args.period]
+    if args.start_time:
+        try:
+            hour, minute = map(int, args.start_time.split(":"))
+        except ValueError as exc:
+            raise SystemExit("--start-time must be HH:MM") from exc
+        if not (0 <= hour < 24 and 0 <= minute < 60):
+            raise SystemExit("--start-time must be HH:MM")
+        config.LIVE_START_MINUTE = hour * 60 + minute
+    else:
+        config.LIVE_START_MINUTE = 0
     use_run_dir(args.mind)
 
     if args.reset and LIVE_DIR.exists():
@@ -316,19 +505,15 @@ def main(argv=None):
         print(f"Closed the old store ({shown(LIVE_DIR)} removed).")
     LIVE_DIR.mkdir(parents=True, exist_ok=True)
     if STATE.exists():
-        if args.scale or args.per_week:
-            print("Note: --scale / --per-week only apply to a new store (use --reset). Ignored.")
+        if args.scale or args.per_week or args.npc_limit or args.seed is not None:
+            print("Note: --scale / --per-week / --npc-limit / --seed only apply to a new store (use --reset). Ignored.")
         sim = load_store()
     else:
-        sim = open_store(args.scale, args.per_week)
+        sim = open_store(args.scale, args.per_week, args.npc_limit, args.seed)
         save_store(sim)
     if args.mind != "fast":
         from retina.mind import run as mind_run
         sim.mind = mind_run.attach(sim, args.mind, LIVE_DIR, args.panel, args.provider, args.model, args.student)
-    if args.live:
-        if config.ENGINE != "realtime":
-            raise SystemExit(f"--live needs a real-time store ({PROFILE['name']} uses the classic engine).")
-        sim.on_event = LiveStream(LIVE_DIR / "view", sim)
     if args.status:
         status(sim)
         return
@@ -345,6 +530,12 @@ def main(argv=None):
         return
     if args.mind != "fast" and not mind_run.check_estimate(sim, days, args.yes):
         return
+    if args.live or args.payments:
+        if config.ENGINE != "realtime":
+            raise SystemExit(f"--live/--payments need a real-time store ({PROFILE['name']} uses the classic engine).")
+        if args.mind not in ("fast", "student"):
+            raise SystemExit("Real-time payment streaming supports --mind fast or student.")
+        sim.on_event = LiveStream(LIVE_DIR / "view", sim, args.clock_rate) if args.live else CheckoutCSV(LIVE_DIR)
     t = time.time()
     first = sim.day
     for k in range(days):
@@ -393,7 +584,13 @@ def main(argv=None):
             if args.wait and k < days - 1:
                 print(f"  (watching day {day + 1} in the browser - next day in {args.wait:.0f}s; Ctrl+C stops safely)")
                 time.sleep(args.wait)
-    business.build(LIVE_DIR, sim)                         # the business-ready tables (business/)
+    if args.live or args.payments:
+        sim.on_event.close()
+    if business.build(LIVE_DIR, sim):                     # the business-ready tables (business/)
+        from .validation import generate_report
+
+        reference = LIVE_DIR / "reference"
+        generate_report(LIVE_DIR / "business", reference if reference.is_dir() else None)
     print(f"\nSaved {days} day(s) ({sim.book.dates[first]:%d %b} to {sim.book.dates[sim.day - 1]:%d %b %Y}) "
           f"in {time.time() - t:.0f}s -> {shown(LIVE_DIR)}. Run again to continue.")
     if args.mind != "fast":

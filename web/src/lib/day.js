@@ -6,6 +6,7 @@ export const REASON = {
   other_store: "will buy it elsewhere", delay: "will buy it next trip", skip: "went without",
   out_of_stock: "shelf was empty", price_switch: "usual one got pricier", delisted_switch: "usual one no longer sold",
   over_budget: "this week's food money is spent", mind_choice: "the student chose it",
+  left_early: "went to checkout before this aisle",
 };
 const WHY = { need: "ran out at home", repeat: "usual item", partner: "goes with the list", new: "new on the list", impulse: "unplanned" };
 export const TRIP = { top_up: "quick top-up", routine: "routine trip", stock_up: "big stock-up" };
@@ -76,6 +77,12 @@ export function describer(pname) {
     const who = `Shopper ${e.shopper}`;
     switch (e.event) {
       case "SHOPPER_ENTER": return `${who} came in (${TRIP[e.mission] || "trip"})`;
+      case "MIND_DECISION": return e.action === "skip"
+        ? `${who} skipped ${short(pname(e.wanted))}${e.why ? ` — ${e.why}` : ""}`
+        : `${who} chose ${short(pname(e.product))}${e.why ? ` — ${e.why}` : ""}`;
+      case "MIND_MOVE": return `${who} chose ${e.to_name || "an aisle"} as the next stop`;
+      case "MIND_BROWSE": return `${who} noticed ${short(pname(e.product))} and browsed ${e.to_name || e.aisle || "a nearby aisle"}`;
+      case "MIND_CHECKOUT": return `${who} headed to checkout with ${e.lines} product${e.lines === 1 ? "" : "s"} in the basket`;
       case "PURCHASE": return `${who} put ${e.merge ? "another " : ""}${short(pname(e.product))}${e.qty > 1 ? " ×" + e.qty : ""} in the basket – ${money(e.price)}${e.promo ? " (deal)" : ""}${WHY[e.route] ? ", " + WHY[e.route] : ""}`;
       case "STOCKOUT": return `${who} found ${short(pname(e.product))} out of stock`;
       case "SUBSTITUTE": return `${who} took ${short(pname(e.product), 26)} instead of ${short(pname(e.instead_of), 26)} (${REASON[e.reason] || e.reason})`;

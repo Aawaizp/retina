@@ -1,0 +1,7 @@
+name,brand,category,price,pack_size,promo_price,popularity,product_id
+Whole Milk,Example Dairy,milk,3.49,1 gal,,120,MILK-001
+Greek Yogurt,Example Dairy,yogurt,5.99,32 oz,4.99,80,YOG-001
+Sparkling Water,Example Drinks,water seltzer sparkling water,4.99,8 x 12 fl oz,,60,WATER-001
+Chocolate Chip Cookies,Example Bakery,cookies cakes,3.99,13 oz,2.99,45,COOKIE-001
+Basmati Rice,Example Pantry,grains rice dried goods,6.49,2 lb,,30,RICE-001
+Toothpaste Mint,Example Care,oral hygiene,2.99,4 oz,,15,PASTE-001

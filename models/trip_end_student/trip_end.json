@@ -1,0 +1,28 @@
+{
+  "version": "trip-end-2026-10-20",
+  "features": [
+    "basket_lines_over_usual",
+    "usual_basket_lines",
+    "basket_lines",
+    "days_since_prior_order"
+  ],
+  "source": "Instacart Market Basket Analysis: prior orders and ordered product lines",
+  "orders": {
+    "train": 63926,
+    "validation": 8045,
+    "test": 8029
+  },
+  "test": {
+    "auc": 0.7629,
+    "brier": 0.0821,
+    "observed_stop_rate": 0.0995,
+    "predicted_stop_rate": 0.0993,
+    "mean_order_lines": 10.05,
+    "onnx_max_diff": 1.8110478905430938e-07
+  },
+  "in_store_scale": 0.1,
+  "in_store_scale_label": "ESTIMATED",
+  "label": "last product line in an observed online order",
+  "max_training_lines": 60,
+  "limit": "No observed in-store checkout timing, physical route, or abandoned intended items. Applied to simulated stores as a basket-completion proxy."
+}
